@@ -1,0 +1,179 @@
+#include <string.h>
+#include "app_keyscan.h"
+#include "co_printf.h"
+#include "gpio.h"
+#include "userhard.h"
+#include "task_keyscan.h"
+
+
+
+/**
+ * @brief  KEYSCAN Configuration
+ * @param  @KEY_MASK     :   KEY_65, KEY_44, KEY_104
+ * @param  @KEY_MODE     :   MODE_FIXED_INTV, MODE_SW_TRIG, MODE_PRESS_TRIG,
+ * @param  @KEY_DTS      :   DTS_10MS, DTS_20MS, DTS_40MS, DTS_80MS, DTS_160MS, DTS_320MS, DTS_640MS, DTS_640MS_2
+ * @param  @KEY_WTS      :   WTS_0MS, WTS_32MS, WTS_64MS, WTS_96MS, WTS_128MS, WTS_160MS, WTS_192MS, WTS_224MS
+ * @param  @KEY_INT      :   INT_DIS, INT_EN
+ * @return Return value
+ * @note   Note
+ * 键盘扫描配置函数
+ */
+void KEYSCAN_Configuration(uint8_t key_mask, uint8_t mode, uint8_t dts, uint8_t wts, bool int_en)
+{
+	NVIC_InitType NVIC_InitStructure;
+	EXTI_InitType EXTI_InitStructure;
+	GPIO_InitType GPIO_InitStructure; 
+	KEYSCAN_InitType KEYSCAN_InitStructure;
+	
+	/* KEYSCAN CLK EN */
+	RCC_EnableAPB2PeriphClk(RCC_APB2_PERIPH_GPIOA | RCC_APB2_PERIPH_GPIOB | RCC_APB2_PERIPH_AFIO, ENABLE);
+	RCC->LSCTRL |= RCC_LSCTRL_KEYSCANEN;
+	
+	/* config GPIO */
+	GPIO_InitStruct(&GPIO_InitStructure);
+	if(key_mask == KEY_65)
+	{
+		GPIO_InitStructure.Pin =     GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6;        
+	}
+	else if(key_mask == KEY_44)
+	{
+		GPIO_InitStructure.Pin =     GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_6;
+	}
+	else
+	{
+		GPIO_InitStructure.Pin = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6;
+	}
+	
+	GPIO_InitStructure.GPIO_Mode = GPIO_MODE_AF_OD;         //开漏输出
+	GPIO_InitStructure.GPIO_Alternate = GPIO_AF5;
+	GPIO_InitPeripheral(GPIOA, &GPIO_InitStructure);
+	
+	GPIO_InitStructure.Pin = 0; //deinit
+	if(key_mask == KEY_65 ||key_mask == KEY_44)
+	{
+		GPIO_InitStructure.Pin = GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10;        
+	}
+	else
+	{
+		GPIO_InitStructure.Pin = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10;
+	}
+	
+	GPIO_InitStructure.GPIO_Mode = GPIO_MODE_AF_OD;         //开漏输出
+	GPIO_InitStructure.GPIO_Alternate = GPIO_AF5;
+	GPIO_InitPeripheral(GPIOB, &GPIO_InitStructure);
+
+	/* config KEYSCAN */
+	KEYSCAN_InitStructure.Mask = key_mask;
+	KEYSCAN_InitStructure.Mode = mode;
+	KEYSCAN_InitStructure.Wts = wts;
+	KEYSCAN_InitStructure.Dts = dts;
+	KEYSCAN_InitStructure.Int_en = int_en;
+	KEYSCAN_Init(&KEYSCAN_InitStructure);
+	/* config intterrupt */
+	if(int_en)
+	{
+		EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
+		EXTI_InitStructure.EXTI_Line = EXTI_LINE13;
+		EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+		EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising_Falling;
+		EXTI_InitPeripheral(&EXTI_InitStructure);
+				
+		NVIC_DisableIRQ(KEYSCAN_IRQn);
+		/* Enable the KEYSCAN Interrupt */
+		NVIC_InitStructure.NVIC_IRQChannel                   = KEYSCAN_IRQn;
+		NVIC_InitStructure.NVIC_IRQChannelPriority           = 3;
+		NVIC_InitStructure.NVIC_IRQChannelCmd                = ENABLE;
+		NVIC_Init(&NVIC_InitStructure);
+		
+		NVIC_EnableIRQ(KEYSCAN_IRQn);
+	}
+	/* Enable KEYSCAN */
+	KEYSCAN_Enable(ENABLE);
+}
+
+//键盘扫描初始化函数
+void ble_keyscan_init(void)
+{
+/* 	co_printf("\nThis is KEYSCAN demo in 17 key mode with 8 GPIO!\n");
+	co_printf("Connect each other PA0, PA2, PA1, PB10, PB9, PB8, PA6, PA3\n");
+	co_printf("Or connect one of then to GND or VCC as one key pressed. \n");
+	co_printf("-------PA0-----PA2-----PA1-----PB10----PB9-----PB8-----PA6----|\n");
+	co_printf("PA0-----------------------------------------------------------|\n");
+	co_printf("PA2---KEY_1---------------------------------------------------|\n");
+	co_printf("PA1---KEY_2---KEY_3-------------------------------------------|\n");
+	co_printf("PB10------------------KEY_17----------------------------------|\n");
+	co_printf("PB9-----------KEY_5---KEY_7---KEY_4---------------------------|\n");
+	co_printf("PB8---KEY_16--KEY_10--KEY_9---KEY_11--KEY_6-------------------|\n");
+	co_printf("PA6-----------KEY_12--KEY_14--KEY_13----------KEY_15----------|\n");
+	co_printf("PA3---------------------------------------------------KEY_8---|\n");
+ */
+	//                      44        自动扫描           中断触发        消抖时间  扫描时间   使能
+	KEYSCAN_Configuration(KEY_44,MODE_FIXED_INTV/* MODE_PRESS_TRIG */, DTS_10MS, WTS_0MS, INT_EN);
+}
+
+// 轮询当前键号：无键返回 0，与 IRQ 内解析方式一致
+uint8_t app_keyscan_read_key_id(void)
+{
+	uint32_t key_data[5] = {0};
+	uint8_t  num;
+
+	KEYSCAN_ReadKeyData(key_data);
+	for(num = 1; num < KEYSCAN_KEY_MAX; num++)
+	{
+		if(memcmp(key_data, &keyscan_map[num][0], (KEYSCAN_INFO_CHECK << 2)) == 0)
+		{
+			return num;
+		}
+	}
+	return 0;
+}
+
+//键盘扫描中断服务函数
+void KEYSCAN_IRQHandler(void)
+{
+    /* KEYSCAN 原始扫描结果缓存（最多 5 个 32-bit 数据字）。 */
+    uint32_t key_data[5] = {0};
+    /* num 表示匹配到的按键编号，未匹配时最终等于 KEYSCAN_KEY_MAX。 */
+    uint8_t  num;
+    /* 清除 KEYSCAN 外设自身中断标志。 */
+    if(KEYSCAN_GetInterruptState() == SET)
+    {
+        KEYSCAN_ClearInterrupt();
+    }
+    
+    /* 清除 EXTI13 挂起位，避免重复进入中断。 */
+    if(EXTI_GetITStatus(EXTI_LINE13))
+    {
+        EXTI_ClrITPendBit(EXTI_LINE13);
+    }
+    
+    /* 读取当前按键扫描数据。 */
+    KEYSCAN_ReadKeyData(key_data);
+    #if 0
+    co_printf("REG data: ");
+    co_printf("0x%08x,", key_data[0]);
+    co_printf("0x%08x,", key_data[1]);
+    co_printf("0x%08x,", key_data[2]);
+    co_printf("0x%08x,", key_data[3]);
+    co_printf("0x%08x ", key_data[4]);
+    co_printf("\r\n");
+    #endif
+    
+    /* 逐个与按键映射表比较，定位当前按下的是哪个 KEY_x。 */
+    for(num = 1; num < KEYSCAN_KEY_MAX; num++)
+    {
+        if(memcmp(key_data,&keyscan_map[num][0],(KEYSCAN_INFO_CHECK<<2)) == 0)
+        {
+            break;
+        }
+    }
+    
+    /* 匹配成功后将按键编号上报给主循环。 */
+    if(num != KEYSCAN_KEY_MAX)
+    {
+        extern volatile uint16_t key_receive;
+
+        key_receive = (uint16_t)num;
+    }
+}
+

@@ -1,0 +1,12 @@
+.\objects\ble_rc_svc.o: ..\cat1\ble_rc_svc.c
+.\objects\ble_rc_svc.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\ble_rc_svc.o: ..\cat1\ble_rc_svc.h
+.\objects\ble_rc_svc.o: ..\..\cs\inc\gap.h
+.\objects\ble_rc_svc.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\ble_rc_svc.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\ble_rc_svc.o: ..\cat1\rc_protocol.h
+.\objects\ble_rc_svc.o: ..\inc\ble_gap.h
+.\objects\ble_rc_svc.o: ..\..\cs\inc\gatt.h
+.\objects\ble_rc_svc.o: ..\..\bsp\common\inc\co_printf.h
+.\objects\ble_rc_svc.o: ..\cat1\rc_trans_assembly.h
+.\objects\ble_rc_svc.o: ..\cat1\rc_cat1_bridge.h

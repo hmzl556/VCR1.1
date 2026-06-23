@@ -1,0 +1,422 @@
+#include <stdbool.h>
+#include <stdint.h>
+#include "task_keyscan.h"
+#include "co_printf.h"
+#include "app_voice_ctrl.h"
+#include "app_keyscan.h"
+#include "ble_hid_kbd.h"
+#include "ble_gap.h"
+#include "gmem.h"
+#include "rc_key_input.h"
+#include "userhard.h"
+
+volatile uint16_t key_receive = 0;
+
+typedef enum
+{
+	KEY_STATE_IDLE = 0,
+	KEY_STATE_DEBOUNCE,
+	KEY_STATE_PRESSED
+} key_state_t;
+
+static key_state_t key_state = KEY_STATE_IDLE;
+static uint16_t key_candidate = 0;
+static uint16_t key_active = 0;
+static uint16_t key_active_usage = 0;
+static uint32_t key_state_ts_ms = 0;
+static uint32_t key_last_event_ms = 0;
+static uint32_t key_press_start_ms = 0;
+static bool key_long_triggered = false;
+static bool key_active_is_consumer = false;
+static uint16_t key_active_usage_id = 0;
+static bool key15_voice_started = false;
+
+// ====== 按键 LED 指示 ======
+static uint32_t g_key_led_on_ms = 0;       // 按键 LED 亮起时间戳
+static bool     g_key_led_is_led1 = false;  // true=LED1（未连接时）, false=LED2（已连接时）
+
+// ====== 恢复出厂设置状态机 ======
+typedef enum
+{
+    FACTORY_RST_IDLE = 0,        // 空闲，正常按键处理
+    FACTORY_RST_COMBO_DETECT,    // 检测到 KEY8 + KEY14 同时按下，计时 3s
+    FACTORY_RST_PENDING,         // 待恢复出厂模式（10s 窗口），LED2 快闪
+    FACTORY_RST_CONFIRMED,       // 已确认恢复出厂，LED2 亮 2s 后熄灭
+    FACTORY_RST_CANCELLED        // 已取消，LED1 亮 2s 后熄灭
+} factory_rst_state_t;
+
+static factory_rst_state_t factory_rst_state = FACTORY_RST_IDLE;
+static uint32_t factory_rst_state_ts_ms = 0;   // 进入当前状态的时间戳
+static uint32_t factory_rst_led_ts_ms = 0;     // LED 闪烁/切换时间戳
+static bool factory_rst_led2_state = false;     // LED2 当前亮灭状态
+static bool pending_keys_released = false;      // PENDING 下组合键是否已松开
+
+// 检查指定按键是否物理按下（基于传入的 key_data 快照）
+// 使用按位与检测而非 memcmp 精确匹配，以支持多键同时按下
+static bool is_specific_key_pressed(const uint32_t *key_data, uint8_t key_num)
+{
+    uint8_t i;
+    if (key_num == 0 || key_num >= KEYSCAN_KEY_MAX)
+    {
+        return false;
+    }
+    // 逐 word 检查：按键 pattern 中为 1 的 bit 在 key_data 中也必须为 1
+    // 多键同时按下时 key_data 是多个 pattern 的 OR，精确匹配会失败
+    for (i = 0; i < KEYSCAN_INFO_CHECK; i++)
+    {
+        if ((key_data[i] & keyscan_map[key_num][i]) != keyscan_map[key_num][i])
+        {
+            return false;
+        }
+    }
+    return true;
+}
+// 检查 KEY6 + KEY14 组合键是否同时按下
+static bool is_combo_keys_pressed(void)
+{
+    uint32_t key_data[5] = {0};
+    bool key6_down, key14_down;
+
+    // 只读一次硬件快照，避免两次读取数据不一致
+    KEYSCAN_ReadKeyData(key_data);
+
+    key6_down  = is_specific_key_pressed(key_data, TASK_KEYSCAN_KEY6);
+    key14_down = is_specific_key_pressed(key_data, TASK_KEYSCAN_KEY14);
+
+    return key6_down && key14_down;
+}
+
+
+
+// 恢复出厂设置状态机处理（与正常按键处理并行运行）
+static void factory_reset_process(uint32_t now_ms, uint16_t key_id)
+{
+    switch (factory_rst_state)
+    {
+        case FACTORY_RST_IDLE:
+            // 检测 KEY6 + KEY14 是否同时按下
+            if (is_combo_keys_pressed())
+            {
+                factory_rst_state = FACTORY_RST_COMBO_DETECT;
+                factory_rst_state_ts_ms = now_ms;
+                co_printf("Factory reset: KEY6+KEY14 combo detected, counting 3s...\r\n");
+            }
+            break;
+
+        case FACTORY_RST_COMBO_DETECT:
+            // 检查组合键是否仍同时按住
+            if (!is_combo_keys_pressed())
+            {
+                // 提前松开，取消
+                factory_rst_state = FACTORY_RST_IDLE;
+                co_printf("Factory reset: combo released before 3s, cancelled.\r\n");
+            }
+            else if ((now_ms - factory_rst_state_ts_ms) >= FACTORY_RST_COMBO_HOLD_MS)
+            {
+                // 3s 到，进入待恢复出厂模式
+                factory_rst_state = FACTORY_RST_PENDING;
+                factory_rst_state_ts_ms = now_ms;
+                factory_rst_led_ts_ms = now_ms;
+                factory_rst_led2_state = false;
+                pending_keys_released = false;
+                CLRLED2;
+                co_printf("Factory reset: pending mode entered! LED2 fast flash.\r\n");
+            }
+            break;
+
+        case FACTORY_RST_PENDING:
+        {
+            // LED2 快闪（周期 200ms）
+            if ((now_ms - factory_rst_led_ts_ms) >= LED_FAST_FLASH_MS)
+            {
+                factory_rst_led_ts_ms = now_ms;
+                factory_rst_led2_state = !factory_rst_led2_state;
+                if (factory_rst_led2_state) SETLED2; else CLRLED2;
+            }
+
+            // 10s 超时
+            if ((now_ms - factory_rst_state_ts_ms) >= FACTORY_RST_PENDING_MS)
+            {
+                CLRLED2;
+                factory_rst_state = FACTORY_RST_CANCELLED;
+                factory_rst_state_ts_ms = now_ms;
+                // SETLED1;
+                co_printf("Factory reset: 10s timeout, cancelled. LED1 on 2s.\r\n");
+                break;
+            }
+
+            // 等待组合键两个都松开后，才开启按键检测
+            if (!pending_keys_released)
+            {
+                uint32_t kd[5] = {0};
+                KEYSCAN_ReadKeyData(kd);
+                bool k6 = is_specific_key_pressed(kd, TASK_KEYSCAN_KEY6);
+                bool k14 = is_specific_key_pressed(kd, TASK_KEYSCAN_KEY14);
+                if (!k6 && !k14)  // 两个都不在按下状态
+                {
+                    pending_keys_released = true;
+                    co_printf("Factory reset: both combo keys released, key check active.\r\n");
+                }
+            }
+            else
+            {
+                // 组合键已松开，检测按键：KEY4 确认，其他任意键取消
+                if (key_id != 0)
+                {
+                    if (key_id == TASK_KEYSCAN_KEY4)
+                    {
+                        CLRLED2;
+                        factory_rst_state = FACTORY_RST_CONFIRMED;
+                        factory_rst_state_ts_ms = now_ms;
+                        SETLED2;
+                        co_printf("Factory reset: KEY4 confirmed! Erasing bonding...\r\n");
+                        ble_gap_clear_bonding_info();
+                    }
+                    else
+                    {
+                        CLRLED2;
+                        factory_rst_state = FACTORY_RST_CANCELLED;
+                        factory_rst_state_ts_ms = now_ms;
+                        // SETLED1;
+                        co_printf("Factory reset: key %d pressed, cancelled. LED1 on 2s.\r\n", key_id);
+                    }
+                }
+            }
+            break;
+        }
+
+        case FACTORY_RST_CONFIRMED:
+            // LED2 亮 2s 后熄灭，返回空闲
+            if ((now_ms - factory_rst_state_ts_ms) >= FACTORY_RST_LED_ON_MS)
+            {
+                CLRLED2;
+                factory_rst_state = FACTORY_RST_IDLE;
+                co_printf("Factory reset: complete, LED2 off, returned to IDLE.\r\n");
+            }
+            break;
+
+        case FACTORY_RST_CANCELLED:
+            // LED1 亮 2s 后熄灭，返回空闲
+            if ((now_ms - factory_rst_state_ts_ms) >= FACTORY_RST_LED_ON_MS)
+            {
+                CLRLED1;
+                factory_rst_state = FACTORY_RST_IDLE;
+                co_printf("Factory reset: cancelled, returned to IDLE.\r\n");
+            }
+            break;
+
+        default:
+            factory_rst_state = FACTORY_RST_IDLE;
+            break;
+    }
+}
+
+
+
+/**
+* @brief 重置按键扫描模块，当 BLE 断开连接时调用
+*/
+void task_keyscan_reset_on_ble_disconnect(void)
+{
+	key_state = KEY_STATE_IDLE;
+	key_candidate = 0;
+	key_active = 0;
+	key_active_usage = 0;
+	key_state_ts_ms = 0;
+	key_last_event_ms = 0;
+	key_press_start_ms = 0;
+	key_long_triggered = false;
+	key_active_is_consumer = false;
+	key15_voice_started = false;
+	key_receive = 0;
+	//CLRLED2;							// 清除 LED2（蓝） 状态为 OFF
+}
+
+/**
+* @brief 获取当前时间，单位为毫秒
+* @return 当前时间，单位为毫秒
+*/
+static uint32_t task_keyscan_get_now_ms(void)
+{
+	return voiceUptimeMs;
+}
+
+/**
+* @brief 发送 RC 通知
+* @param action 动作
+*/
+static void task_keyscan_rc_notify(uint8_t action)
+{
+	uint8_t key_type;
+
+	if (key_active == TASK_KEYSCAN_KEY15) {
+		key_type = 0x03u;
+	} else {
+		key_type = key_active_is_consumer ? 0x02u : 0x01u;
+	}
+	rc_key_input_event(key_type, action, key_active_usage);
+}
+
+/**
+* @brief 按键扫描处理
+*/
+void task_keyscan_process(void)
+{
+	uint16_t key_id = 0;
+	//static uint16_t _ks = 0; _ks++; if ((_ks % 500) == 0) co_printf("K");
+	if (key_receive) {
+		key_id = key_receive;
+		key_receive = 0;
+	}
+
+	uint32_t now_ms = task_keyscan_get_now_ms();
+	if (key_id != 0) {
+		key_last_event_ms = now_ms;
+	}
+
+
+
+	// ====== 按键 LED 超时熄灭 ======
+	if (g_key_led_on_ms != 0 && (now_ms - g_key_led_on_ms) >= KEY_LED_ON_MS) {
+		if (g_key_led_is_led1) CLRLED1; else CLRLED2;
+		g_key_led_on_ms = 0;
+	}
+    factory_reset_process(now_ms, key_id);
+
+	
+	// ====== 恢复出厂设置状态机（与正常按键处理并行） ======
+    // 当恢复出厂状态机处于非空闲状态时，跳过正常按键处理
+    if (factory_rst_state != FACTORY_RST_IDLE)
+    {
+        // 重置正常按键状态机，避免残留状态干扰
+        if (key_state != KEY_STATE_IDLE)
+        {
+            key_state = KEY_STATE_IDLE;
+            key_active = 0;
+            key_active_is_consumer = false;
+            key_active_usage_id = 0;
+        }
+        return;
+    }
+
+	switch (key_state) {
+		case KEY_STATE_IDLE:
+			if (key_id != 0) {
+				key_candidate = key_id;
+				key_state_ts_ms = now_ms;
+				key_state = KEY_STATE_DEBOUNCE;
+			}
+			break;
+
+		// 消抖状态：处理中途按键值乱跳和消抖完成两件事
+		case KEY_STATE_DEBOUNCE:
+			if (key_id != 0 && key_id != key_candidate) {
+				key_candidate = key_id;
+				key_state_ts_ms = now_ms;
+			}
+			if ((now_ms - key_state_ts_ms) >= KEY_DEBOUNCE_MS) {
+				key_active = key_candidate;
+				key_active_is_consumer = false;
+				key_active_usage = 0;
+				{
+					uint16_t usage_tmp = 0;
+					bool is_consumer_tmp = false;
+					if (hid_kbd_map_key_to_usage(key_active, &usage_tmp, &is_consumer_tmp)) {
+						key_active_is_consumer = is_consumer_tmp;
+						key_active_usage = usage_tmp;
+					}
+				}
+
+				// 短按按下即发：确认稳定按下后立刻发送
+				key_state = KEY_STATE_PRESSED;
+				//SETLED2;									// 设置 LED2（蓝） 状态为 ON
+				key_press_start_ms = now_ms;
+				key_long_triggered = false;
+
+					// 按键 LED 指示：未连接时 LED1 亮 2s，已连接时 LED2 亮 2s
+					if (ble_gap_get_peer() != NULL) {
+						SETLED2;
+						g_key_led_is_led1 = false;
+					} else {
+						SETLED1;
+						g_key_led_is_led1 = true;
+					}
+					g_key_led_on_ms = now_ms;
+
+				if (ble_gap_get_peer() != NULL && key_active != 0) {
+					co_printf("\r\nKeyboard press KEY_%d, send via HID.\r\n", key_active);
+					hid_kbd_send_key_id_current(key_active);
+				}
+
+				if (key_active != TASK_KEYSCAN_KEY15) {
+					task_keyscan_rc_notify(0x01u);
+				}
+			}
+			break;
+		
+		// 稳定按下状态：处理中途按键值变化、长按判定和释放判定
+		case KEY_STATE_PRESSED:
+		{
+			uint8_t hw_key = app_keyscan_read_key_id();
+
+			// 中途按键值变化，重新回到消抖状态
+			if (hw_key == key_active) {
+				key_last_event_ms = now_ms;
+			} else if (hw_key != 0 && hw_key != key_active) {
+				key_id = hw_key;
+			}
+
+			// 长按判定
+			if (key_id != 0 && key_id != key_active) {
+				key_candidate = key_id;
+				key_state_ts_ms = now_ms;
+				key_state = KEY_STATE_DEBOUNCE;
+				break;
+			}
+
+			// 长按判定：仅触发一次
+			if (!key_long_triggered && (now_ms - key_press_start_ms) >= KEY_LONG_PRESS_MS) {
+				key_long_triggered = true;
+				if (key_active == TASK_KEYSCAN_KEY15) {
+					if (!key15_voice_started) {
+						key15_voice_started = true;
+						(void)voice_ctrl_post_start();
+						rc_key_input_event(0x03u, 0x01u, key_active_usage);
+						co_printf("Voice capture started by KEY_15 (press)\r\n");
+					}
+				}
+			}
+
+			if (hw_key == 0 && (now_ms - key_last_event_ms) >= KEY_RELEASE_TIMEOUT_MS) {
+				if (ble_gap_get_peer() != NULL) {
+					if (key_active_is_consumer) {
+						hid_kbd_send_consumer_release_current();
+					} else {
+						hid_kbd_send_release_current();
+					}
+				}
+
+				if (key_active == TASK_KEYSCAN_KEY15) {
+					if (key15_voice_started) {
+						key15_voice_started = false;
+						(void)voice_ctrl_post_stop();
+						rc_key_input_event(0x03u, 0x00u, key_active_usage);
+						co_printf("Voice capture stopped by KEY_15 (release)\r\n\r\n");
+					}
+				} else {
+					task_keyscan_rc_notify(0x00u);
+				}
+				//CLRLED2;									// 清除 LED2（蓝） 状态为 OFF
+				key_state = KEY_STATE_IDLE;
+				key_active = 0;
+				key_active_usage = 0;
+				key_active_is_consumer = false;
+			}
+			break;
+		}
+
+		default:
+			key_state = KEY_STATE_IDLE;
+			break;
+	}
+}

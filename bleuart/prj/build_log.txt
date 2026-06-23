@@ -1,0 +1,14 @@
+*** Using Compiler 'V5.06 update 7 (build 960)', folder: 'D:\MDK5.36\ARM\ARMCC\Bin'
+Build target 'ble'
+assembling startup_br1601x.s...
+compiling main.c...
+linking...
+.\ble_dtss.sct(23): warning: L6314W: No section matches pattern br_sleep.o(RO).
+.\ble_dtss.sct(23): warning: L6314W: No section matches pattern br_sleep.o(RW).
+Program Size: Code=108480 RO-data=10572 RW-data=9256 ZI-data=27872  
+Finished: 0 information, 2 warning and 0 error messages.
+FromELF: creating hex file...
+After Build - User command #1: fromelf --bin -o "F:\A_ZZT_Project\Remote_4G_VCR1\ble_combine_new_new\BR1601x_SDK_CENTER_DEMO_VOICE_SBC\bleuart\prj\Objects\ble.bin" "F:\A_ZZT_Project\Remote_4G_VCR1\ble_combine_new_new\BR1601x_SDK_CENTER_DEMO_VOICE_SBC\bleuart\prj\Objects\ble.axf"
+After Build - User command #2: fromelf --text -c -o "F:\A_ZZT_Project\Remote_4G_VCR1\ble_combine_new_new\BR1601x_SDK_CENTER_DEMO_VOICE_SBC\bleuart\prj\Objects\ble.asm" "F:\A_ZZT_Project\Remote_4G_VCR1\ble_combine_new_new\BR1601x_SDK_CENTER_DEMO_VOICE_SBC\bleuart\prj\Objects\ble.axf"
+".\Objects\ble.axf" - 0 Error(s), 2 Warning(s).
+Build Time Elapsed:  00:00:02

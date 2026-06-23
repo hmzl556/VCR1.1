@@ -1,0 +1,11 @@
+.\objects\ble_hrps.o: ..\..\cs\src\ble_hrps.c
+.\objects\ble_hrps.o: ..\..\cs\inc\ble_hrps.h
+.\objects\ble_hrps.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdio.h
+.\objects\ble_hrps.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdlib.h
+.\objects\ble_hrps.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
+.\objects\ble_hrps.o: ..\..\cs\inc\ble_prf.h
+.\objects\ble_hrps.o: ..\..\cs\inc\gap.h
+.\objects\ble_hrps.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\ble_hrps.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\ble_hrps.o: ..\..\cs\inc\gatt.h
+.\objects\ble_hrps.o: ..\..\bsp\common\inc\co_printf.h

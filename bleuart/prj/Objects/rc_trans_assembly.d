@@ -1,0 +1,9 @@
+.\objects\rc_trans_assembly.o: ..\cat1\rc_trans_assembly.c
+.\objects\rc_trans_assembly.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\rc_trans_assembly.o: ..\cat1\rc_trans_assembly.h
+.\objects\rc_trans_assembly.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\rc_trans_assembly.o: ..\..\cs\inc\gap.h
+.\objects\rc_trans_assembly.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\rc_trans_assembly.o: ..\cat1\rc_protocol.h
+.\objects\rc_trans_assembly.o: ..\cat1\ble_rc_svc.h
+.\objects\rc_trans_assembly.o: ..\cat1\rc_cat1_bridge.h

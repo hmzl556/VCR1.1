@@ -1,0 +1,10 @@
+.\objects\ble_hid_kbd.o: ..\src\ble_hid_kbd.c
+.\objects\ble_hid_kbd.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\ble_hid_kbd.o: ..\..\cs\inc\gap.h
+.\objects\ble_hid_kbd.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\ble_hid_kbd.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\ble_hid_kbd.o: ..\..\cs\inc\gatt.h
+.\objects\ble_hid_kbd.o: ..\inc\ble_gap.h
+.\objects\ble_hid_kbd.o: ..\inc\ble_hid_kbd.h
+.\objects\ble_hid_kbd.o: ..\..\cs\inc\hogp.h
+.\objects\ble_hid_kbd.o: ..\..\bsp\common\inc\co_printf.h

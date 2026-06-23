@@ -1,0 +1,11 @@
+.\objects\ble_blps.o: ..\..\cs\src\ble_blps.c
+.\objects\ble_blps.o: ..\..\cs\inc\ble_blps.h
+.\objects\ble_blps.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdio.h
+.\objects\ble_blps.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdlib.h
+.\objects\ble_blps.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
+.\objects\ble_blps.o: ..\..\cs\inc\ble_prf.h
+.\objects\ble_blps.o: ..\..\cs\inc\gap.h
+.\objects\ble_blps.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\ble_blps.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\ble_blps.o: ..\..\cs\inc\gatt.h
+.\objects\ble_blps.o: ..\..\bsp\common\inc\co_printf.h
