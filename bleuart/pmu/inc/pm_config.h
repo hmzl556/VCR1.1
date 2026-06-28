@@ -24,22 +24,31 @@ extern "C" {
  * @note   业务包括：按键操作、语音开始/停止、对端数据下发、CAT1 数据
  *         当前取值偏保守（常规遥控器方案），可后续根据功耗测试结果调整
  *         范围建议：5000 ~ 15000 ms
+ *
+ *         【测试模式】改为 10000ms，方便验证状态切换
  */
-#define PM_WORK_TO_STANDBY_MS         8000U
+//#define PM_WORK_TO_STANDBY_MS         8000U
+#define PM_WORK_TO_STANDBY_MS         60000U   /* 测试用：10秒 */
 
 /**
  * @brief  待机态 → 休眠态：持续无业务超时（45 秒）
  * @note   待机态下连接仍保持，若 45 秒内无任何交互则进入休眠
  *         范围建议：30000 ~ 120000 ms
+ *
+ *         【测试模式】改为 45000ms，方便验证状态切换
  */
-#define PM_STANDBY_TO_SLEEP_MS       45000U
+//#define PM_STANDBY_TO_SLEEP_MS       45000U
+#define PM_STANDBY_TO_SLEEP_MS       180000U   /* 测试用：45秒 */
 
 /**
  * @brief  回连态 → 休眠态：持续广播无连接超时（45 秒）
  * @note   回连广播期间若无 STB 连接，超时后进入休眠节省功耗
  *         范围建议：30000 ~ 60000 ms
+ *
+ *         【测试模式】改为 45000ms，方便验证状态切换
  */
-#define PM_RECONNECT_TIMEOUT_MS      45000U
+//#define PM_RECONNECT_TIMEOUT_MS      45000U
+#define PM_RECONNECT_TIMEOUT_MS      45000U   /* 测试用：45秒 */
 
 /*===========================================================================
  * 二、待机态 BLE 连接参数
@@ -118,9 +127,11 @@ extern "C" {
  * @note   1 = 使能状态转换日志，便于开发和调试
  *         0 = 关闭日志，量产时使用
  */
-#define PM_DEBUG_LOG_ENABLE             1U
+#define PM_DEBUG_LOG_ENABLE             1U   /* 默认关闭，调试时改为 1U */
 
 #if PM_DEBUG_LOG_ENABLE
+    /* 注意：开启后会 #include "co_printf.h"，可能与部分文件的编译环境冲突。
+       调试完后请恢复为 0U，避免量产固件中引入不必要的依赖。 */
     #include "co_printf.h"
     #define PM_LOG(fmt, ...)   co_printf("[PM] " fmt "\r\n", ##__VA_ARGS__)
 #else

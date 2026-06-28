@@ -8,3 +8,5 @@
 .\objects\ble_hid_kbd.o: ..\inc\ble_hid_kbd.h
 .\objects\ble_hid_kbd.o: ..\..\cs\inc\hogp.h
 .\objects\ble_hid_kbd.o: ..\..\bsp\common\inc\co_printf.h
+.\objects\ble_hid_kbd.o: ..\pmu\inc\pm_state.h
+.\objects\ble_hid_kbd.o: ..\pmu\inc\pm_config.h

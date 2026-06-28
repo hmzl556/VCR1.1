@@ -8,6 +8,7 @@
 #include "rc_trans_assembly.h"
 #include "app_rtos.h"
 #include "co_printf.h"
+#include "pm_state.h"       /* 电源管理 — CAT1数据活动通知 */
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -167,6 +168,10 @@ static void rc_cat1_poll_downlink(void)
 	}
 
 	co_printf("[RC   ] UDP recv OK, len=%u\r\n", (unsigned)pdu_len);
+
+	/* 通知PM：CAT1收到云端数据，重置空闲计时器/退出待机态 */
+	pm_activity_notify(PM_ACTIVITY_CAT1);
+
 	taskENTER_CRITICAL();
 	memcpy(policy, s_cloud_policy, 6u);
 	taskEXIT_CRITICAL();

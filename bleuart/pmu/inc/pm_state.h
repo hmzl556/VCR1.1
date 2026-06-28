@@ -119,6 +119,15 @@ void pm_notify_connected(void);
 void pm_notify_disconnected(void);
 
 /**
+ * @brief  BLE 栈初始化完成后调用，修正 PM 初始状态
+ * @note   必须在 myBleStartAdv() 成功后调用一次。
+ *         因为 pm_state_init() 在 BLE 栈启动前调用，此时 peer_bonded_count()
+ *         返回 0（绑定数据尚未从 Flash 恢复），导致初始状态固定为 PAIRING。
+ *         本函数在 BLE 栈就绪后重新检查绑定，若实际有绑定则修正为 RECONNECTING。
+ */
+void pm_state_sync_after_ble_init(void);
+
+/**
  * @brief  每主循环周期调用一次
  * @note   在 BLE 任务主循环（task_ble_entry）开头调用。
  *         检查以下超时条件并执行状态转换：

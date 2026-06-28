@@ -50,5 +50,7 @@
 .\objects\task_ble.o: ..\cat1\rc_cat1_bridge.h
 .\objects\task_ble.o: ..\cat1\rc_protocol.h
 .\objects\task_ble.o: ..\..\bsp\common\inc\co_printf.h
+.\objects\task_ble.o: ..\pmu\inc\pm_state.h
+.\objects\task_ble.o: ..\pmu\inc\pm_config.h
 .\objects\task_ble.o: ..\freertos\include\task.h
 .\objects\task_ble.o: ..\freertos\include\list.h

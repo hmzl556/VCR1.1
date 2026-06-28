@@ -8,6 +8,7 @@
 #include "ble_gap.h"
 #include "gmem.h"
 #include "rc_key_input.h"
+#include "pm_state.h"       /* 电源管理 — 按键活动通知 */
 #include "userhard.h"
 
 volatile uint16_t key_receive = 0;
@@ -329,6 +330,12 @@ void task_keyscan_process(void)
 
 				// 短按按下即发：确认稳定按下后立刻发送
 				key_state = KEY_STATE_PRESSED;
+
+				// 通知电源管理状态机：有按键活动
+				// - 待机态下此调用会立即切回工作态
+				// - 工作态下此调用会重置空闲计时器，推迟进入待机态
+				pm_activity_notify(PM_ACTIVITY_KEY);
+
 				//SETLED2;									// 设置 LED2（蓝） 状态为 ON
 				key_press_start_ms = now_ms;
 				key_long_triggered = false;

@@ -48,6 +48,7 @@
 #include "rc_trans_assembly.h"
 #include "ble_rc_svc.h"
 #include "rc_cat1_bridge.h"
+#include "pm_state.h"       /* 电源管理状态机 — 连接/断连通知 */
 #ifndef BLE_CONN_PARAM_PERSIST_ENABLE
 #define BLE_CONN_PARAM_PERSIST_ENABLE 0 // 默认不启用连接参数持久化，避免误操作导致 Flash 损耗
 #endif
@@ -325,6 +326,8 @@ void ble_gap_connected(gap_event_t ev, void *ctx, gap_conn_cmpl_t *arg)
 	g_peer = arg->peer;
 	co_printf("Connected peer: %08X", (uint32_t)g_peer);		
 	ble_adv_stop(); // 符合GY/T 407-2024 条款附录C.2
+	// 通知电源管理状态机：连接建立，由配对/回连态切换到工作态
+	pm_notify_connected();
 	// 连接后延时触发参数更新，避免刚连接时立即修改导致失败
 	conn_update_timer_id = sdk_timer_add(3000, 0, conn_parm_updata_handle, NULL); // 符合GY/T 407-2024 条款5.1.2.3
 }
@@ -340,6 +343,15 @@ void ble_gap_disconnected(gap_event_t ev, void *ctx, gap_disc_cmpl_t *arg)
 		sdk_timer_del(conn_update_timer_id);
 		conn_update_timer_id = BR_TIMER_INVALID_HANDLER;
 	}
+
+	/*
+	 * 通知电源管理状态机：连接断开。
+	 * PM 根据是否有绑定记录自动决定进入回连态或配对态。
+	 * 注意：此调用必须在 bleConnectOk/g_peer 清零之前执行，
+	 *       因为 pm_notify_disconnected 内部需要查询 peer_bonded_count()。
+	 */
+	pm_notify_disconnected();
+
 	//ble_adv_start_by_bonding();
 
 	(void)voice_ctrl_post_stop();

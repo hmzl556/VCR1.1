@@ -46,4 +46,6 @@
 .\objects\task_keyscan.o: ..\inc\ble_gap.h
 .\objects\task_keyscan.o: ..\inc\gmem.h
 .\objects\task_keyscan.o: ..\cat1\rc_key_input.h
+.\objects\task_keyscan.o: ..\pmu\inc\pm_state.h
+.\objects\task_keyscan.o: ..\pmu\inc\pm_config.h
 .\objects\task_keyscan.o: ..\inc\userhard.h

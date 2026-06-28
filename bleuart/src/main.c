@@ -122,6 +122,15 @@ int main(void)
 
 	app_rtos_init();			// 初始化 RTOS 相关资源，如信号量、消息队列等
 
+	/*
+	 * 初始化电源管理状态机（PMU）
+	 * - 根据绑定记录数量自动决定初始状态：有绑定→回连态，无绑定→配对态
+	 * - 必须在 app_rtos_init() 之后（后续休眠态可能使用 RTOS 资源）
+	 * - 必须在 BLE 任务启动之前，确保任务内首次 pm_state_process() 调用安全
+	 */
+
+	pm_state_init();
+	
 	(void)xTaskCreateStatic(task_ble_entry, "ble", 512, NULL, 3, s_ble_stack, &s_ble_tcb);
 
 	vTaskStartScheduler();		// 启动 FreeRTOS 调度器，开始执行任务

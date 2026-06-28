@@ -4,6 +4,7 @@
 #include "ble_gap.h"
 #include "ble_hid_kbd.h"
 #include "co_printf.h"
+#include "pm_state.h"       /* 电源管理 — 对端数据活动通知 */
 
 // HID Report Map（从参考工程原封不动复制，当前阶段不要改动）。
 // 该描述符包含：
@@ -54,34 +55,41 @@ static const uint8_t hid_report_map[] =
 
     0xC0,       /* End Collection - 结束 Keyboard 的 Application 集合 */
 
-    // ===== Report ID 2: Consumer Control (多媒体/遥控键) =====
-    0x05, 0x0C, /* Usage Page (Consumer 0x0C) - 消费者设备页面（多媒体按键） */
-    0x09, 0x01, /* Usage (Consumer Control) - 消费者控制（多媒体遥控器） */
-    0xA1, 0x01, /* Collection (Application) - 应用集合 */
-    0x85, 0x02, /* Report ID (2) - 报告 ID = 2 */
-    0x75, 0x10, /* Report Size (16) - 使用 16-bit 宽度来表示一个 usage（便于表示大范围的多媒体 Usage） */
-    0x95, 0x01, /* Report Count (1) - 一个 16-bit 字段 */
-    0x15, 0x00, /* Logical Minimum (0) */
-    0x26, 0x3C, 0x04, /* Logical Maximum (0x043C) - 逻辑最大值，使用 2 字节小端表示（0x043C）*/
-    0x19, 0x00, /* Usage Minimum (0) */
-    0x2A, 0x3C, 0x04, /* Usage Maximum (0x043C) - 使用范围，允许的 consumer usages 在 0..0x043C 之间 */
-    0x81, 0x00, /* Input (Data,Array,Abs) - 输入：16-bit 的 Usage 值（Array） */
-    0xC0,       /* End Collection - 结束 Consumer Control 集合 */
+    0x05, 0x0C, /* Usage Page (Consumer) */
+    0x09, 0x01, /* Usage (Consumer Control) */
+    0xA1, 0x01, /* Collection (Application) */
+    0x85, 0x02, /* Report ID (2) */
 
-    // ===== Report ID 3: Vendor Defined (厂商自定义数据透传) =====
-    0x06, 0x00, 0xFF, /* Usage Page (Vendor Defined 0xFF00) - 厂商自定义页面 (0xFF00)，用于私有透传 */
-    0x09, 0x00,       /* Usage (0x00) - 自定义使用，通常主控端/APP 自行约定 */
-    0xA1, 0x01,       /* Collection (Application) - 顶层集合 */
-    0xA1, 0x02,       /* Collection (Logical) - 逻辑集合，表示内部结构 */
-    0x85, 0x03,       /* Report ID (3) - 报告 ID = 3（区分为厂商自定义报告） */
-    0x09, 0x00,       /* Usage (0x00) - 使用值 0（占位） */
-    0x15, 0x00,       /* Logical Minimum (0) */
-    0x25, 0xFF,       /* Logical Maximum (255) - 每个字节的逻辑范围 0..255 */
-    0x75, 0x08,       /* Report Size (8) - 每个元素 8 bit */
-    0x95, 0xE8,       /* Report Count (0xE8 = 232) - 报告长度为 232 字节（可根据实际需求更改） */
-    0x81, 0x00,       /* Input (Data,Array,Abs) - 输入字段（设备 -> 主机），作为原始字节数组发送 */
-    0xC0,             /* End Collection (inner) */
-    0xC0,             /* End Collection (outer) */
+    // 3-bit Variable: Mute / Volume+ / Volume-
+    0x15, 0x00, /* Logical Minimum (0) */
+    0x25, 0x01, /* Logical Maximum (1) */
+    0x75, 0x01, /* Report Size (1) */
+    0x95, 0x03, /* Report Count (3) */
+    0x09, 0xE2, /* Usage (Mute) */
+    0x09, 0xE9, /* Usage (Volume Increment) */
+    0x09, 0xEA, /* Usage (Volume Decrement) */
+    0x81, 0x02, /* Input (Data,Var,Abs) */
+
+    // Padding to next byte
+    0x75, 0x05, /* Report Size (5) */
+    0x95, 0x01, /* Report Count (1) */
+    0x81, 0x01, /* Input (Constant) */
+
+    0xC0,       /* End Collection */
+
+0x06,0x00,0xFF,     		//   	GLOBAL_USAGE_PAGE(Undefined)	
+0x09,0x00,          		//   	LOCAL_USAGE()	
+0xA1,0x01,          		//   	MAIN_COLLECTION(Applicatior)	
+0xA1,0x02,          		//  	MAIN_COLLECTION(Logical)	
+0x85,0x03,          		//  	GLOBAL_REPORT_ID(3)	
+0x09,0x00,          		//  	LOCAL_USAGE()	
+0x15,0x00,          		//  	GLOBAL_LOGICAL_MINIMUM(-128)	
+0x25,0xFF,          		//  	GLOBAL_LOCAL_MAXIMUM(127)	
+0x75,0x08,          		//  	GLOBAL_REPORT_SIZE(8)	
+0x95,0xE8,          		//  	GLOBAL_REPORT_COUNT(20)	
+0x81,0x00,          		//  	MAIN_INPUT(data var absolute NoWrap linear NoPreferred NoNullPosition NonVolatile )	Input 80.0
+0xC0,               		//  	MAIN_COLLECTION_END	
+0xC0,               		//  	MAIN_COLLECTION_END
 };
 
 // HID 服务（0x1812）运行时句柄与状态。
@@ -194,6 +202,7 @@ static void hid_boot_out_cbk(gatt_event_t event, void *context, void *param)
                                    g_hid_boot_out_report, sizeof(g_hid_boot_out_report));
             break;
         }
+        // Boot Keyboard Output 写请求事件：处理对端写入的输出报告数据。
         case GATTS_EV_CHR_VALUE_WRITE_REQ: {
             gatt_chr_val_write_req_t *in = (gatt_chr_val_write_req_t *)param;
             uint16_t copy_len = (in->val_len > sizeof(g_hid_boot_out_report))
@@ -203,9 +212,12 @@ static void hid_boot_out_cbk(gatt_event_t event, void *context, void *param)
                 memcpy(g_hid_boot_out_report, in->val, copy_len);
             }
             co_printf("[HID  ] HID Boot OUT write (len=%d)\n", in->val_len);
+            /* 通知PM：对端(STB)下发数据 → 重置空闲计时器/退出待机态 */
+            pm_activity_notify(PM_ACTIVITY_PEER_DATA);
             gatts_chr_val_write_rsp(in->peer, in->chr, GATT_OK);
             break;
         }
+        // 处理 Boot Keyboard Output 的写命令事件（无需响应，直接处理数据）。
         case GATTS_EV_CHR_VALUE_WRITE: {
             gatt_chr_val_write_req_t *in = (gatt_chr_val_write_req_t *)param;
             uint16_t copy_len = (in->val_len > sizeof(g_hid_boot_out_report))
@@ -215,10 +227,10 @@ static void hid_boot_out_cbk(gatt_event_t event, void *context, void *param)
                 memcpy(g_hid_boot_out_report, in->val, copy_len);
             }
             co_printf("[HID  ] HID Boot OUT write cmd (len=%d)\n", in->val_len);
+            /* 通知PM：对端(STB)下发数据 → 重置空闲计时器/退出待机态 */
+            pm_activity_notify(PM_ACTIVITY_PEER_DATA);
             break;
         }
-        default:
-            break;
     }
 }
 

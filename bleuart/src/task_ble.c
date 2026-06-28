@@ -9,6 +9,7 @@
 #include "app_rtos.h"
 #include "rc_cat1_bridge.h"
 #include "co_printf.h"
+#include "pm_state.h"       /* 电源管理状态机 — 空闲超时检查 */
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -29,16 +30,28 @@ void task_ble_entry(void *pvParameters)
 	//static uint16_t loop_diag_cnt = 0;
 
 	for (;;) {
-		//loop_diag_cnt++;
-		// if ((loop_diag_cnt % 500) == 0) {
-		// 	co_printf("[LOOP] iter=%u uptime=%u\r\n", loop_diag_cnt, voiceUptimeMs);
-		// }
+		/*
+		 * 电源管理状态机处理（每循环周期调用一次，约 10ms）
+		 * 检查以下超时条件并执行状态转换：
+		 *   - 工作态空闲超时 → 待机态
+		 *   - 待机态空闲超时 → 休眠态
+		 *   - 回连态持续超时 → 休眠态
+		 * 其他状态（配对/休眠）下本函数为空操作。
+		 */
+		pm_state_process();
 
 		// 如果 BLE 广播尚未启动，则尝试启动 BLE 广播并设置 SDK 定时器以继续检查状态
 		if (bleAdvStat != 0xa6U) {
 			bleAdvStat = myBleStartAdv();
 			cs_schedule();
 			setSdkTimer(8);
+
+			/*
+			 * BLE 栈初始化完成后，重新同步 PM 状态机。
+			 * 此时 peer_bonded_count() 已有正确的绑定数据（从 Flash 恢复），
+			 * 若原先是 PAIRING（默认值）但实际有绑定，修正为 RECONNECTING。
+			 */
+			pm_state_sync_after_ble_init();
 			//co_printf("BLE stack ready, advertising started.\r\n");
 		}
 

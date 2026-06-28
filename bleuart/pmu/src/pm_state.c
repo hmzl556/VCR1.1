@@ -16,6 +16,8 @@
 
 #include "pm_state.h"
 #include "pm_config.h"
+#include "pm_standby.h"  /* pm_standby_enter() / pm_standby_exit() */
+#include "pm_sleep.h"    /* pm_sleep_enter()                     */
 #include "gmem.h"       /* voiceUptimeMs 全局毫秒计数器 */
 #include "gap.h"        /* peer_bonded_count() 绑定数量查询 */
 
@@ -68,6 +70,19 @@ static void pm_refresh_activity(void)
  */
 static uint32_t pm_idle_duration_ms(void)
 {
+    /*
+     * 防护：若 voiceUptimeMs 意外小于 g_pm_last_activity_ms（可能原因：
+     * ① g_pm_last_activity_ms 未在关键路径被刷新  ② 变量被异常改写）
+     * 减法会下溢得到一个极大值（~49 天），导致立即误触发超时。
+     * 此处检测下溢并返回 0，同时印出警告便于调试。
+     */
+    if (voiceUptimeMs < g_pm_last_activity_ms) {
+        PM_LOG("WARN: idle timer underflow! voice=%lu last_act=%lu",
+               (unsigned long)voiceUptimeMs, (unsigned long)g_pm_last_activity_ms);
+        /* 修复：将时间戳拉到当前值，恢复计时器 */
+        g_pm_last_activity_ms = voiceUptimeMs;
+        return 0U;
+    }
     return (voiceUptimeMs - g_pm_last_activity_ms);
 }
 
@@ -85,7 +100,7 @@ static uint32_t pm_idle_duration_ms(void)
  */
 static void pm_enter_working(void)
 {
-    PM_LOG("进入工作态 WORKING");
+    PM_LOG("Enter WORKING state");
     /* 工作态连接参数将在第4步 pm_standby_exit() 中自动恢复 */
 
     /* 刷新活动时间戳，确保不会立即又进入待机态 */
@@ -100,16 +115,13 @@ static void pm_enter_working(void)
  */
 static void pm_enter_standby(void)
 {
-    PM_LOG("进入待机态 STANDBY — 切换省电参数");
+    PM_LOG("Enter STANDBY state - power saving");
     g_pm_standby_start_ms = voiceUptimeMs;
 
-    /* 第4步将实现：
-     *   1. 发送连接参数更新请求 (50ms / latency 100)
-     *   2. 关闭 LED
-     *   3. 关闭 CAT1 UART TX，保持 RX
-     *   4. 可选：关闭 ADC、关闭非必要时钟
-     */
+    /* 执行待机态硬件操作：连接参数切换 + CAT1 TX关闭 + LED关闭 */
+    pm_standby_enter();
 }
+
 
 /**
  * @brief  退出待机态的操作
@@ -118,13 +130,10 @@ static void pm_enter_standby(void)
  */
 static void pm_exit_standby(void)
 {
-    PM_LOG("退出待机态 STANDBY — 恢复工作参数");
+    PM_LOG("Exit STANDBY - restore working params");
 
-    /* 第4步将实现：
-     *   1. 发送连接参数更新请求 (10ms / latency 40)
-     *   2. 恢复 CAT1 UART TX
-     *   3. 恢复 LED 指示功能
-     */
+    /* 执行工作态硬件恢复：连接参数 + CAT1 TX */
+    pm_standby_exit();
 }
 
 /**
@@ -134,16 +143,42 @@ static void pm_exit_standby(void)
  */
 static void pm_enter_sleep(void)
 {
-    PM_LOG("进入休眠态 SLEEP — 准备进入 Sleep 模式");
+    uint8_t wake_reason;
 
-    /* 第6步将实现：
-     *   1. 停止 BLE 广播
-     *   2. 断开 BLE 连接（如果有）
-     *   3. 关闭全部非必要外设
-     *   4. 配置 KEYSCAN EXTI 唤醒源
-     *   5. 配置 RTC 定时唤醒
-     *   6. 调用 PWR_EnterSLEEPMode()
+    PM_LOG("Enter SLEEP state - prep sleep mode");
+
+    /*
+     * pm_sleep_enter() handles all sleep-mode hardware operations:
+     *   1. Stop BLE advertising
+     *   2. Reset bleAdvStat (main loop will restart BLE after wake)
+     *   3. Shutdown non-essential peripherals (LED, CAT1 UART, etc.)
+     *   4. Configure RTC wakeup timer (LSI 2KHz, N-second interval)
+     *   5. Enter PWR_EnterSLEEPMode(WFI) — CPU stops here
+     *
+     * On wakeup (KEYSCAN EXTI or RTC), this function returns the wake reason.
      */
+    wake_reason = pm_sleep_enter();
+
+    /*
+     * After waking from Sleep mode:
+     * - bleAdvStat was reset to 0, so the main loop will call myBleStartAdv()
+     *   which re-initializes BLE stack + services + starts advertising
+     * - Determine destination state based on bonding and wake reason
+     * - If woken by KEYSCAN: user pressed a key, restart PAIRING or RECONNECTING
+     * - If woken by RTC: periodic check-in, restart RECONNECTING if bonded
+     */
+    if (pm_has_bonding()) {
+        PM_LOG("Sleep wake: bonded, entering RECONNECTING");
+        g_pm_state = PM_STATE_RECONNECTING;
+    } else {
+        PM_LOG("Sleep wake: no bond, entering PAIRING");
+        g_pm_state = PM_STATE_PAIRING;
+    }
+
+    /* Refresh activity timer so we don't immediately time out again */
+    pm_refresh_activity();
+
+    (void)wake_reason;
 }
 
 /**
@@ -152,7 +187,7 @@ static void pm_enter_sleep(void)
  */
 static void pm_enter_pairing(void)
 {
-    PM_LOG("进入配对态 PAIRING");
+    PM_LOG("Enter PAIRING state");
     pm_refresh_activity();
 
     /* 广播启动由 ble_adv_start_pairing() 完成，
@@ -165,7 +200,7 @@ static void pm_enter_pairing(void)
  */
 static void pm_enter_reconnecting(void)
 {
-    PM_LOG("进入回连态 RECONNECTING");
+    PM_LOG("Enter RECONNECTING state");
     g_pm_reconnect_start_ms = voiceUptimeMs;
     pm_refresh_activity();
 
@@ -185,16 +220,35 @@ void pm_state_init(void)
     /* 根据绑定状态决定初始状态 */
     if (pm_has_bonding()) {
         g_pm_state = PM_STATE_RECONNECTING;
-        PM_LOG("PM 初始化：检测到绑定记录，初始状态 = 回连态");
+        PM_LOG("PM init: bonded, start=RECONNECTING");
     } else {
         g_pm_state = PM_STATE_PAIRING;
-        PM_LOG("PM 初始化：无绑定记录，初始状态 = 配对态");
+        PM_LOG("PM init: no bond, start=PAIRING");
     }
 
     /* 初始化活动时间戳为当前时刻，避免立即触发超时 */
     pm_refresh_activity();
+}
 
-    /* 第6步将在此处配置 RTC 唤醒定时器以备休眠态使用 */
+/**
+ * @brief  BLE 栈初始化完成后的状态同步
+ * @note   pm_state_init() 调用时 BLE 栈尚未启动，peer_bonded_count() 返回 0，
+ *         导致初始状态始终为 PAIRING。本函数在 myBleStartAdv() 之后调用，
+ *         此时绑定数据已从 Flash 恢复到 RAM，可正确判断。
+ *         仅当"PM认为是PAIRING但实际有绑定"时才修正为 RECONNECTING。
+ */
+void pm_state_sync_after_ble_init(void)
+{
+    /*
+     * pm_state_init() 先于 BLE 栈初始化，此时 peer_bonded_count() 必为 0，
+     * 因此初始状态固定为 PAIRING。BLE 栈就绪后，绑定已从 Flash 恢复，
+     * 若实际有绑定，需通过正规状态转换切换到 RECONNECTING，
+     * 确保 pm_enter_reconnecting() 被调用（初始化回连计时器+刷新活动时间戳）。
+     */
+    if (g_pm_state == PM_STATE_PAIRING && pm_has_bonding()) {
+        pm_state_transition(PM_STATE_RECONNECTING);
+        PM_LOG("PM sync after BLE init: corrected to RECONNECTING");
+    }
 }
 
 /**
@@ -220,14 +274,20 @@ void pm_state_transition(pm_state_t new_state)
         return;
     }
 
-    PM_LOG("状态转换: %s → %s",
+    PM_LOG("State transition: %s -> %s",
            pm_state_name(old_state),
            pm_state_name(new_state));
 
     /* ----- 退出旧状态 ----- */
     switch (old_state) {
         case PM_STATE_STANDBY:
-            pm_exit_standby();
+            /*
+             * 从待机态退出：目标为 WORKING 时恢复外设；
+             * 目标为 SLEEP 时跳过（马上要关外设睡觉，不需要恢复）
+             */
+            if (new_state != PM_STATE_SLEEP) {
+                pm_exit_standby();
+            }
             break;
         /* 其他状态当前无需特殊退出操作 */
         default:
@@ -256,7 +316,7 @@ void pm_state_transition(pm_state_t new_state)
             break;
         default:
             /* 非法状态，回退 */
-            PM_LOG("错误：非法状态 %d，回退到配对态", (int)new_state);
+            PM_LOG("ERROR: invalid state %d, fallback PAIRING", (int)new_state);
             g_pm_state = PM_STATE_PAIRING;
             break;
     }
@@ -272,7 +332,7 @@ void pm_activity_notify(pm_activity_t activity)
 
     /* 如果在待机态，立即切回工作态 */
     if (g_pm_state == PM_STATE_STANDBY) {
-        PM_LOG("待机态下检测到活动(%d)，切回工作态", (int)activity);
+        PM_LOG("Activity(%d) in STANDBY, switch WORKING", (int)activity);
         pm_state_transition(PM_STATE_WORKING);
     }
 
@@ -285,7 +345,7 @@ void pm_activity_notify(pm_activity_t activity)
  */
 void pm_notify_connected(void)
 {
-    PM_LOG("收到连接成功通知，当前状态=%s", pm_state_name(g_pm_state));
+    PM_LOG("Connected notify, curr=%s", pm_state_name(g_pm_state));
 
     switch (g_pm_state) {
         case PM_STATE_PAIRING:
@@ -297,7 +357,7 @@ void pm_notify_connected(void)
         case PM_STATE_WORKING:
         case PM_STATE_STANDBY:
             /* 已连接状态，不应再收到连接通知（可能是重连或异常） */
-            PM_LOG("警告：已在连接态下收到连接通知，忽略");
+            PM_LOG("WARN: connect notify while connected, ignore");
             break;
 
         case PM_STATE_SLEEP:
@@ -314,7 +374,7 @@ void pm_notify_connected(void)
  */
 void pm_notify_disconnected(void)
 {
-    PM_LOG("收到断连通知，当前状态=%s", pm_state_name(g_pm_state));
+    PM_LOG("Disconnect notify, curr=%s", pm_state_name(g_pm_state));
 
     /* 根据是否有绑定记录决定去向 */
     if (pm_has_bonding()) {
@@ -338,7 +398,7 @@ void pm_state_process(void)
             /* 检查工作态 → 待机态超时 */
             idle_ms = pm_idle_duration_ms();
             if (idle_ms >= PM_WORK_TO_STANDBY_MS) {
-                PM_LOG("工作态空闲 %lu ms 超时，进入待机态", idle_ms);
+                co_printf("WORKING idle %lu ms timeout -> STANDBY", idle_ms);
                 pm_state_transition(PM_STATE_STANDBY);
             }
             break;
@@ -347,7 +407,7 @@ void pm_state_process(void)
             /* 检查待机态 → 休眠态超时 */
             idle_ms = pm_idle_duration_ms();
             if (idle_ms >= PM_STANDBY_TO_SLEEP_MS) {
-                PM_LOG("待机态空闲 %lu ms 超时，进入休眠态", idle_ms);
+                co_printf("STANDBY idle %lu ms timeout -> SLEEP", idle_ms);
                 pm_state_transition(PM_STATE_SLEEP);
             }
             break;
@@ -355,8 +415,8 @@ void pm_state_process(void)
         case PM_STATE_RECONNECTING:
             /* 检查回连态 → 休眠态超时 */
             if ((voiceUptimeMs - g_pm_reconnect_start_ms) >= PM_RECONNECT_TIMEOUT_MS) {
-                PM_LOG("回连超时 %lu ms，进入休眠态",
-                       (unsigned long)(voiceUptimeMs - g_pm_reconnect_start_ms));
+                co_printf("RECONNECT timeout %lu ms -> SLEEP",
+                          (unsigned long)(voiceUptimeMs - g_pm_reconnect_start_ms));
                 pm_state_transition(PM_STATE_SLEEP);
             }
             break;
@@ -377,7 +437,7 @@ void pm_state_process(void)
  */
 void pm_wakeup_entry(void)
 {
-    PM_LOG("========== 休眠唤醒入口 ==========");
+    PM_LOG("========== SLEEP WAKEUP ==========");
 
     /* 判断唤醒原因：
      *   - KEYSCAN EXTI：按键唤醒
@@ -387,10 +447,10 @@ void pm_wakeup_entry(void)
 
     /* 根据绑定状态决定去向 */
     if (pm_has_bonding()) {
-        PM_LOG("唤醒后检测到绑定记录，进入回连态");
+        PM_LOG("Wakeup: bonded -> RECONNECTING");
         pm_state_transition(PM_STATE_RECONNECTING);
     } else {
-        PM_LOG("唤醒后无绑定记录，进入配对态");
+        PM_LOG("Wakeup: no bond -> PAIRING");
         pm_state_transition(PM_STATE_PAIRING);
     }
 }

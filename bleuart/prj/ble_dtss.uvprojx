@@ -340,7 +340,7 @@
               <MiscControls>--diag_suppress=188 --diag_suppress=177</MiscControls>
               <Define>BR1601A01,USB_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\bsp\common\inc;..\..\bsp\core\inc;..\..\bsp\driver\inc;..\..\audio\audio_encode;..\..\audio\audio_code_sbc;..\..\cs\inc;..\inc;..\src;..\prj;..\..\audio\audio_code_adpcm;..\freertos\include;..\freertos;..\freertos\portable\RVDS\ARM_CM0;..\cat1;..\cat1;..\cat1\tiny-aes</IncludePath>
+              <IncludePath>..\..\bsp\common\inc;..\..\bsp\core\inc;..\..\bsp\driver\inc;..\..\audio\audio_encode;..\..\audio\audio_code_sbc;..\..\cs\inc;..\inc;..\src;..\prj;..\..\audio\audio_code_adpcm;..\freertos\include;..\freertos;..\freertos\portable\RVDS\ARM_CM0;..\cat1;..\cat1;..\cat1\tiny-aes;..\pmu\inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -738,6 +738,26 @@
               <FileName>gmem.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\inc\gmem.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>pmu</GroupName>
+          <Files>
+            <File>
+              <FileName>pm_standby.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\pmu\src\pm_standby.c</FilePath>
+            </File>
+            <File>
+              <FileName>pm_state.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\pmu\src\pm_state.c</FilePath>
+            </File>
+            <File>
+              <FileName>pm_sleep.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\pmu\src\pm_sleep.c</FilePath>
             </File>
           </Files>
         </Group>

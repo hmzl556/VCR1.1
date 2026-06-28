@@ -1,0 +1,12 @@
+.\objects\pm_state.o: ..\pmu\src\pm_state.c
+.\objects\pm_state.o: ..\pmu\inc\pm_state.h
+.\objects\pm_state.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\pm_state.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\pm_state.o: ..\pmu\inc\pm_config.h
+.\objects\pm_state.o: ..\..\bsp\common\inc\co_printf.h
+.\objects\pm_state.o: ..\pmu\inc\pm_standby.h
+.\objects\pm_state.o: ..\pmu\inc\pm_sleep.h
+.\objects\pm_state.o: ..\inc\gmem.h
+.\objects\pm_state.o: ..\..\cs\inc\gap.h
+.\objects\pm_state.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\pm_state.o: ..\..\cs\inc\gatt.h

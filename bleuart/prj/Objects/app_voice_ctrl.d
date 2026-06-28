@@ -39,3 +39,6 @@
 .\objects\app_voice_ctrl.o: ..\freertos\include\queue.h
 .\objects\app_voice_ctrl.o: ..\freertos\include\task.h
 .\objects\app_voice_ctrl.o: ..\freertos\include\list.h
+.\objects\app_voice_ctrl.o: ..\pmu\inc\pm_state.h
+.\objects\app_voice_ctrl.o: ..\pmu\inc\pm_config.h
+.\objects\app_voice_ctrl.o: ..\..\bsp\common\inc\co_printf.h
