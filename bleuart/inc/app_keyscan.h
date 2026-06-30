@@ -153,10 +153,23 @@
 	/** 轮询当前键号：无键返回 0；与 IRQ 内解析方式一致 */
 	uint8_t app_keyscan_read_key_id(void);
 
-	extern volatile uint8_t g_keyscan_event_pending;
-	extern volatile uint8_t g_keyscan_event_key;
-	extern volatile uint8_t g_keyscan_event_type;
-	extern volatile uint8_t g_keyscan_last_key;
+/** 检查指定按键是否物理按下（按位与检测，支持多键同时按下） */
+static inline bool keyscan_is_key_pressed(const uint32_t key_data[KEYSCAN_INFO_CHECK],
+                                          uint8_t key_num)
+{
+    uint8_t i;
+    if (key_num == 0 || key_num >= KEYSCAN_KEY_MAX) return false;
+    for (i = 0; i < KEYSCAN_INFO_CHECK; i++) {
+        if ((key_data[i] & keyscan_map[key_num][i]) != keyscan_map[key_num][i])
+            return false;
+    }
+    return true;
+}
+
+extern volatile uint8_t g_keyscan_event_pending;
+extern volatile uint8_t g_keyscan_event_key;
+extern volatile uint8_t g_keyscan_event_type;
+extern volatile uint8_t g_keyscan_last_key;
 
 	#ifdef __cplusplus
 	}

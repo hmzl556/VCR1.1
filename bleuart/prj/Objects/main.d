@@ -61,5 +61,6 @@
 .\objects\main.o: ..\freertos\include\mpu_wrappers.h
 .\objects\main.o: ..\pmu\inc\pm_state.h
 .\objects\main.o: ..\pmu\inc\pm_config.h
+.\objects\main.o: ..\inc\combo_key.h
 .\objects\main.o: ..\freertos\include\task.h
 .\objects\main.o: ..\freertos\include\list.h

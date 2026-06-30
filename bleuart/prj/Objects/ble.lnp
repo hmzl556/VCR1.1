@@ -26,6 +26,7 @@
 ".\objects\ble_dtss.o"
 ".\objects\ble_hid_kbd.o"
 ".\objects\ble_diss.o"
+".\objects\combo_key.o"
 ".\objects\rc_key_input.o"
 ".\objects\aes.o"
 ".\objects\aes_transport.o"

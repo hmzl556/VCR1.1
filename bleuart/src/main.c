@@ -20,6 +20,7 @@
 #include "rc_cat1_bridge.h"
 #include "app_rtos.h"
 #include "pm_state.h"       /* 电源管理状态机 — 休眠/待机态控制 */
+#include "combo_key.h"      /* 组合键管理器（配对/解配）           */
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -130,6 +131,7 @@ int main(void)
 	 */
 
 	pm_state_init();
+	combo_key_init();		// 初始化组合键管理器（配对/解配）
 	
 	(void)xTaskCreateStatic(task_ble_entry, "ble", 512, NULL, 3, s_ble_stack, &s_ble_tcb);
 

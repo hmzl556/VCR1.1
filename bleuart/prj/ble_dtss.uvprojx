@@ -539,6 +539,11 @@
               <FileType>1</FileType>
               <FilePath>..\src\ble_diss.c</FilePath>
             </File>
+            <File>
+              <FileName>combo_key.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\src\combo_key.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

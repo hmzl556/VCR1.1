@@ -52,6 +52,7 @@ void task_ble_entry(void *pvParameters)
 			 * 若原先是 PAIRING（默认值）但实际有绑定，修正为 RECONNECTING。
 			 */
 			pm_state_sync_after_ble_init();
+
 			//co_printf("BLE stack ready, advertising started.\r\n");
 		}
 

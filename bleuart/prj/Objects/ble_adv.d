@@ -7,6 +7,7 @@
 .\objects\ble_adv.o: ..\..\cs\inc\gatt.h
 .\objects\ble_adv.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\ble_adv.o: ..\inc\ble_adv.h
+.\objects\ble_adv.o: ..\inc\ble_gap.h
 .\objects\ble_adv.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\ble_adv.o: ..\..\bsp\core\inc\core_cm0.h
 .\objects\ble_adv.o: ..\..\bsp\core\inc\core_cmInstr.h
