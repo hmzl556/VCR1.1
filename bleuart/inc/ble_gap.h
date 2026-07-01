@@ -37,9 +37,6 @@
 #include "gap.h"
 int ble_gap_init(void);
 
-// 配对广播活跃标志：true=KEY14+KEY5组合键触发，false=静默配对（上电/断连）
-extern volatile bool g_pairing_active;
-
 // 获取当前已连接对端句柄；未连接时返回 NULL。
 peer_t ble_gap_get_peer(void);
 

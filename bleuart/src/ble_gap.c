@@ -49,7 +49,6 @@
 #include "ble_rc_svc.h"
 #include "rc_cat1_bridge.h"
 #include "pm_state.h"       /* 电源管理状态机 — 连接/断连通知 */
-#include "combo_key.h"      /* 组合键管理器 — 解配进行中判断     */
 #ifndef BLE_CONN_PARAM_PERSIST_ENABLE
 #define BLE_CONN_PARAM_PERSIST_ENABLE 0 // 默认不启用连接参数持久化，避免误操作导致 Flash 损耗
 #endif
@@ -380,14 +379,7 @@ void ble_gap_process_disconnect_pending(void)
 	rc_trans_reset();							// 重置遥控传输模块
 	rc_cat1_cancel_pending();					// 取消 Cat.1 模块的 pending 事件
 	ble_rc_svc_on_disconnect();					// 重置 RC 服务模块
-
-	// 解配流程进行中：不重启广播（combo_key 状态机会处理后续→SLEEP）
-	if (combo_key_unpair_in_progress()) {
-		co_printf("Unpair in progress, skip advertising restart.\r\n");
-		return;
-	}
-
-	ble_adv_start_by_bonding();					// 重新启动 BLE 广播
+	ble_adv_start_by_bonding();							// 重新启动 BLE 广播
 }
 
 static void ble_conn_read_rssi(gap_event_t ev, void *ctx, rssi_t *arg)
@@ -568,9 +560,6 @@ static void ble_low_latency_exit(peer_t peer)
 	// 5. 机顶盒请求退出低时延态，恢复普通工作态连接参数
 }
 
-// 配对广播活跃标志：true=KEY14+KEY5组合键触发, false=静默配对
-volatile bool g_pairing_active = false;
-
 peer_t ble_gap_get_peer(void)
 {
 	return g_peer;
@@ -585,23 +574,17 @@ static bool     g_pairing_led_state = false;
 
 void ble_gap_led_indicate(void)
 {
-	/*
-	 * 仅在配对态（PAIRING）时 LED2 快闪，提示用户可被发现。
-	 * 静默态（IDLE）下 peer==NULL && count==0 也成立，但不应闪烁，
-	 * 否则与配对态视觉上无区别。
-	 */
-	if (g_pairing_active
-	    && ble_gap_get_peer() == NULL
-	    && peer_bonded_count() == 0) {
+	// 未连接且无绑定：LED2 快闪，提示用户进入配对模式
+	if (ble_gap_get_peer() == NULL && peer_bonded_count() == 0) {
 		uint32_t now = voiceUptimeMs;
 		if ((now - g_pairing_led_ts_ms) >= PAIRING_LED_FLASH_MS) {
 			g_pairing_led_ts_ms = now;
 			g_pairing_led_state = !g_pairing_led_state;
 			if (g_pairing_led_state) SETLED2; else CLRLED2;
 		}
-	}
+	} 
 	else {
-		// 非配对态：确保 LED2 熄灭，防止快闪周期中切换状态导致常亮
+		// 已连接或有绑定：确保 LED2 熄灭，防止快闪周期中切换状态导致常亮
 		if (g_pairing_led_state) {
 			g_pairing_led_state = false;
 			CLRLED2;
@@ -614,27 +597,14 @@ void ble_gap_led_indicate(void)
 // 会毁掉 BLE 协议栈代码。改为写 0 到 header magic 字段使其失效。
 void ble_gap_clear_bonding_info(void)
 {
-    peer_t peer;
-
-    // 1. 先断开当前连接（如有），防止对端继续用旧加密通信
-    g_pairing_active = false;
-
-    peer = ble_gap_get_peer();
-    if (peer != NULL) {
-        le_conn_destory(peer);
-        co_printf("Disconnecting before clearing bonding...\r\n");
-    }
-
 #if BLE_BONDING_PERSIST_ENABLE
-    {
-        uint32_t invalid_magic[1] = {0x00000000};
-        // NOR Flash 支持 1→0 直接写入，无需预擦除
-        Qflash_Write(BLE_BONDING_STORE_ADDR, (uint8_t *)invalid_magic, sizeof(invalid_magic));
-        co_printf("bonding info invalidated (factory reset)\r\n");
+    uint32_t invalid_magic[1] = {0x00000000};
+    // NOR Flash 支持 1→0 直接写入，无需预擦除
+    Qflash_Write(BLE_BONDING_STORE_ADDR, (uint8_t *)invalid_magic, sizeof(invalid_magic));
+    co_printf("bonding info invalidated (factory reset)\r\n");
 
-        // 清除 RAM 中的绑定状态，确保广播模式正确切换
-        peer_bonded_clear();
-        co_printf("bonding RAM cleared, count=%d\r\n", peer_bonded_count());
-    }
+    // 清除 RAM 中的绑定状态，确保广播模式正确切换
+    peer_bonded_clear();
+    co_printf("bonding RAM cleared, count=%d\r\n", peer_bonded_count());
 #endif
 }

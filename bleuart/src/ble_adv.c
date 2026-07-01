@@ -39,7 +39,6 @@
 #include "gatt.h"
 #include "co_printf.h"
 #include "ble_adv.h"
-#include "ble_gap.h"    /* g_pairing_active */
 #include "br1601x.h"
 
 uint8_t local_bd[6];    // 本地蓝牙地址
@@ -233,16 +232,12 @@ void ble_adv_start_reconnect(void)
 
 void ble_adv_start_by_bonding(void)
 {
-    // 有绑定记录 -> 回连广播
-    // 无绑定但 KEY14+KEY5 触发 -> 配对广播（由 combo_key.c 先调用 ble_adv_start_pairing）
-    // 无绑定且未触发 -> 不广播
+    // 无绑定记录 -> 配对态，有绑定记录 -> 回连态
+    // 符合GY/T 407-2024 条款附录C.2
+    // 依据是否存在绑定记录选择广播形态
     if (peer_bonded_count() > 0) {
         ble_adv_start_reconnect();
-    } else if (g_pairing_active) {
-        ble_adv_start_pairing();
     } else {
-        // 无绑定静默：不启用广播，但保留 ble_adv_init() 注册的 handle 0x01，
-        // 否则 ble_adv_stop() 在休眠时对不存在的 handle 发 HCI 命令会破坏 BLE 控制器状态
-        co_printf("No bonding, skip advertising. Press KEY14+KEY5 to pair.\r\n");
+        ble_adv_start_pairing();
     }
 }

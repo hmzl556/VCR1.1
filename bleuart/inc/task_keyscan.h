@@ -10,9 +10,7 @@
 
 // 按键编号定义（与 KEYSCAN 中断上报一致）
 #define TASK_KEYSCAN_KEY4            4U
-#define TASK_KEYSCAN_KEY5            5U
 #define TASK_KEYSCAN_KEY6            6U
-#define TASK_KEYSCAN_KEY9            9U
 #define TASK_KEYSCAN_KEY14          14U
 
 // 恢复出厂设置相关时间常量（ms）

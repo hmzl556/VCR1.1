@@ -15,10 +15,12 @@ extern "C" {
 /** Wakeup reason codes */
 #define PM_WAKE_REASON_NONE     0U  /* Undefined / not a wakeup event    */
 #define PM_WAKE_REASON_KEYSCAN  1U  /* Woken by KEYSCAN EXTI (key press) */
+#define PM_WAKE_REASON_RTC      2U  /* Woken by RTC wakeup timer         */
 
 /**
- * @brief  Enter Sleep mode (CPU+BLE off, SRAM retained, KEYSCAN wake)
- * @note   Stops BLE, enters WFI. On KEYSCAN EXTI wakeup, returns the wake reason.
+ * @brief  Enter Sleep mode (CPU+BLE off, SRAM retained, KEYSCAN+RTC wake)
+ * @note   Stops BLE, configures wakeup sources, then calls PWR_EnterSLEEPMode().
+ *         On wakeup, returns the wake reason.
  * @return Wakeup reason (PM_WAKE_REASON_*)
  */
 uint8_t pm_sleep_enter(void);

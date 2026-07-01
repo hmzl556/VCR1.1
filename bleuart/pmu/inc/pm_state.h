@@ -16,7 +16,7 @@
  *     │           ↓                       ↓
  *     └──→ RECONNECTING              SLEEP
  *                │                       │
- *           超时无连接              按键唤醒
+ *           超时无连接              按键/RTC唤醒
  *                ↓                       ↓
  *             SLEEP              PAIRING/RECONNECTING
  */
@@ -46,7 +46,6 @@ typedef enum {
     PM_STATE_WORKING      = 2,  /* 工作态：已连接，全功能运行，小连接间隔        */
     PM_STATE_STANDBY      = 3,  /* 待机态：已连接但无业务，大连接间隔省电        */
     PM_STATE_SLEEP        = 4,  /* 休眠态：无连接无广播，Sleep 模式极低功耗      */
-
 } pm_state_t;
 
 /*===========================================================================
@@ -74,6 +73,7 @@ typedef enum {
  * @brief  电源状态机初始化
  * @note   在系统启动时调用一次（建议在 app_rtos_init() 之后）。
  *         初始化状态为 PAIRING（后续由绑定检查结果修正）。
+ *         同时配置 RTC 唤醒定时器以备休眠态使用。
  */
 void pm_state_init(void);
 
@@ -141,7 +141,8 @@ void pm_state_process(void);
 /**
  * @brief  休眠唤醒入口
  * @note   CPU 从 Sleep 模式唤醒后调用（在 main.c 或启动代码中）。
- *         恢复外设，并根据绑定状态启动配对广播或回连广播。
+ *         判断唤醒原因（KEYSCAN vs RTC），恢复外设，
+ *         并根据绑定状态启动配对广播或回连广播。
  */
 void pm_wakeup_entry(void);
 

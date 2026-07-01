@@ -20,7 +20,6 @@
 #include "pm_sleep.h"    /* pm_sleep_enter()                     */
 #include "gmem.h"       /* voiceUptimeMs 全局毫秒计数器 */
 #include "gap.h"        /* peer_bonded_count() 绑定数量查询 */
-#include "userhard.h"   /* SETLED1/CLRLED1/SETLED2/CLRLED2   */
 
 /*===========================================================================
  * 一、内部静态变量
@@ -38,10 +37,7 @@ static uint32_t     g_pm_reconnect_start_ms = 0U;
 /** @brief 进入待机态的时间戳，用于待机→休眠超时判断 */
 static uint32_t     g_pm_standby_start_ms   = 0U;
 
-/** @brief 进入配对态的时间戳，用于配对超时判断 */
-static uint32_t     g_pm_pairing_start_ms   = 0U;
-
-/** @brief 进入休眠态前记录唤醒原因：0=未定义, 1=按键 */
+/** @brief 进入休眠态前记录唤醒原因：0=未定义, 1=按键, 2=RTC */
 static uint8_t      g_pm_wake_reason        = 0U;
 
 /*===========================================================================
@@ -92,6 +88,9 @@ static uint32_t pm_idle_duration_ms(void)
 
 /*===========================================================================
  * 三、各状态进入/退出操作（内部函数）
+ *
+ *  备注：以下函数当前为框架实现，具体外设控制逻辑
+ *        将在第4步（pm_standby.c）和第6步（pm_sleep.c）中完善。
  *===========================================================================*/
 
 /**
@@ -106,13 +105,13 @@ static void pm_enter_working(void)
 
     /* 刷新活动时间戳，确保不会立即又进入待机态 */
     pm_refresh_activity();
-    CLRLED2;
 }
 
 /**
  * @brief  进入待机态的操作
  * @note   切换为大连接间隔+最大延迟数以降低功耗
  *         关闭非必要外设（LED、CAT1 TX 等）
+ *         TODO: 第4步实现详细外设控制
  */
 static void pm_enter_standby(void)
 {
@@ -127,6 +126,7 @@ static void pm_enter_standby(void)
 /**
  * @brief  退出待机态的操作
  * @note   恢复工作态连接参数，重新开启外设
+ *         TODO: 第4步实现
  */
 static void pm_exit_standby(void)
 {
@@ -139,6 +139,7 @@ static void pm_exit_standby(void)
 /**
  * @brief  进入休眠态的操作
  * @note   停止广播、断开连接、配置唤醒源、进入 Sleep 模式
+ *         TODO: 第6步实现详细休眠流程
  */
 static void pm_enter_sleep(void)
 {
@@ -151,34 +152,33 @@ static void pm_enter_sleep(void)
      *   1. Stop BLE advertising
      *   2. Reset bleAdvStat (main loop will restart BLE after wake)
      *   3. Shutdown non-essential peripherals (LED, CAT1 UART, etc.)
-     *   4. Enter PWR_EnterSLEEPMode(WFI) — CPU stops here
+     *   4. Configure RTC wakeup timer (LSI 2KHz, N-second interval)
+     *   5. Enter PWR_EnterSLEEPMode(WFI) — CPU stops here
      *
-     * On wakeup (KEYSCAN EXTI), this function returns the wake reason.
+     * On wakeup (KEYSCAN EXTI or RTC), this function returns the wake reason.
      */
-    pm_sleep_enter();
+    wake_reason = pm_sleep_enter();
 
     /*
      * After waking from Sleep mode:
      * - bleAdvStat was reset to 0, so the main loop will call myBleStartAdv()
      *   which re-initializes BLE stack + services + starts advertising
      * - Determine destination state based on bonding and wake reason
-     * - Woken by KEYSCAN: user pressed a key, restart PAIRING or RECONNECTING
+     * - If woken by KEYSCAN: user pressed a key, restart PAIRING or RECONNECTING
+     * - If woken by RTC: periodic check-in, restart RECONNECTING if bonded
      */
     if (pm_has_bonding()) {
-        PM_LOG("%02X\r\n", 0xA2);  /* marker: bonded -> RECONNECTING */
+        PM_LOG("Sleep wake: bonded, entering RECONNECTING");
         g_pm_state = PM_STATE_RECONNECTING;
-    CLRLED1;
     } else {
-        PM_LOG("%02X\r\n", 0xA3);  /* marker: no bond -> PAIRING */
+        PM_LOG("Sleep wake: no bond, entering PAIRING");
         g_pm_state = PM_STATE_PAIRING;
-    CLRLED1;
     }
 
     /* Refresh activity timer so we don't immediately time out again */
     pm_refresh_activity();
-    //CLRLED2;
 
-    PM_LOG("%02X\r\n", 0xA4);  /* marker: pm_enter_sleep done */
+    (void)wake_reason;
 }
 
 /**
@@ -188,9 +188,7 @@ static void pm_enter_sleep(void)
 static void pm_enter_pairing(void)
 {
     PM_LOG("Enter PAIRING state");
-    g_pm_pairing_start_ms = voiceUptimeMs;
     pm_refresh_activity();
-    CLRLED2;
 
     /* 广播启动由 ble_adv_start_pairing() 完成，
        在 pm_state_transition() 调用后由上层触发 */
@@ -205,7 +203,6 @@ static void pm_enter_reconnecting(void)
     PM_LOG("Enter RECONNECTING state");
     g_pm_reconnect_start_ms = voiceUptimeMs;
     pm_refresh_activity();
-    CLRLED2;
 
     /* 广播启动由 ble_adv_start_reconnect() 完成，
        在 pm_state_transition() 调用后由上层触发 */
@@ -223,17 +220,14 @@ void pm_state_init(void)
     /* 根据绑定状态决定初始状态 */
     if (pm_has_bonding()) {
         g_pm_state = PM_STATE_RECONNECTING;
-    CLRLED1;
         PM_LOG("PM init: bonded, start=RECONNECTING");
     } else {
         g_pm_state = PM_STATE_PAIRING;
-    CLRLED1;
         PM_LOG("PM init: no bond, start=PAIRING");
     }
 
     /* 初始化活动时间戳为当前时刻，避免立即触发超时 */
     pm_refresh_activity();
-    CLRLED2;
 }
 
 /**
@@ -324,7 +318,6 @@ void pm_state_transition(pm_state_t new_state)
             /* 非法状态，回退 */
             PM_LOG("ERROR: invalid state %d, fallback PAIRING", (int)new_state);
             g_pm_state = PM_STATE_PAIRING;
-    CLRLED1;
             break;
     }
 }
@@ -336,7 +329,6 @@ void pm_activity_notify(pm_activity_t activity)
 {
     /* 首先刷新活动时间戳（无论当前状态，推迟进入待机/休眠） */
     pm_refresh_activity();
-    CLRLED2;
 
     /* 如果在待机态，立即切回工作态 */
     if (g_pm_state == PM_STATE_STANDBY) {
@@ -430,15 +422,8 @@ void pm_state_process(void)
             break;
 
         case PM_STATE_PAIRING:
-            /* 检查配对态 → 休眠态超时（30s 无人连接则休眠） */
-            if ((voiceUptimeMs - g_pm_pairing_start_ms) >= PM_PAIRING_TIMEOUT_MS) {
-                co_printf("PAIRING timeout %lu ms -> SLEEP",
-                          (unsigned long)(voiceUptimeMs - g_pm_pairing_start_ms));
-                pm_state_transition(PM_STATE_SLEEP);
-            }
-            break;
-
         case PM_STATE_SLEEP:
+            /* 配对态不超时（用户可能在操作配对流程） */
             /* 休眠态 CPU 停止，process 不可达 */
             break;
 
@@ -453,6 +438,12 @@ void pm_state_process(void)
 void pm_wakeup_entry(void)
 {
     PM_LOG("========== SLEEP WAKEUP ==========");
+
+    /* 判断唤醒原因：
+     *   - KEYSCAN EXTI：按键唤醒
+     *   - RTC 定时器：定时唤醒
+     * 第6步将实现具体唤醒源判断逻辑
+     */
 
     /* 根据绑定状态决定去向 */
     if (pm_has_bonding()) {
