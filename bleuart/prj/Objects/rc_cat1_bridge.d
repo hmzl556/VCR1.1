@@ -47,7 +47,8 @@
 .\objects\rc_cat1_bridge.o: ..\freertos\portable\RVDS\ARM_CM0\portmacro.h
 .\objects\rc_cat1_bridge.o: ..\freertos\include\mpu_wrappers.h
 .\objects\rc_cat1_bridge.o: ..\..\bsp\common\inc\co_printf.h
-.\objects\rc_cat1_bridge.o: ..\pmu\inc\pm_state.h
-.\objects\rc_cat1_bridge.o: ..\pmu\inc\pm_config.h
+.\objects\rc_cat1_bridge.o: ..\..\cs\inc\br_timer.h
 .\objects\rc_cat1_bridge.o: ..\freertos\include\task.h
 .\objects\rc_cat1_bridge.o: ..\freertos\include\list.h
+.\objects\rc_cat1_bridge.o: ..\cat1\OTA\udp_ota.h
+.\objects\rc_cat1_bridge.o: ..\cat1\OTA\ota_frame.h

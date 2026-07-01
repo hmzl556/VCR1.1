@@ -9,6 +9,7 @@
 #include "gmem.h"
 #include "rc_key_input.h"
 #include "pm_state.h"       /* 电源管理 — 按键活动通知 */
+#include "combo_key.h"      /* 组合键管理器（配对/解配）     */
 #include "userhard.h"
 
 volatile uint16_t key_receive = 0;
@@ -52,69 +53,37 @@ static uint32_t factory_rst_led_ts_ms = 0;     // LED 闪烁/切换时间戳
 static bool factory_rst_led2_state = false;     // LED2 当前亮灭状态
 static bool pending_keys_released = false;      // PENDING 下组合键是否已松开
 
-// 检查指定按键是否物理按下（基于传入的 key_data 快照）
-// 使用按位与检测而非 memcmp 精确匹配，以支持多键同时按下
-static bool is_specific_key_pressed(const uint32_t *key_data, uint8_t key_num)
-{
-    uint8_t i;
-    if (key_num == 0 || key_num >= KEYSCAN_KEY_MAX)
-    {
-        return false;
-    }
-    // 逐 word 检查：按键 pattern 中为 1 的 bit 在 key_data 中也必须为 1
-    // 多键同时按下时 key_data 是多个 pattern 的 OR，精确匹配会失败
-    for (i = 0; i < KEYSCAN_INFO_CHECK; i++)
-    {
-        if ((key_data[i] & keyscan_map[key_num][i]) != keyscan_map[key_num][i])
-        {
-            return false;
-        }
-    }
-    return true;
-}
-// 检查 KEY6 + KEY14 组合键是否同时按下
-static bool is_combo_keys_pressed(void)
-{
-    uint32_t key_data[5] = {0};
-    bool key6_down, key14_down;
-
-    // 只读一次硬件快照，避免两次读取数据不一致
-    KEYSCAN_ReadKeyData(key_data);
-
-    key6_down  = is_specific_key_pressed(key_data, TASK_KEYSCAN_KEY6);
-    key14_down = is_specific_key_pressed(key_data, TASK_KEYSCAN_KEY14);
-
-    return key6_down && key14_down;
-}
-
-
-
 // 恢复出厂设置状态机处理（与正常按键处理并行运行）
-static void factory_reset_process(uint32_t now_ms, uint16_t key_id)
+// hw_snapshot 由调用方一次读取传入，避免重复读硬件
+static void factory_reset_process(uint32_t now_ms, uint16_t key_id,
+                                  const uint32_t hw_snapshot[5])
 {
     switch (factory_rst_state)
     {
         case FACTORY_RST_IDLE:
-            // 检测 KEY6 + KEY14 是否同时按下
-            if (is_combo_keys_pressed())
+        {
+            bool k6 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY6);
+            bool k14 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY14);
+            if (k6 && k14)
             {
                 factory_rst_state = FACTORY_RST_COMBO_DETECT;
                 factory_rst_state_ts_ms = now_ms;
                 co_printf("Factory reset: KEY6+KEY14 combo detected, counting 3s...\r\n");
             }
             break;
+        }
 
         case FACTORY_RST_COMBO_DETECT:
-            // 检查组合键是否仍同时按住
-            if (!is_combo_keys_pressed())
+        {
+            bool k6 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY6);
+            bool k14 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY14);
+            if (!(k6 && k14))
             {
-                // 提前松开，取消
                 factory_rst_state = FACTORY_RST_IDLE;
                 co_printf("Factory reset: combo released before 3s, cancelled.\r\n");
             }
             else if ((now_ms - factory_rst_state_ts_ms) >= FACTORY_RST_COMBO_HOLD_MS)
             {
-                // 3s 到，进入待恢复出厂模式
                 factory_rst_state = FACTORY_RST_PENDING;
                 factory_rst_state_ts_ms = now_ms;
                 factory_rst_led_ts_ms = now_ms;
@@ -124,10 +93,10 @@ static void factory_reset_process(uint32_t now_ms, uint16_t key_id)
                 co_printf("Factory reset: pending mode entered! LED2 fast flash.\r\n");
             }
             break;
+        }
 
         case FACTORY_RST_PENDING:
         {
-            // LED2 快闪（周期 200ms）
             if ((now_ms - factory_rst_led_ts_ms) >= LED_FAST_FLASH_MS)
             {
                 factory_rst_led_ts_ms = now_ms;
@@ -135,25 +104,20 @@ static void factory_reset_process(uint32_t now_ms, uint16_t key_id)
                 if (factory_rst_led2_state) SETLED2; else CLRLED2;
             }
 
-            // 10s 超时
             if ((now_ms - factory_rst_state_ts_ms) >= FACTORY_RST_PENDING_MS)
             {
                 CLRLED2;
                 factory_rst_state = FACTORY_RST_CANCELLED;
                 factory_rst_state_ts_ms = now_ms;
-                // SETLED1;
-                co_printf("Factory reset: 10s timeout, cancelled. LED1 on 2s.\r\n");
+                co_printf("Factory reset: 10s timeout, cancelled.\r\n");
                 break;
             }
 
-            // 等待组合键两个都松开后，才开启按键检测
             if (!pending_keys_released)
             {
-                uint32_t kd[5] = {0};
-                KEYSCAN_ReadKeyData(kd);
-                bool k6 = is_specific_key_pressed(kd, TASK_KEYSCAN_KEY6);
-                bool k14 = is_specific_key_pressed(kd, TASK_KEYSCAN_KEY14);
-                if (!k6 && !k14)  // 两个都不在按下状态
+                bool k6 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY6);
+                bool k14 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY14);
+                if (!k6 && !k14)
                 {
                     pending_keys_released = true;
                     co_printf("Factory reset: both combo keys released, key check active.\r\n");
@@ -161,7 +125,6 @@ static void factory_reset_process(uint32_t now_ms, uint16_t key_id)
             }
             else
             {
-                // 组合键已松开，检测按键：KEY4 确认，其他任意键取消
                 if (key_id != 0)
                 {
                     if (key_id == TASK_KEYSCAN_KEY4)
@@ -178,8 +141,7 @@ static void factory_reset_process(uint32_t now_ms, uint16_t key_id)
                         CLRLED2;
                         factory_rst_state = FACTORY_RST_CANCELLED;
                         factory_rst_state_ts_ms = now_ms;
-                        // SETLED1;
-                        co_printf("Factory reset: key %d pressed, cancelled. LED1 on 2s.\r\n", key_id);
+                        co_printf("Factory reset: key %d pressed, cancelled.\r\n", key_id);
                     }
                 }
             }
@@ -187,17 +149,17 @@ static void factory_reset_process(uint32_t now_ms, uint16_t key_id)
         }
 
         case FACTORY_RST_CONFIRMED:
-            // LED2 亮 2s 后熄灭，返回空闲
             if ((now_ms - factory_rst_state_ts_ms) >= FACTORY_RST_LED_ON_MS)
             {
                 CLRLED2;
                 factory_rst_state = FACTORY_RST_IDLE;
-                co_printf("Factory reset: complete, LED2 off, returned to IDLE.\r\n");
+                // 工厂复位后进入休眠，用户按 KEY14+KEY5 可重新配对
+                pm_state_transition(PM_STATE_SLEEP);
+                co_printf("Factory reset: complete, entering SLEEP.\r\n");
             }
             break;
 
         case FACTORY_RST_CANCELLED:
-            // LED1 亮 2s 后熄灭，返回空闲
             if ((now_ms - factory_rst_state_ts_ms) >= FACTORY_RST_LED_ON_MS)
             {
                 CLRLED1;
@@ -277,17 +239,28 @@ void task_keyscan_process(void)
 
 
 
+	// ====== 硬件按键快照（每周期一次，所有组合键共享） ======
+	uint32_t hw_snapshot[5];
+	KEYSCAN_ReadKeyData(hw_snapshot);
+
 	// ====== 按键 LED 超时熄灭 ======
 	if (g_key_led_on_ms != 0 && (now_ms - g_key_led_on_ms) >= KEY_LED_ON_MS) {
 		if (g_key_led_is_led1) CLRLED1; else CLRLED2;
 		g_key_led_on_ms = 0;
 	}
-    factory_reset_process(now_ms, key_id);
 
-	
-	// ====== 恢复出厂设置状态机（与正常按键处理并行） ======
-    // 当恢复出厂状态机处于非空闲状态时，跳过正常按键处理
-    if (factory_rst_state != FACTORY_RST_IDLE)
+	// ====== 组合键互斥调度 ======
+	// 工厂复位空闲时，简单组合键（配对/解配）才工作
+	if (factory_rst_state == FACTORY_RST_IDLE) {
+		combo_key_process(now_ms, hw_snapshot);
+	}
+	// 简单组合键空闲时，工厂复位才工作
+	if (combo_key_is_idle()) {
+		factory_reset_process(now_ms, key_id, hw_snapshot);
+	}
+
+	// ====== 任一组合键活跃时，跳过正常按键处理 ======
+    if (factory_rst_state != FACTORY_RST_IDLE || !combo_key_is_idle())
     {
         // 重置正常按键状态机，避免残留状态干扰
         if (key_state != KEY_STATE_IDLE)

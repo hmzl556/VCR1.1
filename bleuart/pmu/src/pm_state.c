@@ -37,6 +37,9 @@ static uint32_t     g_pm_reconnect_start_ms = 0U;
 /** @brief 进入待机态的时间戳，用于待机→休眠超时判断 */
 static uint32_t     g_pm_standby_start_ms   = 0U;
 
+/** @brief 进入配对态的时间戳，用于配对超时判断 */
+static uint32_t     g_pm_pairing_start_ms   = 0U;
+
 /** @brief 进入休眠态前记录唤醒原因：0=未定义, 1=按键, 2=RTC */
 static uint8_t      g_pm_wake_reason        = 0U;
 
@@ -188,6 +191,7 @@ static void pm_enter_sleep(void)
 static void pm_enter_pairing(void)
 {
     PM_LOG("Enter PAIRING state");
+    g_pm_pairing_start_ms = voiceUptimeMs;
     pm_refresh_activity();
 
     /* 广播启动由 ble_adv_start_pairing() 完成，
@@ -422,8 +426,15 @@ void pm_state_process(void)
             break;
 
         case PM_STATE_PAIRING:
+            /* 配对态超时：30s 无人连接则休眠 */
+            if ((voiceUptimeMs - g_pm_pairing_start_ms) >= PM_PAIRING_TIMEOUT_MS) {
+                co_printf("PAIRING timeout %lu ms -> SLEEP",
+                          (unsigned long)(voiceUptimeMs - g_pm_pairing_start_ms));
+                pm_state_transition(PM_STATE_SLEEP);
+            }
+            break;
+
         case PM_STATE_SLEEP:
-            /* 配对态不超时（用户可能在操作配对流程） */
             /* 休眠态 CPU 停止，process 不可达 */
             break;
 

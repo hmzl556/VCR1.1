@@ -107,22 +107,39 @@ bool combo_key_unpair_in_progress(void)
     return (g_combos[COMBO_IDX_UNPAIR].state == COMBO_TRIGGERED);
 }
 
-void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[2])
+void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
 {
     uint8_t i;
+
+    // /* 诊断: 每500次打印按键快照值，确认combo_key_process被调用且读到按键 */
+    // {
+    //     static uint16_t diag_cnt = 0;
+    //     static uint16_t init_done = 0;
+    //     diag_cnt++;
+    //     if (init_done == 0) {
+    //         co_printf("CK init: k1=%d k2=%d\r\n",
+    //                   g_combos[COMBO_IDX_PAIR].key1,
+    //                   g_combos[COMBO_IDX_PAIR].key2);
+    //         init_done = 1;
+    //     }
+    //     if ((diag_cnt % 500) == 0) {
+    //         bool k14 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY14);
+    //         bool k5  = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY5);
+    //         co_printf("CK %08lX %08lX k14=%d k5=%d\r\n",
+    //                   hw_snapshot[0], hw_snapshot[1], k14, k5);
+    //     }
+    // }
 
     for (i = 0; i < COMBO_COUNT; i++) {
         combo_key_def_t *c = &g_combos[i];
 
         switch (c->state) {
 
-        /* ---------------------------------------------------------- */
-        /*  IDLE：等待双键同时按下                                      */
-        /* ---------------------------------------------------------- */
         case COMBO_IDLE:
             if (combo_both_keys_down(c, hw_snapshot)) {
                 c->state = COMBO_HOLDING;
                 c->state_ts_ms = now_ms;
+                //SETLED2;
                 co_printf("[COMBO] key%d+key%d pressed, hold 3s...\r\n",
                           c->key1, c->key2);
             }

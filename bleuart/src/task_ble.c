@@ -30,6 +30,18 @@ void task_ble_entry(void *pvParameters)
 	//static uint16_t loop_diag_cnt = 0;
 
 	for (;;) {
+		if (udp_ota_is_active() != 0u) {
+			unsigned ota_iter;
+
+			for (ota_iter = 0u; ota_iter < 24u; ota_iter++) {
+				rc_cat1_poll_ota_exclusive();
+				udp_ota_download_led_poll();
+				taskYIELD();
+			}
+			setSdkTimer(8U);
+			taskYIELD();
+			continue;
+		}
 		/*
 		 * 电源管理状态机处理（每循环周期调用一次，约 10ms）
 		 * 检查以下超时条件并执行状态转换：
@@ -73,10 +85,12 @@ void task_ble_entry(void *pvParameters)
 		task_voice_process_once();
 
 		// Cat.1 轮询放后：UDP AT 可能阻塞数秒，不应挡住按键/LED
-		//rc_cat1_poll();
+		rc_cat1_poll();
 
+		udp_ota_boot_indicate_poll();
+		
 		// 处理 Cat.1 模块事件队列中的事件，确保系统能够及时响应来自 Cat.1 模块的事件和数据
-		//cat1_ble_process_pending();
+		cat1_ble_process_pending();
 
 		// 更新 BLE GAP 层的 LED 指示状态，提供用户可见的连接状态反馈
 		ble_gap_led_indicate();

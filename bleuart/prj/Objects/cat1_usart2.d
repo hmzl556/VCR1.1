@@ -28,4 +28,5 @@
 .\objects\cat1_usart2.o: ..\..\bsp\driver\inc\qflash.h
 .\objects\cat1_usart2.o: ..\..\bsp\driver\inc\misc.h
 .\objects\cat1_usart2.o: ..\cat1\cat1_udp_config.h
+.\objects\cat1_usart2.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\cat1_usart2.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h

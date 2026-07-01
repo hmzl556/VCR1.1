@@ -39,6 +39,7 @@
 #include "gatt.h"
 #include "co_printf.h"
 #include "ble_adv.h"
+#include "ble_gap.h"    /* g_pairing_active */
 #include "br1601x.h"
 
 uint8_t local_bd[6];    // 本地蓝牙地址
@@ -232,12 +233,13 @@ void ble_adv_start_reconnect(void)
 
 void ble_adv_start_by_bonding(void)
 {
-    // 无绑定记录 -> 配对态，有绑定记录 -> 回连态
-    // 符合GY/T 407-2024 条款附录C.2
-    // 依据是否存在绑定记录选择广播形态
     if (peer_bonded_count() > 0) {
         ble_adv_start_reconnect();
-    } else {
+    } else if (g_pairing_active) {
+        // KEY14+KEY5 组合键已触发，启动可发现广播
         ble_adv_start_pairing();
+    } else {
+        // 无绑定且未触发配对：不广播，由 KEY14+KEY5 组合键手动发起
+        co_printf("No bonding, skip advertising. Press KEY14+KEY5 to pair.\r\n");
     }
 }

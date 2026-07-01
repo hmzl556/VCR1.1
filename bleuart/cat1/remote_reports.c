@@ -3,9 +3,10 @@
  * @brief UDP 上报：STB TLV 透传 + RC 本地直报 Tag0x01/0x10。
  */
 #include "remote_reports.h"
+#include "aes_transport.h"
 #include "ble_rc_svc.h"
 #include "rc_protocol.h"
-#include "aes_transport.h"
+#include "udp_ota.h"
 #include "br1601x.h"
 #include "co_printf.h"
 #include "FreeRTOS.h"
@@ -25,6 +26,8 @@ typedef struct
 {
     uint8_t buf[CAT1_UDP_MAX_UDP_PDU];
     uint16_t len;
+    uint8_t rc_trans_notify;
+    uint32_t pack_index;
 } remote_frame_t;
 
 static remote_frame_t s_queue[REMOTE_REPORT_QUEUE_DEPTH];
@@ -253,7 +256,7 @@ static int remote_queue_tag_tlv(uint8_t tag, const uint8_t *value, uint16_t valu
     plain[3] = (uint8_t)((value_len >> 8) & 0xFFu);
     plain[4] = (uint8_t)(value_len & 0xFFu);
     memcpy(plain + 5u, value, value_len);
-    return remote_queue_tlv_blob(plain, plain_len);
+    return remote_queue_tlv_blob(plain, plain_len, RC_PACK_INDEX_NONE);
 }
 
 /**
@@ -293,8 +296,6 @@ int remote_queue_tag10_key(uint8_t key_code)
     push_rc = remote_queue_tag_tlv(0x10u, value, value_len);
     if (push_rc != 0)
     {
-        co_printf("[RC   ] Tag10 push fail, key=%u q=%u\r\n",
-                  (unsigned)key_code, (unsigned)remote_report_queue_count());
         return -2;
     }
     return 0;
@@ -426,7 +427,8 @@ static int remote_frame_build(const uint8_t *plain, uint16_t plain_len,
  * @brief  将完整 0x6868 帧写入环形发送队列
  * @return 0 成功；-1 队列满或参数非法
  */
-static int remote_queue_push(const uint8_t *frame, uint16_t len)
+static int remote_queue_push(const uint8_t *frame, uint16_t len,
+                             uint8_t rc_trans_notify, uint32_t pack_index)
 {
     int rc = -1;
 
@@ -440,6 +442,8 @@ static int remote_queue_push(const uint8_t *frame, uint16_t len)
     {
         memcpy(s_queue[s_q_tail].buf, frame, len);
         s_queue[s_q_tail].len = len;
+        s_queue[s_q_tail].rc_trans_notify = rc_trans_notify;
+        s_queue[s_q_tail].pack_index = pack_index;
         s_q_tail = (uint8_t)((s_q_tail + 1u) % REMOTE_REPORT_QUEUE_DEPTH);
         s_q_count++;
         rc = 0;
@@ -454,9 +458,11 @@ static int remote_queue_push(const uint8_t *frame, uint16_t len)
  * @param  plain_len  Payload 总长度（由 STB 提供，含 TLV数据长度 2B）
  * @return 0 成功；-1 失败
  */
-int remote_queue_tlv_blob(const uint8_t *plain, uint16_t plain_len)
+int remote_queue_tlv_blob(const uint8_t *plain, uint16_t plain_len,
+                          uint32_t rc_trans_pack_index)
 {
     uint16_t frame_len;
+    uint8_t notify;
 
     if (plain == NULL || plain_len < 5u || plain_len > RC_UDP_AES_PLAIN_DATA_MAX)
     {
@@ -467,7 +473,8 @@ int remote_queue_tlv_blob(const uint8_t *plain, uint16_t plain_len)
     {
         return -1;
     }
-    return remote_queue_push(s_tlv_frame, frame_len);
+    notify = (rc_trans_pack_index != RC_PACK_INDEX_NONE) ? 1u : 0u;
+    return remote_queue_push(s_tlv_frame, frame_len, notify, rc_trans_pack_index);
 }
 
 /**
@@ -517,7 +524,8 @@ uint8_t remote_report_queue_count(void)
  * @brief  从发送队列取出一帧待 UDP 发送的 0x6868 报文
  * @return 0 成功；1 队列空；-1 失败
  */
-int remote_report_poll(uint8_t *out, size_t buflen, uint16_t *outlen)
+int remote_report_poll(uint8_t *out, size_t buflen, uint16_t *outlen,
+                       uint8_t *out_rc_trans_notify, uint32_t *out_pack_index)
 {
     int rc = 1;
 
@@ -539,6 +547,14 @@ int remote_report_poll(uint8_t *out, size_t buflen, uint16_t *outlen)
     {
         memcpy(out, s_queue[s_q_head].buf, s_queue[s_q_head].len);
         *outlen = s_queue[s_q_head].len;
+        if (out_rc_trans_notify != NULL)
+        {
+            *out_rc_trans_notify = s_queue[s_q_head].rc_trans_notify;
+        }
+        if (out_pack_index != NULL)
+        {
+            *out_pack_index = s_queue[s_q_head].pack_index;
+        }
         s_q_head = (uint8_t)((s_q_head + 1u) % REMOTE_REPORT_QUEUE_DEPTH);
         s_q_count--;
         rc = 0;
@@ -571,6 +587,7 @@ static void remote_cloud_policy_set_item_count(uint8_t policy[6], uint16_t item_
 
 /**
  * @brief  解析 Tag0x11 Value 内嵌 DataID，更新 cloud_policy
+ * @note   DataID 0x04/0x05 为 OTA 软件版本与总包数；非升级场景云端填 0，仍须解析
  * @return 0 成功；-1 失败
  */
 static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value_len, uint8_t cloud_policy[6])
@@ -579,6 +596,8 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
     uint8_t got_interval;
     uint8_t got_count;
     uint8_t got_key_capture;
+    uint16_t ota_sw_version;
+    uint16_t ota_total_packets;
 
     if (value_bytes == NULL || value_len == 0u || cloud_policy == NULL)
     {
@@ -588,6 +607,8 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
     got_interval = 0u;
     got_count = 0u;
     got_key_capture = 0u;
+    ota_sw_version = 0u;
+    ota_total_packets = 0u;
     pos = 0u;
     while (pos < value_len)
     {
@@ -638,6 +659,24 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
                 got_count = 1u;
                 pos += 2u;
                 break;
+            case 0x04u:
+                if (remain < 2u)
+                {
+                    return -1;
+                }
+                ota_sw_version = (uint16_t)(((uint16_t)value_bytes[pos] << 8)
+                    | value_bytes[pos + 1u]);
+                pos += 2u;
+                break;
+            case 0x05u:
+                if (remain < 2u)
+                {
+                    return -1;
+                }
+                ota_total_packets = (uint16_t)(((uint16_t)value_bytes[pos] << 8)
+                    | value_bytes[pos + 1u]);
+                pos += 2u;
+                break;
             default:
                 return -1;
         }
@@ -648,6 +687,7 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
         return -1;
     }
 
+    udp_ota_on_tag11_task(ota_sw_version, ota_total_packets);
     return 0;
 }
 

@@ -172,7 +172,8 @@ void device_info_chr8_cbk(gatt_event_t event, void *context, void *param)
     switch (event) {
         case GATTS_EV_CHR_VALUE_READ_REQ: {
             gatt_chr_val_read_req_t *in = (gatt_chr_val_read_req_t *)param;
-            uint8_t val[] = {0x02, 0x53, 0xC7, 0x7D, 0x52, 0x00, 0x03};
+            // PnP ID: VendorSrc=Bluetooth SIG Company: Iton Technology(0x01), VID=0xC753, PID=0x527D, Ver=0x0003
+            uint8_t val[] = {0x01, 0x53, 0xC7, 0x7D, 0x52, 0x00, 0x03};
             gatts_chr_val_read_rsp(in->peer, in->chr, GATT_OK, val, sizeof(val));
             co_printf("[DISS ] PnP ID value read successfully\n");
             break;
@@ -187,92 +188,113 @@ int ble_device_info_init(void)
         , UUID16_VAL_SET(0x180A)
     };
     device_info_svc = gatts_svc_create(&svc_uuid, device_info_svc_cbk, NULL);
+
+    /*
+     * 全部改用 gatts_chr_ro_add（走 GATTS_ChrAdd_Value 路径）替代
+     * gatts_chr_add（走 GATTS_ChrAdd 路径），以规避 SDK 库中
+     * GATTS_ChrAdd 导致特征声明 UUID 偏移一个位置的 bug。
+     */
+
+    // chr0: System ID (0x2A23)
+    {
+        uuid_t uuid = { UUID_LEN_16, UUID16_VAL_SET(0x2A23) };
+        uint8_t val[] = {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+        device_info_chr0 = gatts_chr_ro_add(device_info_svc, &uuid,
+                            GATT_CHR_PROP_READ,
+                            (ATT_PERM_READ | ATT_PERM_WRITE),
+                            device_info_chr0_cbk, NULL,
+                            val, sizeof(val));
+    }
+
+    // chr1: Model Number String (0x2A24)
+    {
+        uuid_t uuid = { UUID_LEN_16, UUID16_VAL_SET(0x2A24) };
+        uint8_t val[] = {'B','R','-','B','L','E','-','1','.','0'};
+        device_info_chr1 = gatts_chr_ro_add(device_info_svc, &uuid,
+                            GATT_CHR_PROP_READ,
+                            ATT_PERM_READ,
+                            device_info_chr1_cbk, NULL,
+                            val, sizeof(val));
+    }
+
+    // chr4: Hardware Revision String (0x2A27)
+    {
+        uuid_t uuid = { UUID_LEN_16, UUID16_VAL_SET(0x2A27) };
+        uint8_t val[] = {'1','.','0','.','0'};
+        device_info_chr4 = gatts_chr_ro_add(device_info_svc, &uuid,
+                            GATT_CHR_PROP_READ,
+                            ATT_PERM_READ,
+                            device_info_chr4_cbk, NULL,
+                            val, sizeof(val));
+    }
+
+    // chr2: Serial Number String (0x2A25)
+    {
+        uuid_t uuid = { UUID_LEN_16, UUID16_VAL_SET(0x2A25) };
+        uint8_t val[] = {'1','.','0','.','0','.','0','-','L','E'};
+        device_info_chr2 = gatts_chr_ro_add(device_info_svc, &uuid,
+                            GATT_CHR_PROP_READ,
+                            ATT_PERM_READ,
+                            device_info_chr2_cbk, NULL,
+                            val, sizeof(val));
+    }
+
+    // chr3: Firmware Revision String (0x2A26)
+    {
+        uuid_t uuid = { UUID_LEN_16, UUID16_VAL_SET(0x2A26) };
+        uint8_t val[] = {'1','.','0','.','0'};
+        device_info_chr3 = gatts_chr_ro_add(device_info_svc, &uuid,
+                            GATT_CHR_PROP_READ,
+                            ATT_PERM_READ,
+                            device_info_chr3_cbk, NULL,
+                            val, sizeof(val));
+    }
+
+    // chr5: Software Revision String (0x2A28)
+    {
+        uuid_t uuid = { UUID_LEN_16, UUID16_VAL_SET(0x2A28) };
+        uint8_t val[] = {'1','.','0','.','0'};
+        device_info_chr5 = gatts_chr_ro_add(device_info_svc, &uuid,
+                            GATT_CHR_PROP_READ,
+                            ATT_PERM_READ,
+                            device_info_chr5_cbk, NULL,
+                            val, sizeof(val));
+    }
+
+
+
+    // chr6: Manufacture Name String (0x2A29)
+    {
+        uuid_t uuid = { UUID_LEN_16, UUID16_VAL_SET(0x2A29) };
+        uint8_t val[] = {0x28, 0xE8};
+        device_info_chr6 = gatts_chr_ro_add(device_info_svc, &uuid,
+                            GATT_CHR_PROP_READ,
+                            ATT_PERM_READ,
+                            device_info_chr6_cbk, NULL,
+                            val, sizeof(val));
+    }
+
+    // chr7: IEEE (0x2A2A)
+    {
+        uuid_t uuid = { UUID_LEN_16, UUID16_VAL_SET(0x2A2A) };
+        uint8_t val[] = {0xFF, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA};
+        device_info_chr7 = gatts_chr_ro_add(device_info_svc, &uuid,
+                            GATT_CHR_PROP_READ,
+                            ATT_PERM_READ,
+                            device_info_chr7_cbk, NULL,
+                            val, sizeof(val));
+    }
     
-    // uuid_t chr0_uuid = {
-    //       UUID_LEN_16
-    //     , UUID16_VAL_SET(0x2A23)
-    // };
-    // device_info_chr0 = gatts_chr_add(device_info_svc, &chr0_uuid
-    //                        , GATT_CHR_PROP_READ
-    //                        , (ATT_PERM_READ | ATT_PERM_WRITE)
-    //                        ,device_info_chr0_cbk, NULL);
-
-    // uuid_t chr1_uuid = {
-    //       UUID_LEN_16
-    //     , UUID16_VAL_SET(0x2A24)
-    // };
-    // device_info_chr1 = gatts_chr_add(device_info_svc, &chr1_uuid
-    //                        , GATT_CHR_PROP_READ
-    //                        , ATT_PERM_READ 
-    //                        , device_info_chr1_cbk, NULL);
-
-    uuid_t chr4_uuid = {
-          UUID_LEN_16
-        , UUID16_VAL_SET(0x2A27)
-    };
-    device_info_chr4 = gatts_chr_add(device_info_svc, &chr4_uuid
-                           , GATT_CHR_PROP_READ
-                           , ATT_PERM_READ 
-                           , device_info_chr4_cbk, NULL);
-
-    uuid_t chr2_uuid = {
-          UUID_LEN_16
-        , UUID16_VAL_SET(0x2A25)
-    };
-    device_info_chr2 = gatts_chr_add(device_info_svc, &chr2_uuid
-                           , GATT_CHR_PROP_READ
-                           , ATT_PERM_READ 
-                           , device_info_chr2_cbk, NULL);
-    
-    uuid_t chr3_uuid = {
-          UUID_LEN_16
-        , UUID16_VAL_SET(0x2A26)
-    };
-    device_info_chr3 = gatts_chr_add(device_info_svc, &chr3_uuid
-                           , GATT_CHR_PROP_READ
-                           , ATT_PERM_READ 
-                           , device_info_chr3_cbk, NULL);
-    
-
-    
-    // uuid_t chr5_uuid = {
-    //       UUID_LEN_16
-    //     , UUID16_VAL_SET(0x2A28)
-    // };
-    // device_info_chr5 = gatts_chr_add(device_info_svc, &chr5_uuid
-    //                        , GATT_CHR_PROP_READ
-    //                        , ATT_PERM_READ 
-    //                        , device_info_chr5_cbk, NULL);
- 
-    uuid_t chr8_uuid = {
-          UUID_LEN_16
-        , UUID16_VAL_SET(0x2A50)
-    };
-    device_info_chr8 = gatts_chr_add(device_info_svc, &chr8_uuid
-                           , GATT_CHR_PROP_READ
-                           , ATT_PERM_READ 
-                           , device_info_chr8_cbk, NULL);    
-
-    uuid_t chr6_uuid = {
-          UUID_LEN_16
-        , UUID16_VAL_SET(0x2A29)
-    };
-    device_info_chr6 = gatts_chr_add(device_info_svc, &chr6_uuid
-                           , GATT_CHR_PROP_READ
-                           , ATT_PERM_READ 
-                           , device_info_chr6_cbk, NULL);
-    
-    // uuid_t chr7_uuid = {
-    //       UUID_LEN_16
-    //     , UUID16_VAL_SET(0x2A2A)
-    // };
-    // device_info_chr7 = gatts_chr_add(device_info_svc, &chr7_uuid
-    //                        , GATT_CHR_PROP_READ
-    //                        , ATT_PERM_READ 
-    //                        , device_info_chr7_cbk, NULL);
-    
-
-
+    // chr8: PnP ID (0x2A50)
+    {
+        uuid_t uuid = { UUID_LEN_16, UUID16_VAL_SET(0x2A50) };
+        uint8_t val[] = {0x01, 0x53, 0xC7, 0x7D, 0x52, 0x00, 0x03};
+        device_info_chr8 = gatts_chr_ro_add(device_info_svc, &uuid,
+                            GATT_CHR_PROP_READ,
+                            ATT_PERM_READ,
+                            device_info_chr8_cbk, NULL,
+                            val, sizeof(val));
+    }
     gatts_svc_start(device_info_svc);
     return 0;
 }

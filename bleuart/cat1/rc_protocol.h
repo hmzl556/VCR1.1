@@ -56,7 +56,7 @@
 #define RC_READ_VAL_DEVICE_REGION_ID               "370100"           //行政区划码，符合 GB/T 2260 济南市
 #define RC_READ_VAL_USER_ID                        "0001"             //用户编码
 #define RC_READ_VAL_DEVICE_MODEL                   0x01u              //0x01=语音遥控器, 0x02=4G 模块
-#define RC_READ_VAL_DEVICE_SW_VERSION              "01020304"         //软件版本，如 `01020304` 版本 v1.2.3.4
+#define RC_READ_VAL_DEVICE_SW_VERSION              "01020000"         //软件版本，如 `01020304` 版本 v1.2.3.4
 #define RC_READ_VAL_DEVICE_STATUS                  0x00u              //0x00=正常, 0x01=失效, 0x02=未知
 #define RC_READ_VAL_DEVICE_ACTIVE_TIME             "20260101100800"   // YYYYMMDDhhmmss，无值填全 0
 #define RC_READ_VAL_DEVICE_INACTIVE_TIME           "20360101100800"   // YYYYMMDDhhmmss，无值填全 0
@@ -69,9 +69,11 @@
 #define RC_TRANS_MAGIC         0x55AAu
 #define RC_TRANS_FRAME_MAX     128u
 #define RC_TRANS_PAYLOAD_MAX   112u
-#define RC_TRANS_ASSEMBLY_MAX  1024u
-// 单大包最大子包数：ASSEMBLY_MAX/PAYLOAD_MAX 向上取整 = 10
-#define RC_TRANS_MAX_SUBPACK   10u
+// 单大包最大子包数：ASSEMBLY_MAX/PAYLOAD_MAX
+#define RC_TRANS_ASSEMBLY_MAX  560u
+#define RC_TRANS_MAX_SUBPACK   5u
+// 半包汇聚超时（ms）：无新子包到达则 reset，避免拖死后续大包
+#define RC_TRANS_ASM_TIMEOUT_MS  20000u
 
 #define RC_PACK_INDEX_NONE     0xFFFFFFFFu
 

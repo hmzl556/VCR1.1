@@ -6,6 +6,7 @@
 #define BSP_REMOTE_REPORTS_H
 
 #include "cat1_udp_config.h"
+#include "rc_protocol.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -13,7 +14,8 @@
 void remote_reports_init(void);
 
 /** 从发送队列取出一帧 0x6868 报文；返回 1 表示队列空 */
-int remote_report_poll(uint8_t *out, size_t buflen, uint16_t *outlen);
+int remote_report_poll(uint8_t *out, size_t buflen, uint16_t *outlen,
+                       uint8_t *out_rc_trans_notify, uint32_t *out_pack_index);
 
 /**
  * @brief  将 RC-TRANS Payload（明文 data field）封装为 0x6868 帧并入队
@@ -21,7 +23,11 @@ int remote_report_poll(uint8_t *out, size_t buflen, uint16_t *outlen);
  * @param  plain_len  Payload 总长度（由 STB 提供，含 TLV数据长度 2B）
  * @return 0 成功；-1 失败
  */
-int remote_queue_tlv_blob(const uint8_t *plain, uint16_t plain_len);
+/**
+ * @param  rc_trans_pack_index  RC-TRANS 汇聚包序号；非 RC_PACK_INDEX_NONE 时 UDP 完成后通知 STB
+ */
+int remote_queue_tlv_blob(const uint8_t *plain, uint16_t plain_len,
+                          uint32_t rc_trans_pack_index);
 
 /** RC 本地直报 Tag0x01 终端状态（开机/UDP 就绪后调用，不经 STB） */
 int remote_queue_tag01_status(void);

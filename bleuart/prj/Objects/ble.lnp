@@ -59,6 +59,10 @@
 ".\objects\pm_standby.o"
 ".\objects\pm_state.o"
 ".\objects\pm_sleep.o"
+".\objects\ota_crc.o"
+".\objects\ota_frame.o"
+".\objects\udp_bootload.o"
+".\objects\udp_ota.o"
 --library_type=microlib --strict --scatter ".\ble_dtss.sct"
 ..\..\cs\src\symdefs.obj --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers

@@ -45,7 +45,7 @@ void combo_key_init(void);
  * @param  hw_snapshot  由调用方一次性读取的硬件按键快照（2 个 uint32_t）
  * @note   调用方负责互斥：仅在 factory_rst_state == IDLE 时才调用此函数
  */
-void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[2]);
+void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5]);
 
 /**
  * @brief  查询所有简单组合键是否都处于 IDLE 状态

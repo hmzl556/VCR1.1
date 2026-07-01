@@ -49,6 +49,7 @@
 #include "ble_rc_svc.h"
 #include "rc_cat1_bridge.h"
 #include "pm_state.h"       /* 电源管理状态机 — 连接/断连通知 */
+#include "combo_key.h"      /* 组合键管理器 — 解配进行中判断     */
 #ifndef BLE_CONN_PARAM_PERSIST_ENABLE
 #define BLE_CONN_PARAM_PERSIST_ENABLE 0 // 默认不启用连接参数持久化，避免误操作导致 Flash 损耗
 #endif
@@ -374,12 +375,19 @@ void ble_gap_process_disconnect_pending(void)
 		return;
 	}
 	s_disconnect_work_pending = 0U;
-	task_keyscan_reset_on_ble_disconnect();		// 重置按键扫描模块
-	hid_kbd_on_disconnect();					// 重置 HID 键盘模块
-	rc_trans_reset();							// 重置遥控传输模块
-	rc_cat1_cancel_pending();					// 取消 Cat.1 模块的 pending 事件
-	ble_rc_svc_on_disconnect();					// 重置 RC 服务模块
-	ble_adv_start_by_bonding();							// 重新启动 BLE 广播
+	task_keyscan_reset_on_ble_disconnect();
+	hid_kbd_on_disconnect();
+	rc_trans_reset();
+	rc_cat1_cancel_pending();
+	ble_rc_svc_on_disconnect();
+
+	// 解配进行中时跳过广播重启，由 combo_key 状态机处理后续
+	if (combo_key_unpair_in_progress()) {
+		co_printf("Unpair in progress, skip advertising restart.\r\n");
+		return;
+	}
+
+	ble_adv_start_by_bonding();
 }
 
 static void ble_conn_read_rssi(gap_event_t ev, void *ctx, rssi_t *arg)
@@ -568,23 +576,24 @@ peer_t ble_gap_get_peer(void)
 
 
 // 配对广播 LED2 快闪指示（200ms 周期）
+// 仅 KEY14+KEY5 组合键触发后 (g_pairing_active=true) 才闪烁
 #define PAIRING_LED_FLASH_MS 200U
 static uint32_t g_pairing_led_ts_ms = 0;
 static bool     g_pairing_led_state = false;
 
+volatile bool g_pairing_active = false;
+
 void ble_gap_led_indicate(void)
 {
-	// 未连接且无绑定：LED2 快闪，提示用户进入配对模式
-	if (ble_gap_get_peer() == NULL && peer_bonded_count() == 0) {
+	if (g_pairing_active && ble_gap_get_peer() == NULL && peer_bonded_count() == 0) {
 		uint32_t now = voiceUptimeMs;
 		if ((now - g_pairing_led_ts_ms) >= PAIRING_LED_FLASH_MS) {
 			g_pairing_led_ts_ms = now;
 			g_pairing_led_state = !g_pairing_led_state;
 			if (g_pairing_led_state) SETLED2; else CLRLED2;
 		}
-	} 
+	}
 	else {
-		// 已连接或有绑定：确保 LED2 熄灭，防止快闪周期中切换状态导致常亮
 		if (g_pairing_led_state) {
 			g_pairing_led_state = false;
 			CLRLED2;
@@ -597,14 +606,26 @@ void ble_gap_led_indicate(void)
 // 会毁掉 BLE 协议栈代码。改为写 0 到 header magic 字段使其失效。
 void ble_gap_clear_bonding_info(void)
 {
-#if BLE_BONDING_PERSIST_ENABLE
-    uint32_t invalid_magic[1] = {0x00000000};
-    // NOR Flash 支持 1→0 直接写入，无需预擦除
-    Qflash_Write(BLE_BONDING_STORE_ADDR, (uint8_t *)invalid_magic, sizeof(invalid_magic));
-    co_printf("bonding info invalidated (factory reset)\r\n");
+    peer_t peer;
 
-    // 清除 RAM 中的绑定状态，确保广播模式正确切换
-    peer_bonded_clear();
-    co_printf("bonding RAM cleared, count=%d\r\n", peer_bonded_count());
+    // 清除配对广播活跃标志
+    g_pairing_active = false;
+
+    // 先断开当前连接
+    peer = ble_gap_get_peer();
+    if (peer != NULL) {
+        le_conn_destory(peer);
+        co_printf("Disconnecting before clearing bonding...\r\n");
+    }
+
+#if BLE_BONDING_PERSIST_ENABLE
+    {
+        uint32_t invalid_magic[1] = {0x00000000};
+        Qflash_Write(BLE_BONDING_STORE_ADDR, (uint8_t *)invalid_magic, sizeof(invalid_magic));
+        co_printf("bonding info invalidated\r\n");
+
+        peer_bonded_clear();
+        co_printf("bonding RAM cleared, count=%d\r\n", peer_bonded_count());
+    }
 #endif
 }

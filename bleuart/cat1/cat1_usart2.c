@@ -6,6 +6,7 @@
 #include "usart.h"
 #include "misc.h"
 #include "core_cmFunc.h"
+#include "co_printf.h"
 #include <string.h>
 
 #define USART2_CFG_GPIO_PORT     GPIOB
@@ -20,6 +21,7 @@
 volatile uint8_t USART2_CAT1_RX_RING[USART2_CAT1_RX_RING_CAP];
 volatile uint16_t USART2_CAT1_RX_HEAD;
 volatile uint16_t USART2_CAT1_RX_TAIL;
+static volatile uint32_t s_usart2_rx_drop;
 
 /**
  * @brief 使能 USART2 时钟与 PB4/PB5 复用 AF3。
@@ -130,6 +132,10 @@ void USART2_CAT1_IRQHandler(void)
             USART2_CAT1_RX_RING[USART2_CAT1_RX_HEAD] = b;
             USART2_CAT1_RX_HEAD = next;
         }
+        else
+        {
+            s_usart2_rx_drop++;
+        }
     }
 }
 
@@ -139,39 +145,72 @@ void USART2_IRQHandler(void)
 }
 
 /**
- * @brief 阻塞轮询发送若干字节。
+ * @brief 轮询发送；等待 TX 时空转并 pump，避免 OTA 期间丢 +SKTRECV。
+ * @return 0 成功；-1 TX 超时
  */
-void USART2_CAT1_PollSend(const uint8_t *data, uint16_t len)
+static int usart2_poll_send_pump(const uint8_t *data, uint16_t len, void (*pump_fn)(void))
 {
     uint16_t i;
+    uint32_t spin;
 
     if (data == NULL || len == 0U)
     {
-        return;
+        return 0;
     }
     for (i = 0U; i < len; i++)
     {
+        spin = 0U;
         while (USART_GetFlagStatus(USART2, USART_FLAG_TXDE) == RESET)
         {
+            if (pump_fn != NULL && (spin & 0x3Fu) == 0U)
+            {
+                pump_fn();
+            }
+            if (++spin >= CAT1_UART_TX_SPIN_MAX)
+            {
+                co_printf("[CAT1] USART2 TX timeout\r\n");
+                return -1;
+            }
         }
         USART_SendData(USART2, data[i]);
     }
+
+    spin = 0U;
     while (USART_GetFlagStatus(USART2, USART_FLAG_TXC) == RESET)
     {
+        if (pump_fn != NULL && (spin & 0x3Fu) == 0U)
+        {
+            pump_fn();
+        }
+        if (++spin >= CAT1_UART_TX_SPIN_MAX)
+        {
+            co_printf("[CAT1] USART2 TXC timeout\r\n");
+            return -1;
+        }
     }
     USART_ClrFlag(USART2, USART_FLAG_TXC);
+    return 0;
 }
 
-/**
- * @brief 在 line 末尾追加 \\r\\n 并发送（与 cat1_skt_udp 共用 s_modem_line，无本地 AT 缓冲）
- */
-void usart2_at_send(char *line, unsigned line_cap)
+void USART2_CAT1_PollSend(const uint8_t *data, uint16_t len)
+{
+    (void)usart2_poll_send_pump(data, len, NULL);
+}
+
+uint32_t USART2_CAT1_RxDropCount(void)
+{
+    return s_usart2_rx_drop;
+}
+
+int usart2_at_send_pump(char *line, unsigned line_cap, void (*pump_fn)(void))
 {
     size_t n;
+    size_t i;
+    const size_t chunk = 32u;
 
     if (line == NULL || line_cap < 3u)
     {
-        return;
+        return -1;
     }
     n = strlen(line);
     while (n > 0U && (line[n - 1U] == '\n' || line[n - 1U] == '\r'))
@@ -184,6 +223,22 @@ void usart2_at_send(char *line, unsigned line_cap)
     }
     line[n++] = '\r';
     line[n++] = '\n';
-    USART2_CAT1_PollSend((const uint8_t *)line, (uint16_t)n);
+
+    for (i = 0U; i < n; i += chunk)
+    {
+        size_t left = n - i;
+        size_t send_len = (left > chunk) ? chunk : left;
+
+        if (usart2_poll_send_pump((const uint8_t *)(line + i), (uint16_t)send_len, pump_fn) != 0)
+        {
+            return -1;
+        }
+    }
     line[n - 2u] = '\0';
+    return 0;
+}
+
+void usart2_at_send(char *line, unsigned line_cap)
+{
+    (void)usart2_at_send_pump(line, line_cap, NULL);
 }

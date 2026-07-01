@@ -7,11 +7,13 @@
 
 static volatile uint8_t s_pending_tag10;
 static uint8_t s_pending_tag10_code;
+static uint8_t s_tag10_qfull_logged;
 
 void rc_key_input_init(void)
 {
     s_pending_tag10 = 0u;
     s_pending_tag10_code = 0u;
+    s_tag10_qfull_logged = 0u;
 }
 
 void rc_key_input_poll_tag10(void)
@@ -35,6 +37,11 @@ void rc_key_input_poll_tag10(void)
         int rc = remote_queue_tag10_key(code);
 
         if (rc == -2) {
+            if (s_tag10_qfull_logged == 0u) {
+                co_printf("[RC   ] Tag10 push fail, key=%u q=%u\r\n",
+                          (unsigned)code, (unsigned)remote_report_queue_count());
+                s_tag10_qfull_logged = 1u;
+            }
             taskENTER_CRITICAL();
             s_pending_tag10_code = code;
             s_pending_tag10 = 1u;
@@ -45,6 +52,7 @@ void rc_key_input_poll_tag10(void)
             return;
         }
     }
+    s_tag10_qfull_logged = 0u;
     co_printf("[RC   ] Tag10 queue OK, key = %u\r\n", (unsigned)code);
 }
 
@@ -71,4 +79,5 @@ void rc_key_input_event(uint8_t key_type, uint8_t action, uint16_t key_value)
     s_pending_tag10_code = key_code;
     s_pending_tag10 = 1u;
     taskEXIT_CRITICAL();
+    s_tag10_qfull_logged = 0u;
 }

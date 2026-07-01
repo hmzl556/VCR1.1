@@ -189,7 +189,7 @@ static int rc_conf_apply(const uint8_t *val, uint16_t len, peer_t peer)
     s_rc_conf.sleep_delay_sec = rc_be16(val + 10);
     s_rc_conf.max_packet_size = 128u;
 
-    rc_trans_reset();
+    rc_trans_session_reset();
     rc_cat1_get_cloud_policy(s_rc_status.cloud_policy);
 
     s_rc_status.state = RC_STATE_READY;
@@ -250,16 +250,36 @@ static void rc_conf_cbk(gatt_event_t event, void *context, void *param)
     }
 }
 
-// RC-TRANS 回调
+// RC-TRANS 回调：先拷贝并处理，再 write_rsp，避免过早 ACK 导致连发子包丢失
 static void rc_trans_cbk(gatt_event_t event, void *context, void *param)
 {
+    gatt_chr_val_write_req_t *in = (gatt_chr_val_write_req_t *)param;
+    static uint8_t rx_buf[RC_TRANS_FRAME_MAX];
+    uint16_t len;
+
+    (void)context;
+
+    if (event != GATTS_EV_CHR_VALUE_WRITE_REQ && event != GATTS_EV_CHR_VALUE_WRITE)
+    {
+        return;
+    }
+
+    len = in->val_len;
+    if (len == 0u || len > RC_TRANS_FRAME_MAX)
+    {
+        if (event == GATTS_EV_CHR_VALUE_WRITE_REQ)
+        {
+            gatts_chr_val_write_rsp(in->peer, in->chr, GATT_RES_INVALID_ATTRIBUTE_VALUE_LENGTH);
+        }
+        return;
+    }
+
+    memcpy(rx_buf, in->val, len);
+    s_rc_peer = in->peer;
+    rc_trans_on_write(in->peer, rx_buf, len);
     if (event == GATTS_EV_CHR_VALUE_WRITE_REQ)
     {
-        gatt_chr_val_write_req_t *in = (gatt_chr_val_write_req_t *)param;
-
         gatts_chr_val_write_rsp(in->peer, in->chr, GATT_OK);
-        s_rc_peer = in->peer;
-        rc_trans_on_write(in->peer, in->val, in->val_len);
     }
 }
 

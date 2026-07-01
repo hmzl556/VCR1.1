@@ -12,7 +12,8 @@
 extern "C" {
 #endif
 
-#define USART2_CAT1_RX_RING_CAP 384u
+/** RX 环容量见 cat1_udp_config.h（≈1376B，一条 OTA +SKTRECV 行 + 小余量） */
+#define USART2_CAT1_RX_RING_CAP CAT1_UART_RX_RING_CAP
 
 /** AT 单行发送缓冲（= CAT1_AT_LINE_MAX，容纳 SKTSEND Hex 行） */
 #define USART2_CAT1_TX_MAX    CAT1_AT_LINE_MAX
@@ -26,8 +27,12 @@ void USART2_CAT1_Init(void);
 void USART2_CAT1_IRQHandler(void);
 
 void USART2_CAT1_PollSend(const uint8_t *data, uint16_t len);
-/** AT 单行发送：在 line 末尾追加 \\r\\n 后直接发送（与 skt_udp 共用缓冲，无本地拷贝） */
+/** 分段发送并在段间/等 TX 时调用 pump，避免阻塞 TX 期间丢 +SKTRECV */
 void usart2_at_send(char *line, unsigned line_cap);
+/** @return 0 成功；-1 TX 超时 */
+int usart2_at_send_pump(char *line, unsigned line_cap, void (*pump_fn)(void));
+/** RX 环满丢弃字节累计（诊断 UART 溢出） */
+uint32_t USART2_CAT1_RxDropCount(void);
 
 /** 丢弃尚未读取的 RX 数据 */
 void USART2_CAT1_RxFlush(void);
