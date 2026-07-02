@@ -288,8 +288,8 @@ int ble_device_info_init(void)
     // chr8: PnP ID (0x2A50)
     {
         uuid_t uuid = { UUID_LEN_16, UUID16_VAL_SET(0x2A50) };
-        uint8_t val[] = {0x01, 0x53, 0xC7, 0x7D, 0x52, 0x00, 0x03}; // PnP ID: VendorSrc=Bluetooth SIG Company: Iton Technology(0x01), VID=0xC753, PID=0x527D, Ver=0x0003
-       //int8_t val[] = {0x01, 0x45, 0x75, 0x71, 0x01, 0x00, 0x03};
+        //uint8_t val[] = {0x01, 0x53, 0xC7, 0x7D, 0x52, 0x00, 0x03}; // PnP ID: VendorSrc=Bluetooth SIG Company: Iton Technology(0x01), VID=0xC753, PID=0x527D, Ver=0x0003
+        uint8_t val[] = {0x01, 0x45, 0x75, 0x71, 0x01, 0x00, 0x03};
         device_info_chr8 = gatts_chr_ro_add(device_info_svc, &uuid,
                             GATT_CHR_PROP_READ,
                             ATT_PERM_READ,

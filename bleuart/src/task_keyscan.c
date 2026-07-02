@@ -10,6 +10,7 @@
 #include "rc_key_input.h"
 #include "pm_state.h"       /* 电源管理 — 按键活动通知 */
 #include "combo_key.h"      /* 组合键管理器（配对/解配）     */
+#include "ble_adv.h"        /* ble_adv_start_wakeup          */
 #include "userhard.h"
 
 volatile uint16_t key_receive = 0;
@@ -303,6 +304,13 @@ void task_keyscan_process(void)
 
 				// 短按按下即发：确认稳定按下后立刻发送
 				key_state = KEY_STATE_PRESSED;
+
+				// 电源键 + 回连态：切换为唤醒广播，通过广播中的 STB MAC 地址唤醒机顶盒
+				if (key_active == TASK_KEYSCAN_KEY1
+				    && pm_state_get() == PM_STATE_RECONNECTING) {
+					co_printf("KEY1 pressed in RECONNECTING, switch to wakeup broadcast\r\n");
+					ble_adv_start_wakeup();
+				}
 
 				// 通知电源管理状态机：有按键活动
 				// - 待机态下此调用会立即切回工作态

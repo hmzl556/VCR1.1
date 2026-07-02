@@ -9,6 +9,7 @@
 #define KEY_RELEASE_TIMEOUT_MS		20U
 
 // 按键编号定义（与 KEYSCAN 中断上报一致）
+#define TASK_KEYSCAN_KEY1            1U
 #define TASK_KEYSCAN_KEY4            4U
 //#define TASK_KEYSCAN_KEY5            5U
 #define TASK_KEYSCAN_KEY6            6U

@@ -45,5 +45,6 @@ void local_bd_init_from_chip(void);
 void ble_adv_start_by_bonding(void);
 void ble_adv_start_pairing(void);
 void ble_adv_start_reconnect(void);
+void ble_adv_start_wakeup(void);   // 唤醒广播（带 STB MAC 地址）
 
 #endif
