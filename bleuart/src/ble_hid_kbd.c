@@ -100,7 +100,7 @@ static gatt_chr_t g_hid_info_chr = NULL;
 static gatt_chr_t g_hid_report_map_chr = NULL;
 static gatt_chr_t g_hid_protocol_mode_chr = NULL;
 static gatt_chr_t g_hid_control_point_chr = NULL;
-static gatt_chr_t g_hid_report_in_chr = NULL;
+static gatt_chr_t g_hid_report_in_chr = NULL;   // Report ID=1: Keyboard Input
 static gatt_chr_t g_hid_report_in_consumer_chr = NULL;
 static peer_t g_hid_boot_peer = NULL;
 static peer_t g_hid_report_peer = NULL;

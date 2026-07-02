@@ -40,6 +40,8 @@
 #include "co_printf.h"
 #include "ble_adv.h"
 #include "ble_gap.h"    /* g_pairing_active */
+#include "qflash.h"     /* Qflash_Read */
+#include "flash_layout.h" /* BLE_BONDING_STORE_ADDR */
 #include "br1601x.h"
 
 uint8_t local_bd[6];    // 本地蓝牙地址
@@ -95,12 +97,13 @@ static uint8_t adv_dat_reconnect[] = {
 
 static adv_data_t adv_dat_pairing_seg = {0};
 static adv_data_t adv_dat_reconnect_seg = {0};
+static adv_data_t adv_dat_wakeup_seg = {0};
 static adv_data_t scan_rsp_adv_dat_seg = {0};
 static adv_param_t adv_par_pairing = {0};
 static adv_param_t adv_par_reconnect = {0};
 // 设备名称（扫描响应里返回 Complete Local Name）
 // 可直接修改为自定义名称，例如 "MY_REMOTE"
-#define BLE_ADV_NAME "BarrotRemote"
+#define BLE_ADV_NAME "GehuaRemote" // 设备名称，符合GY/T 407-2024 条款附录C.2
 #define BLE_ADV_NAME_LEN (sizeof(BLE_ADV_NAME) - 1)// C 语言字符串末尾自动加一个'\0'结束符,减 1 是因为 AD 格式里的长度不包含结束符
 // HID Appearance: Keyboard (0x03C1), 低字节在前
 #define BLE_ADV_APPEARANCE_LO (0xC1u)
@@ -228,6 +231,60 @@ void ble_adv_start_reconnect(void)
     // 先移除旧 handle，再添加回连态参数并启用
     le_adv_remove(0x01, NULL, NULL);
     le_adv_add(&adv_par_reconnect, NULL, NULL);
+    ble_adv_start();
+}
+
+// 唤醒广播数据（运行时动态填充地址，去掉 HID UUID 控制在 31 字节内）
+static uint8_t adv_dat_wakeup[] = {
+    0x02, 0x01, 0x04,          // Flags: BR/EDR Not Supported (不可发现)
+    0x18, 0x21,                // AD Type 0x21: Service Data - 128-bit UUID, 24字节
+    0x00, 0xA0, 0x46, 0x3F, 0xC3, 0xEB, 0xE7, 0xE4,
+    0x6F, 0x7E, 0xD3, 0x9A, 0xA4, 0x51, 0xEE, 0x19, // UUID (16B)
+    0x16,                      // 指示信息: bit0-1=2(类型2,同回连0x02) bit2=1(含地址) bit4=1(唤醒)
+    0x00, 0x00, 0x00,          // 源地址(遥控器 MAC 低3B, 索引 22-24)
+    0x00, 0x00, 0x00,          // 目标地址(机顶盒 MAC 低3B, 索引 25-27)
+};                             // 总计 28 字节
+
+void ble_adv_start_wakeup(void)
+{
+    uint8_t stb_mac[6];
+    uint32_t addr = BLE_BONDING_STORE_ADDR + 13; // peer_addr 在绑定头中偏移 13 字节
+
+    co_printf("Starting BLE Advertising for Wakeup...\n");
+
+    // 从 Flash 读取 STB MAC 地址
+    Qflash_Read(addr, stb_mac, 6);
+
+    // 填充源地址（遥控器 MAC 低 3 字节，LSB 在前）→ 索引 22-24
+    adv_dat_wakeup[22] = local_bd[0];
+    adv_dat_wakeup[23] = local_bd[1];
+    adv_dat_wakeup[24] = local_bd[2];
+
+    // 填充目标地址（机顶盒 MAC 低 3 字节，LSB 在前）→ 索引 25-27
+    adv_dat_wakeup[25] = stb_mac[0];
+    adv_dat_wakeup[26] = stb_mac[1];
+    adv_dat_wakeup[27] = stb_mac[2];
+
+    co_printf("Wakeup adv: src=%02X:%02X:%02X dst=%02X:%02X:%02X\r\n",
+              adv_dat_wakeup[22], adv_dat_wakeup[23], adv_dat_wakeup[24],
+              adv_dat_wakeup[25], adv_dat_wakeup[26], adv_dat_wakeup[27]);
+
+    // 绑定广播数据（static，BLE 栈持续引用）
+    adv_dat_wakeup_seg.data = adv_dat_wakeup;
+    adv_dat_wakeup_seg.len  = sizeof(adv_dat_wakeup);
+
+    // 基于回连广播参数，替换广播数据为唤醒广播包
+    static adv_param_t adv_par_wakeup;
+    adv_par_wakeup = adv_par_reconnect;
+    adv_par_wakeup.adv_data_frag = &adv_dat_wakeup_seg;
+
+    // 切换广播：先停 → 等完成 → 删旧 → 等完成 → 建新
+    ble_adv_stop();
+    cs_schedule();
+    cs_schedule();                          // 多一轮确保 HCI 队列清空
+    le_adv_remove(0x01, NULL, NULL);
+    cs_schedule();
+    le_adv_add(&adv_par_wakeup, NULL, NULL);
     ble_adv_start();
 }
 

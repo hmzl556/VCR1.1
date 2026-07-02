@@ -76,14 +76,14 @@ void combo_key_init(void)
 {
     /* Combo #1: KEY14 + KEY5 → 进入配对 */
     g_combos[COMBO_IDX_PAIR].key1      = TASK_KEYSCAN_KEY14;
-    g_combos[COMBO_IDX_PAIR].key2      = TASK_KEYSCAN_KEY5;
+    g_combos[COMBO_IDX_PAIR].key2      = TASK_KEYSCAN_KEY4;
     g_combos[COMBO_IDX_PAIR].state     = COMBO_IDLE;
     g_combos[COMBO_IDX_PAIR].state_ts_ms = 0U;
     g_combos[COMBO_IDX_PAIR].led_ts_ms   = 0U;
     g_combos[COMBO_IDX_PAIR].led_on      = false;
 
     /* Combo #2: KEY5 + KEY9 → 解除配对 */
-    g_combos[COMBO_IDX_UNPAIR].key1      = TASK_KEYSCAN_KEY5;
+    g_combos[COMBO_IDX_UNPAIR].key1      = TASK_KEYSCAN_KEY4;
     g_combos[COMBO_IDX_UNPAIR].key2      = TASK_KEYSCAN_KEY9;
     g_combos[COMBO_IDX_UNPAIR].state     = COMBO_IDLE;
     g_combos[COMBO_IDX_UNPAIR].state_ts_ms = 0U;

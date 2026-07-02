@@ -66,21 +66,29 @@
 #define BLE_BONDING_PERSIST_ENABLE  1  // 默认使能配对信息持久化
 #endif
 
-#if BLE_BONDING_PERSIST_ENABLE
-// 需要包含qflash和地址定义（无论连接参数持久化是否开启）
-#include "qflash.h"
-#include "br_dfu_boot.h"
+// #if BLE_BONDING_PERSIST_ENABLE
+// // 需要包含qflash和地址定义（无论连接参数持久化是否开启）
+// #include "qflash.h"
+// #include "br_dfu_boot.h"
 
-// 绑定数据存储在 APP1 区域末尾的最后一个扇区
-// APP1: 0x01004000 ~ 0x01020000 (112KB)，遥控器固件通常 < 60KB，末尾安全
-// 固件占用 0x01000000~0x0101F428（含 RW 初始化数据），APP1 末尾无空闲
-// 使用 APP2 末尾扇区（0x0103B000），与固件/OTA 区均不重叠
-#ifndef BLE_BONDING_STORE_ADDR
-#define BLE_BONDING_STORE_ADDR      (BR_APP2_START_ADDRESS + BR_APP2_DEFAULT_SIZE - FLASH_SECTOR_SIZE)
-#endif
+// // 绑定数据存储在 APP1 区域末尾的最后一个扇区
+// // APP1: 0x01004000 ~ 0x01020000 (112KB)，遥控器固件通常 < 60KB，末尾安全
+// // 固件占用 0x01000000~0x0101F428（含 RW 初始化数据），APP1 末尾无空闲
+// // 使用 APP2 末尾扇区（0x0103B000），与固件/OTA 区均不重叠
+// #ifndef BLE_BONDING_STORE_ADDR
+// #define BLE_BONDING_STORE_ADDR      (BR_APP2_START_ADDRESS + BR_APP2_DEFAULT_SIZE - FLASH_SECTOR_SIZE)
+// #endif
+// #define BLE_BONDING_STORE_MAGIC     0x424F4E44  // "BOND"
+// #define BLE_BONDING_STORE_VER       2           // v2: 新增对端地址字段
+// #define BLE_BONDING_MAX_DATA_SZ     256         // 最大绑定数据大小（实际通常<100字节）
+#if BLE_BONDING_PERSIST_ENABLE
+#include "qflash.h"
+#include "flash_layout.h"//回连绑定信息存储在FLASH中，在此文件中定义了BLE_BONDING_STORE_ADDR
+/* BLE 绑定扇区 @ 0x01069000（OTA 配置扇区 + 4KB） */
 #define BLE_BONDING_STORE_MAGIC     0x424F4E44  // "BOND"
 #define BLE_BONDING_STORE_VER       2           // v2: 新增对端地址字段
 #define BLE_BONDING_MAX_DATA_SZ     256         // 最大绑定数据大小（实际通常<100字节）
+
 
 // 绑定信息Flash存储头部（后面紧跟实际绑定数据）
 typedef struct {
@@ -602,7 +610,7 @@ void ble_gap_led_indicate(void)
 }
 
 // 清除 Flash 中的配对与绑定信息（恢复出厂设置时调用）
-// 注：BLE_BONDING_STORE_ADDR(0x01003000) 处于固件代码区，不能直接 Erase_Sector
+// 注：BLE_BONDING_STORE_ADDR(0x01069000) 处于固件代码区，不能直接 Erase_Sector
 // 会毁掉 BLE 协议栈代码。改为写 0 到 header magic 字段使其失效。
 void ble_gap_clear_bonding_info(void)
 {
