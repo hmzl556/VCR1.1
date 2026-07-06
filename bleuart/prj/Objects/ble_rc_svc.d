@@ -10,3 +10,6 @@
 .\objects\ble_rc_svc.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\ble_rc_svc.o: ..\cat1\rc_trans_assembly.h
 .\objects\ble_rc_svc.o: ..\cat1\rc_cat1_bridge.h
+.\objects\ble_rc_svc.o: ..\cat1\remote_reports.h
+.\objects\ble_rc_svc.o: ..\cat1\cat1_udp_config.h
+.\objects\ble_rc_svc.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h

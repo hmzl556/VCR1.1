@@ -10,6 +10,7 @@
 #include "app_rtos.h"
 #include "co_printf.h"
 #include "br_timer.h"
+#include "pm_state.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "udp_ota.h"
@@ -46,22 +47,6 @@ static uint8_t  s_sktsend_fail_streak;
 static uint8_t  s_tag01_queued;
 
 static uint8_t  s_inflight_ota;
-
-/*
- * OTA 卡死检查点（仅写 s_ota_hang_chk，不打日志；可用 ota_hang_chk_get() 调试）
- *   5/10/15/30/35/40/50/52/55/56/70/80 见 poll_core
- */
-static volatile uint8_t s_ota_hang_chk;
-
-static void ota_hang_chk_set(uint8_t id)
-{
-	s_ota_hang_chk = id;
-}
-
-uint8_t ota_hang_chk_get(void)
-{
-	return s_ota_hang_chk;
-}
 
 static uint32_t rc_cat1_now_ms(void)
 {
@@ -148,7 +133,6 @@ static void rc_cat1_on_setup_ok(void)
 			co_printf("[RC   ] Tag01 queue fail\r\n");
 		} else {
 			s_tag01_queued = 1u;
-			udp_ota_on_tag01_probe_sent();
 		}
 	}
 }
@@ -180,8 +164,9 @@ static void rc_cat1_setup_poll(void)
 
 int rc_cat1_on_tlv_ready(uint16_t tlv_len, uint32_t pack_index)
 {
-	if (udp_ota_is_active() != 0u) {
-		co_printf("[RC   ] TLV ready reject: OTA active\r\n");
+	/* OTA 会话期间拒绝 RC-TRANS 组装完成后的 8888 上报 */
+	if (udp_ota_session_busy() != 0u) {
+		co_printf("[RC   ] TLV ready reject: OTA session\r\n");
 		rc_trans_release();
 		return -1;
 	}
@@ -268,6 +253,8 @@ static void rc_cat1_poll_downlink(void)
 			continue;
 		}
 
+		pm_activity_notify(PM_ACTIVITY_CAT1);
+
 		taskENTER_CRITICAL();
 		memcpy(s_cloud_policy, policy, 6u);
 		taskEXIT_CRITICAL();
@@ -286,7 +273,8 @@ static void rc_cat1_handle_pending_tlv(void)
 	uint32_t done_pack = RC_PACK_INDEX_NONE;
 	int queue_rc;
 
-	if (udp_ota_is_active() != 0u) {
+	/* OTA 会话期间丢弃 pending TLV，Cat.1 仅服务 OTA 拉片 */
+	if (udp_ota_session_busy() != 0u) {
 		if (s_pending_tlv != 0u) {
 			taskENTER_CRITICAL();
 			s_pending_tlv = 0u;
@@ -294,7 +282,7 @@ static void rc_cat1_handle_pending_tlv(void)
 			s_pending_pack_index = RC_PACK_INDEX_NONE;
 			taskEXIT_CRITICAL();
 			rc_trans_release();
-			co_printf("[RC   ] pending TLV dropped: OTA active\r\n");
+			co_printf("[RC   ] pending TLV dropped: OTA session\r\n");
 		}
 		return;
 	}
@@ -339,10 +327,6 @@ static void rc_cat1_handle_pending_tlv(void)
 static void rc_cat1_tx_complete(cat1_modem_result_t mr)
 {
 	uint8_t ota_inflight = s_inflight_ota;
-
-	if (udp_ota_is_active() != 0u) {
-		ota_hang_chk_set(35u);
-	}
 
 	s_tx_waiting = 0u;
 
@@ -431,7 +415,8 @@ static void rc_cat1_tx_step(void)
 		return;
 	}
 
-	if (udp_ota_is_active() != 0u) {
+	/* OTA 会话期间不 poll 8888 业务上报（含 PAUSE 退避窗口） */
+	if (udp_ota_session_busy() != 0u) {
 		return;
 	}
 
@@ -469,10 +454,6 @@ static void rc_cat1_poll_core(uint8_t ota_exclusive)
 	uint32_t now_ms;
 	cat1_modem_result_t mr;
 
-	if (ota_exclusive != 0u && udp_ota_is_active() != 0u) {
-		ota_hang_chk_set(5u);
-	}
-
 	if (ota_exclusive == 0u) {
 		rc_trans_poll();
 	}
@@ -503,31 +484,14 @@ static void rc_cat1_poll_core(uint8_t ota_exclusive)
 	if (udp_ota_take_pause_event() != 0u) {
 		rc_cat1_on_ota_paused_release();
 	}
-
-	if (s_udp_ready != 0u && udp_ota_is_active() == 0u
-	    && cat1_modem_is_busy() == 0u && s_tx_waiting == 0u) {
-		if (udp_ota_should_send_tag01_probe() != 0u) {
-			if (remote_queue_tag01_status() == 0) {
-				udp_ota_on_tag01_probe_sent();
-				co_printf("[RC   ] Tag01 resume probe queued\r\n");
-			}
-		}
-	}
-
-	if (udp_ota_is_active() != 0u) {
-		ota_hang_chk_set(10u);
-	}
+	(void)udp_ota_poll_auto_resume();
 
 	if (udp_ota_is_active() != 0u) {
 		udp_ota_poll_work();
 		cat1_skt_udp_drain_urc();
-		ota_hang_chk_set(15u);
 	}
 
 	mr = cat1_modem_step();
-	if (udp_ota_is_active() != 0u) {
-		ota_hang_chk_set(30u);
-	}
 	if (s_tx_waiting != 0u && (mr == CAT1_MODEM_OK || mr == CAT1_MODEM_FAIL)) {
 		rc_cat1_tx_complete(mr);
 	} else if (s_tx_waiting != 0u && cat1_modem_is_busy() == 0u && s_inflight_ota != 0u) {
@@ -544,10 +508,6 @@ static void rc_cat1_poll_core(uint8_t ota_exclusive)
 		}
 	}
 
-	if (udp_ota_is_active() != 0u) {
-		ota_hang_chk_set(40u);
-	}
-
 	if (cat1_modem_is_busy() == 0u) {
 		if (ota_exclusive == 0u) {
 			rc_cat1_handle_pending_tlv();
@@ -556,44 +516,25 @@ static void rc_cat1_poll_core(uint8_t ota_exclusive)
 		}
 	}
 
-	if (cat1_modem_is_busy() == 0u || udp_ota_is_active() != 0u) {
+	if (cat1_modem_is_busy() == 0u || udp_ota_session_busy() != 0u) {
 		rc_cat1_poll_downlink();
-	}
-
-	if (udp_ota_is_active() != 0u) {
-		ota_hang_chk_set(50u);
 	}
 
 	if (udp_ota_is_active() != 0u) {
 		udp_ota_poll_work();
 		cat1_skt_udp_drain_urc();
-		ota_hang_chk_set(52u);
 	}
 
-	if (udp_ota_is_active() != 0u) {
-		ota_hang_chk_set(55u);
-	}
 	rc_cat1_tx_step();
-	if (udp_ota_is_active() != 0u) {
-		ota_hang_chk_set(56u);
-	}
 
 	if (udp_ota_is_active() != 0u) {
 		rc_cat1_poll_downlink();
 		udp_ota_poll_work();
 		cat1_skt_udp_drain_urc();
-	}
-
-	if (udp_ota_is_active() != 0u) {
-		ota_hang_chk_set(70u);
 	}
 
 	if (ota_exclusive == 0u) {
 		rc_key_input_poll_tag10();
-	}
-
-	if (udp_ota_is_active() != 0u) {
-		ota_hang_chk_set(80u);
 	}
 }
 

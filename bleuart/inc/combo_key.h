@@ -41,7 +41,7 @@ void combo_key_init(void);
 
 /**
  * @brief  每主循环周期调用，处理所有简单组合键
- * @param  now_ms       当前时间戳（voiceUptimeMs）
+ * @param  now_ms       当前时间戳（app_now_ms()）
  * @param  hw_snapshot  由调用方一次性读取的硬件按键快照（2 个 uint32_t）
  * @note   调用方负责互斥：仅在 factory_rst_state == IDLE 时才调用此函数
  */

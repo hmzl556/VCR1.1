@@ -9,6 +9,7 @@
 .\objects\rc_key_input.o: ..\cat1\remote_reports.h
 .\objects\rc_key_input.o: ..\cat1\cat1_udp_config.h
 .\objects\rc_key_input.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\rc_key_input.o: ..\cat1\OTA\udp_ota.h
 .\objects\rc_key_input.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\rc_key_input.o: ..\freertos\include\FreeRTOS.h
 .\objects\rc_key_input.o: ..\freertos\FreeRTOSConfig.h

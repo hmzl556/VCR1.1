@@ -17,6 +17,7 @@
 #include "ble_gap.h"          /* ble_gap_get_peer, ble_gap_clear_bonding_info */
 #include "ble_adv.h"          /* ble_adv_start_pairing */
 #include "pm_state.h"         /* pm_state_transition, PM_STATE_PAIRING, PM_STATE_SLEEP */
+#include "udp_ota.h"
 #include "userhard.h"         /* SETLED1, CLRLED1 */
 #include "co_printf.h"
 
@@ -111,25 +112,6 @@ void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
 {
     uint8_t i;
 
-    // /* 诊断: 每500次打印按键快照值，确认combo_key_process被调用且读到按键 */
-    // {
-    //     static uint16_t diag_cnt = 0;
-    //     static uint16_t init_done = 0;
-    //     diag_cnt++;
-    //     if (init_done == 0) {
-    //         co_printf("CK init: k1=%d k2=%d\r\n",
-    //                   g_combos[COMBO_IDX_PAIR].key1,
-    //                   g_combos[COMBO_IDX_PAIR].key2);
-    //         init_done = 1;
-    //     }
-    //     if ((diag_cnt % 500) == 0) {
-    //         bool k14 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY14);
-    //         bool k5  = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY5);
-    //         co_printf("CK %08lX %08lX k14=%d k5=%d\r\n",
-    //                   hw_snapshot[0], hw_snapshot[1], k14, k5);
-    //     }
-    // }
-
     for (i = 0; i < COMBO_COUNT; i++) {
         combo_key_def_t *c = &g_combos[i];
 
@@ -155,6 +137,12 @@ void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
                 co_printf("[COMBO] key%d+key%d released early, cancel.\r\n",
                           c->key1, c->key2);
             } else if ((now_ms - c->state_ts_ms) >= COMBO_KEY_HOLD_MS) {
+                /* OTA 会话期间保留组合键检测，但不执行配对/解配副作用 */
+                if (udp_ota_session_busy() != 0u) {
+                    co_printf("[COMBO] ignored: OTA session busy\r\n");
+                    c->state = COMBO_IDLE;
+                    break;
+                }
                 /* 3s 到 → 触发动作 */
                 if (i == COMBO_IDX_PAIR)    //KEY14+KEY5
                 {  

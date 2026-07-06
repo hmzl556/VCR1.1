@@ -4,7 +4,7 @@
  * @note    此文件是 PMU 模块的核心，实现五状态机（配对/回连/工作/待机/休眠）
  *          的全部状态转换逻辑。
  *
- * 时间基准：使用全局变量 voiceUptimeMs（gmem.h），每 8ms 递增一次。
+ * 时间基准：app_now_ms()（sdk_timer 单调毫秒计数）。
  * 调用周期：pm_state_process() 在 BLE 主循环中每 ~10ms 调用一次。
  *
  * 内部设计原则：
@@ -18,8 +18,10 @@
 #include "pm_config.h"
 #include "pm_standby.h"  /* pm_standby_enter() / pm_standby_exit() */
 #include "pm_sleep.h"    /* pm_sleep_enter()                     */
-#include "gmem.h"       /* voiceUptimeMs 全局毫秒计数器 */
+#include "gmem.h"       /* app_now_ms() */
 #include "gap.h"        /* peer_bonded_count() 绑定数量查询 */
+#include "rc_cat1_bridge.h"
+#include "udp_ota.h"
 
 /*===========================================================================
  * 一、内部静态变量
@@ -28,14 +30,11 @@
 /** @brief 当前电源状态，初始为配对态（后续由绑定检查修正） */
 static pm_state_t   g_pm_state              = PM_STATE_PAIRING;
 
-/** @brief 最后一次业务活动发生的时间戳（voiceUptimeMs 值） */
+/** @brief 最后一次业务活动发生的时间戳（app_now_ms 值） */
 static uint32_t     g_pm_last_activity_ms   = 0U;
 
 /** @brief 回连广播开始时间戳，用于超时判断 */
 static uint32_t     g_pm_reconnect_start_ms = 0U;
-
-/** @brief 进入待机态的时间戳，用于待机→休眠超时判断 */
-static uint32_t     g_pm_standby_start_ms   = 0U;
 
 /** @brief 进入配对态的时间戳，用于配对超时判断 */
 static uint32_t     g_pm_pairing_start_ms   = 0U;
@@ -64,7 +63,7 @@ static bool pm_has_bonding(void)
  */
 static void pm_refresh_activity(void)
 {
-    g_pm_last_activity_ms = voiceUptimeMs;
+    g_pm_last_activity_ms = app_now_ms();
 }
 
 /**
@@ -73,20 +72,22 @@ static void pm_refresh_activity(void)
  */
 static uint32_t pm_idle_duration_ms(void)
 {
+    uint32_t now_ms = app_now_ms();
+
     /*
-     * 防护：若 voiceUptimeMs 意外小于 g_pm_last_activity_ms（可能原因：
+     * 防护：若 now_ms 意外小于 g_pm_last_activity_ms（可能原因：
      * ① g_pm_last_activity_ms 未在关键路径被刷新  ② 变量被异常改写）
      * 减法会下溢得到一个极大值（~49 天），导致立即误触发超时。
      * 此处检测下溢并返回 0，同时印出警告便于调试。
      */
-    if (voiceUptimeMs < g_pm_last_activity_ms) {
-        PM_LOG("WARN: idle timer underflow! voice=%lu last_act=%lu",
-               (unsigned long)voiceUptimeMs, (unsigned long)g_pm_last_activity_ms);
+    if (now_ms < g_pm_last_activity_ms) {
+        PM_LOG("WARN: idle timer underflow! now=%lu last_act=%lu",
+               (unsigned long)now_ms, (unsigned long)g_pm_last_activity_ms);
         /* 修复：将时间戳拉到当前值，恢复计时器 */
-        g_pm_last_activity_ms = voiceUptimeMs;
+        g_pm_last_activity_ms = now_ms;
         return 0U;
     }
-    return (voiceUptimeMs - g_pm_last_activity_ms);
+    return (now_ms - g_pm_last_activity_ms);
 }
 
 /*===========================================================================
@@ -119,7 +120,6 @@ static void pm_enter_working(void)
 static void pm_enter_standby(void)
 {
     PM_LOG("Enter STANDBY state - power saving");
-    g_pm_standby_start_ms = voiceUptimeMs;
 
     /* 执行待机态硬件操作：连接参数切换 + CAT1 TX关闭 + LED关闭 */
     pm_standby_enter();
@@ -163,23 +163,12 @@ static void pm_enter_sleep(void)
     wake_reason = pm_sleep_enter();
 
     /*
-     * After waking from Sleep mode:
-     * - bleAdvStat was reset to 0, so the main loop will call myBleStartAdv()
-     *   which re-initializes BLE stack + services + starts advertising
-     * - Determine destination state based on bonding and wake reason
-     * - If woken by KEYSCAN: user pressed a key, restart PAIRING or RECONNECTING
-     * - If woken by RTC: periodic check-in, restart RECONNECTING if bonded
+     * 休眠唤醒后：CAT1 UART/模组状态已在 sleep 流程中关闭，需重新初始化；
+     * pm_wakeup_entry() 按绑定关系切到 PAIRING/RECONNECTING 并刷新 PM 计时。
+     * bleAdvStat 已在 sleep 中清零，主循环会 myBleStartAdv() 重建 BLE。
      */
-    if (pm_has_bonding()) {
-        PM_LOG("Sleep wake: bonded, entering RECONNECTING");
-        g_pm_state = PM_STATE_RECONNECTING;
-    } else {
-        PM_LOG("Sleep wake: no bond, entering PAIRING");
-        g_pm_state = PM_STATE_PAIRING;
-    }
-
-    /* Refresh activity timer so we don't immediately time out again */
-    pm_refresh_activity();
+    rc_cat1_init();
+    pm_wakeup_entry();
 
     (void)wake_reason;
 }
@@ -191,7 +180,7 @@ static void pm_enter_sleep(void)
 static void pm_enter_pairing(void)
 {
     PM_LOG("Enter PAIRING state");
-    g_pm_pairing_start_ms = voiceUptimeMs;
+    g_pm_pairing_start_ms = app_now_ms();
     pm_refresh_activity();
 
     /* 广播启动由 ble_adv_start_pairing() 完成，
@@ -205,7 +194,7 @@ static void pm_enter_pairing(void)
 static void pm_enter_reconnecting(void)
 {
     PM_LOG("Enter RECONNECTING state");
-    g_pm_reconnect_start_ms = voiceUptimeMs;
+    g_pm_reconnect_start_ms = app_now_ms();
     pm_refresh_activity();
 
     /* 广播启动由 ble_adv_start_reconnect() 完成，
@@ -272,6 +261,14 @@ pm_state_t pm_state_get(void)
 void pm_state_transition(pm_state_t new_state)
 {
     pm_state_t old_state = g_pm_state;
+
+    /* OTA 会话期间禁止进入待机/休眠（combo/工厂复位等可能绕过 process 直接 transition） */
+    if (udp_ota_session_busy() != 0u
+        && (new_state == PM_STATE_STANDBY || new_state == PM_STATE_SLEEP)) {
+        PM_LOG("OTA session busy, reject transition to %s",
+               pm_state_name(new_state));
+        return;
+    }
 
     /* 幂等保护：相同状态不重复转换 */
     if (old_state == new_state) {
@@ -397,6 +394,12 @@ void pm_state_process(void)
 {
     uint32_t idle_ms;
 
+    /* OTA 会话期间跳过 PM 超时检查，仅刷新活动时间，避免 session 结束后立即误休眠 */
+    if (udp_ota_session_busy() != 0u) {
+        pm_refresh_activity();
+        return;
+    }
+
     switch (g_pm_state) {
         case PM_STATE_WORKING:
             /* 检查工作态 → 待机态超时 */
@@ -418,19 +421,25 @@ void pm_state_process(void)
 
         case PM_STATE_RECONNECTING:
             /* 检查回连态 → 休眠态超时 */
-            if ((voiceUptimeMs - g_pm_reconnect_start_ms) >= PM_RECONNECT_TIMEOUT_MS) {
-                co_printf("RECONNECT timeout %lu ms -> SLEEP",
-                          (unsigned long)(voiceUptimeMs - g_pm_reconnect_start_ms));
-                pm_state_transition(PM_STATE_SLEEP);
+            {
+                uint32_t now_ms = app_now_ms();
+                if ((now_ms - g_pm_reconnect_start_ms) >= PM_RECONNECT_TIMEOUT_MS) {
+                    co_printf("RECONNECT timeout %lu ms -> SLEEP",
+                              (unsigned long)(now_ms - g_pm_reconnect_start_ms));
+                    pm_state_transition(PM_STATE_SLEEP);
+                }
             }
             break;
 
         case PM_STATE_PAIRING:
             /* 配对态超时：30s 无人连接则休眠 */
-            if ((voiceUptimeMs - g_pm_pairing_start_ms) >= PM_PAIRING_TIMEOUT_MS) {
-                co_printf("PAIRING timeout %lu ms -> SLEEP",
-                          (unsigned long)(voiceUptimeMs - g_pm_pairing_start_ms));
-                pm_state_transition(PM_STATE_SLEEP);
+            {
+                uint32_t now_ms = app_now_ms();
+                if ((now_ms - g_pm_pairing_start_ms) >= PM_PAIRING_TIMEOUT_MS) {
+                    co_printf("PAIRING timeout %lu ms -> SLEEP",
+                              (unsigned long)(now_ms - g_pm_pairing_start_ms));
+                    pm_state_transition(PM_STATE_SLEEP);
+                }
             }
             break;
 
@@ -481,12 +490,12 @@ bool pm_is_connected(void)
 const char* pm_state_name(pm_state_t state)
 {
     switch (state) {
-        case PM_STATE_PAIRING:      return "配对态(PAIRING)";
-        case PM_STATE_RECONNECTING: return "回连态(RECONNECTING)";
-        case PM_STATE_WORKING:      return "工作态(WORKING)";
-        case PM_STATE_STANDBY:      return "待机态(STANDBY)";
-        case PM_STATE_SLEEP:        return "休眠态(SLEEP)";
-        default:                    return "未知(UNKNOWN)";
+        case PM_STATE_PAIRING:      return "PAIRING";
+        case PM_STATE_RECONNECTING: return "RECONNECTING";
+        case PM_STATE_WORKING:      return "WORKING";
+        case PM_STATE_STANDBY:      return "STANDBY";
+        case PM_STATE_SLEEP:        return "SLEEP";
+        default:                    return "UNKNOWN";
     }
 }
 

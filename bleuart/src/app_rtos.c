@@ -1,11 +1,7 @@
 #include "app_rtos.h"
 #include "app_voice_ctrl.h"
 #include "rc_cat1_bridge.h"
-#include "semphr.h"
 #include "queue.h"
-
-static SemaphoreHandle_t s_dma_notify_sem = NULL;
-static StaticSemaphore_t s_dma_notify_sem_struct;
 
 static QueueHandle_t s_cat1_to_ble_q = NULL;
 static StaticQueue_t s_cat1_to_ble_q_struct;
@@ -16,34 +12,10 @@ static uint8_t s_cat1_to_ble_q_storage[4U * sizeof(cat1_ble_evt_t)];
  */
 void app_rtos_init(void)
 {
-	s_dma_notify_sem = xSemaphoreCreateBinaryStatic(&s_dma_notify_sem_struct);
 	s_cat1_to_ble_q = xQueueCreateStatic(4U, sizeof(cat1_ble_evt_t),
 	                                     s_cat1_to_ble_q_storage,
 	                                     &s_cat1_to_ble_q_struct);
 	voice_ctrl_init();
-}
-
-/**
- * @brief  从 ISR 中通知 DMA 完成
- * @param  pxHigherPriorityTaskWoken 任务句柄指针
- */
-void app_rtos_notify_dma_from_isr(BaseType_t *pxHigherPriorityTaskWoken)
-{
-	if (s_dma_notify_sem != NULL) {
-		(void)xSemaphoreGiveFromISR(s_dma_notify_sem, pxHigherPriorityTaskWoken);
-	}
-}
-
-/**
- * @brief  从任务中等待 DMA 完成通知
- * @retval pdTRUE 表示成功获取通知，pdFALSE 表示超时或发生错误
- */
-BaseType_t app_rtos_take_dma_notify(void)
-{
-	if (s_dma_notify_sem == NULL) {
-		return pdFALSE;
-	}
-	return xSemaphoreTake(s_dma_notify_sem, 0);
 }
 
 /**

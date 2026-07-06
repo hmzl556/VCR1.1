@@ -5,11 +5,9 @@
 #include "co_printf.h"
 #include "rc_trans_assembly.h"
 #include "rc_cat1_bridge.h"
+#include "remote_reports.h"
 
 static gatt_svc_t s_rc_svc;
-static gatt_chr_t s_chr_read;
-static gatt_chr_t s_chr_conf;
-static gatt_chr_t s_chr_trans;
 static gatt_chr_t s_chr_status;
 static gatt_chr_t s_chr_key_notify;
 
@@ -162,32 +160,42 @@ static void rc_conf_log_rx(const uint8_t *val, uint16_t len)
 static int rc_conf_apply(const uint8_t *val, uint16_t len, peer_t peer)
 {
     rc_status_t st;
+    uint16_t max_pkt;
+    uint16_t retry_delay;
 
     if (val == NULL || len != RC_CONF_LEN)
     {
+        co_printf("[RC   ] CONF reject: bad len\r\n");
         return -1;
     }
     if (val[4] != 0x01u)
     {
+        co_printf("[RC   ] CONF reject: TransProto=0x%02X\r\n", (unsigned)val[4]);
         return -1;
     }
-    if (rc_be16(val + 5) != 128u)
+    max_pkt = rc_be16(val + 5);
+    if (max_pkt != 128u)
     {
+        co_printf("[RC   ] CONF reject: MaxPkt=%u (expect 128)\r\n", (unsigned)max_pkt);
         return -1;
     }
     if (val[7] > 3u)
     {
+        co_printf("[RC   ] CONF reject: MaxRetry=%u\r\n", (unsigned)val[7]);
         return -1;
     }
-    if (rc_be16(val + 8) < 100u || rc_be16(val + 8) > 5000u)
+    retry_delay = rc_be16(val + 8);
+    if (retry_delay < 100u || retry_delay > 5000u)
     {
+        co_printf("[RC   ] CONF reject: RetryDelayMs=%u\r\n", (unsigned)retry_delay);
         return -1;
     }
 
     s_rc_conf.max_retry = val[7];
-    s_rc_conf.retry_delay_ms = rc_be16(val + 8);
+    s_rc_conf.retry_delay_ms = retry_delay;
     s_rc_conf.sleep_delay_sec = rc_be16(val + 10);
     s_rc_conf.max_packet_size = 128u;
+    s_rc_peer = peer;
 
     rc_trans_session_reset();
     rc_cat1_get_cloud_policy(s_rc_status.cloud_policy);
@@ -385,9 +393,26 @@ void ble_rc_svc_key_notify(peer_t peer, uint8_t key_type, uint8_t action, uint16
     }
 }
 
+void ble_rc_svc_on_connect(peer_t peer)
+{
+    if (peer != NULL)
+    {
+        s_rc_peer = peer;
+    }
+    co_printf("[RC   ] on_connect peer=%08X state=%s(0x%02X)\r\n",
+              (unsigned)(uint32_t)peer,
+              rc_state_name(s_rc_status.state),
+              (unsigned)s_rc_status.state);
+}
+
 void ble_rc_svc_on_disconnect(void)
 {
     s_rc_peer = NULL;
+    s_rc_status.state = RC_STATE_IDLE;
+    s_rc_status.result = RC_RESULT_NONE;
+    s_rc_status.retry_count = 0u;
+    s_rc_status.pack_index = RC_PACK_INDEX_NONE;
+    remote_key_capture_on_ble_disconnect();
 }
 
 /**
@@ -419,10 +444,10 @@ int ble_rc_svc_init(void)
             0x6f, 0x7e, 0xd3, 0x9a, 0xa4, 0x51, 0xee, 0x19
         }}
     };
-    s_chr_read = gatts_chr_add(s_rc_svc, &chr_read_uuid,
-                               GATT_CHR_PROP_READ,
-                               ATT_PERM_READ,
-                               rc_read_cbk, NULL);
+    (void)gatts_chr_add(s_rc_svc, &chr_read_uuid,
+                        GATT_CHR_PROP_READ,
+                        ATT_PERM_READ,
+                        rc_read_cbk, NULL);
 
     uuid_t chr_conf_uuid = {
         UUID_LEN_128,
@@ -431,10 +456,10 @@ int ble_rc_svc_init(void)
             0x6f, 0x7e, 0xd3, 0x9a, 0xa4, 0x51, 0xee, 0x19
         }}
     };
-    s_chr_conf = gatts_chr_add(s_rc_svc, &chr_conf_uuid,
-                               GATT_CHR_PROP_WRITE,
-                               ATT_PERM_WRITE,
-                               rc_conf_cbk, NULL);
+    (void)gatts_chr_add(s_rc_svc, &chr_conf_uuid,
+                        GATT_CHR_PROP_WRITE,
+                        ATT_PERM_WRITE,
+                        rc_conf_cbk, NULL);
 
     uuid_t chr_trans_uuid = {
         UUID_LEN_128,
@@ -443,10 +468,10 @@ int ble_rc_svc_init(void)
             0x6f, 0x7e, 0xd3, 0x9a, 0xa4, 0x51, 0xee, 0x19
         }}
     };
-    s_chr_trans = gatts_chr_add(s_rc_svc, &chr_trans_uuid,
-                                GATT_CHR_PROP_WRITE,
-                                ATT_PERM_WRITE,
-                                rc_trans_cbk, NULL);
+    (void)gatts_chr_add(s_rc_svc, &chr_trans_uuid,
+                        GATT_CHR_PROP_WRITE,
+                        ATT_PERM_WRITE,
+                        rc_trans_cbk, NULL);
 
     uuid_t chr_status_uuid = {
         UUID_LEN_128,

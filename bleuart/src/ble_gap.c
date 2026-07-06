@@ -50,6 +50,7 @@
 #include "rc_cat1_bridge.h"
 #include "pm_state.h"       /* 电源管理状态机 — 连接/断连通知 */
 #include "combo_key.h"      /* 组合键管理器 — 解配进行中判断     */
+#include "udp_ota.h"
 #ifndef BLE_CONN_PARAM_PERSIST_ENABLE
 #define BLE_CONN_PARAM_PERSIST_ENABLE 0 // 默认不启用连接参数持久化，避免误操作导致 Flash 损耗
 #endif
@@ -244,6 +245,9 @@ static void cccd_retry_handle(uint8_t event, void *arg)
 {
 	static uint8_t retry_cnt = 0;
 
+	(void)event;
+	(void)arg;
+
 	if (g_peer == NULL || peer_bonded_count() == 0) {
 		retry_cnt = 0;
 		return;
@@ -258,7 +262,7 @@ static void cccd_retry_handle(uint8_t event, void *arg)
 	retry_cnt++;
 	if (retry_cnt >= CCCD_RETRY_MAX) {
 		co_printf("[CCCD] STB did not enable after %ums, forcing...\r\n",
-			CCCD_RETRY_INTERVAL_MS * CCCD_RETRY_MAX);
+		          CCCD_RETRY_INTERVAL_MS * CCCD_RETRY_MAX);
 		hid_kbd_force_cccd_enable(g_peer);
 		retry_cnt = 0;
 	} else {
@@ -335,6 +339,7 @@ void ble_gap_connected(gap_event_t ev, void *ctx, gap_conn_cmpl_t *arg)
 	g_peer = arg->peer;
 	co_printf("Connected peer: %08X", (uint32_t)g_peer);		
 	ble_adv_stop(); // 符合GY/T 407-2024 条款附录C.2
+	ble_rc_svc_on_connect(g_peer);
 	// 通知电源管理状态机：连接建立，由配对/回连态切换到工作态
 	pm_notify_connected();
 	// 连接后延时触发参数更新，避免刚连接时立即修改导致失败
@@ -392,6 +397,12 @@ void ble_gap_process_disconnect_pending(void)
 	// 解配进行中时跳过广播重启，由 combo_key 状态机处理后续
 	if (combo_key_unpair_in_progress()) {
 		co_printf("Unpair in progress, skip advertising restart.\r\n");
+		return;
+	}
+
+	/* OTA 会话期间禁止断连后重启广播（广播干扰 Cat.1 OTA 接收） */
+	if (udp_ota_session_busy() != 0u) {
+		co_printf("[GAP  ] OTA session busy, skip advertising restart.\r\n");
 		return;
 	}
 
@@ -594,7 +605,7 @@ volatile bool g_pairing_active = false;
 void ble_gap_led_indicate(void)
 {
 	if (g_pairing_active && ble_gap_get_peer() == NULL && peer_bonded_count() == 0) {
-		uint32_t now = voiceUptimeMs;
+		uint32_t now = app_now_ms();
 		if ((now - g_pairing_led_ts_ms) >= PAIRING_LED_FLASH_MS) {
 			g_pairing_led_ts_ms = now;
 			g_pairing_led_state = !g_pairing_led_state;

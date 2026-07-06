@@ -45,7 +45,16 @@ int remote_handle_downlink_frame(const uint8_t *frame, uint16_t frame_len, uint8
 /** Tag11 DataID 0x01：1=开启 Tag0x10 按键采集，2=关闭 */
 int remote_is_key_capture_enabled(void);
 
+/** 设置按键采集开关（1=开启，2=关闭，与 Tag11 DataID 0x01 一致） */
+void remote_set_key_capture_enable(uint8_t enable);
+
+/** BLE 断连时清除本地 hold，恢复默认策略 */
+void remote_key_capture_on_ble_disconnect(void);
+
 /** 当前 UDP 发送队列占用深度 */
 uint8_t remote_report_queue_count(void);
+
+/** 读取本机软件版本 BCD（与 Tag0x01 DataID 0x02 一致）；0 成功，-1 失败 */
+int remote_get_local_sw_version_bcd(uint16_t *out_ver);
 
 #endif /* BSP_REMOTE_REPORTS_H */

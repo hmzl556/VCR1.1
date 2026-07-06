@@ -53,5 +53,11 @@ void ble_dtss_send_capability_response(uint32_t codec_mask, uint8_t tx_mask);
 void ble_dtss_send_control_response(uint8_t voice_state);
 void ble_dtss_on_disconnect(void);
 
+/** STB 未写 CCCD 时强制打开语音 chr0/chr2 发送通道（与 HID force 一致） */
+void ble_dtss_force_cccd_enable(peer_t peer);
+
+/** 语音 chr0 是否已订阅（bleSendEn==0xA6 且句柄有效） */
+int ble_dtss_is_subscribed(void);
+
 #endif
 

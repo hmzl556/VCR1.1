@@ -3,13 +3,13 @@
 .\objects\pm_sleep.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\pm_sleep.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\pm_sleep.o: ..\pmu\inc\pm_sleep.h
+.\objects\pm_sleep.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\pm_sleep.o: ..\..\bsp\driver\inc\pwr.h
 .\objects\pm_sleep.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\pm_sleep.o: ..\..\bsp\core\inc\core_cm0.h
 .\objects\pm_sleep.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\pm_sleep.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\pm_sleep.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\pm_sleep.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\pm_sleep.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\pm_sleep.o: ..\..\bsp\driver\inc\adc.h
 .\objects\pm_sleep.o: ..\..\bsp\core\inc\br1601x.h

@@ -7,8 +7,6 @@
 #include "rcc.h"
 #include "co_printf.h"
 #include "gmem.h"
-#include "app_rtos.h"
-
 
 #define PCM_RAW_OUTPUT_ENABLE    (0U)  // 1: 输出DMA原始PCM(hex)，0: 输出SBC数据
 
@@ -207,8 +205,7 @@ void Audio_Pcm_Start(void)
 	Encoder_Sbc_Enable();
 	Audio_Pcm_CaptureEnable();  // 内含 Audio_Pcm_PlatformInit
 
-	voiceUptimeMs = 0;  // 语音时间戳从 0 开始
-	bleResetVoiceSbcSeq();  // 语音包序列号从 0 开始
+	bleResetVoiceSbcSeq();  // 语音包序列号/时间戳从 0 开始
 	Audio_Pcm_ResetStartupState();  // 丢弃前若干半缓冲，等待 ADC 稳定
 	g_audio_pcm_enabled = 1;
 
@@ -394,20 +391,16 @@ void Audio_Pcm_CheckAndProcess(void)
 
 void DMA_Channel1_2_3_4_IRQHandler(void)
 {
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-
     if (DMA_GetIntStatus(DMA_INT_HTX1, DMA) == SET)
     {
         DMA_ClrIntPendingBit(DMA_INT_HTX1, DMA);
         g_ping_ready_cnt++;
-        app_rtos_notify_dma_from_isr(&xHigherPriorityTaskWoken);
     }
 
     if (DMA_GetIntStatus(DMA_INT_TXC1, DMA) == SET)
     {
         DMA_ClrIntPendingBit(DMA_INT_TXC1, DMA);
         g_pong_ready_cnt++;
-        app_rtos_notify_dma_from_isr(&xHigherPriorityTaskWoken);
     }
 
     if (DMA_GetIntStatus(DMA_INT_ERR1, DMA) == SET)
@@ -415,7 +408,5 @@ void DMA_Channel1_2_3_4_IRQHandler(void)
         DMA_ClrIntPendingBit(DMA_INT_ERR1, DMA);
         g_dma_err_cnt++;
     }
-
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 

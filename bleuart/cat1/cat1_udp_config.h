@@ -8,8 +8,11 @@
 #ifndef BSP_CAT1_UDP_CONFIG_H
 #define BSP_CAT1_UDP_CONFIG_H
 
-#define CAT1_UDP_REMOTE_HOST   "106.53.179.53"     // 服务器地址 自己：106.53.179.53
-//#define CAT1_UDP_REMOTE_HOST   "120.48.54.123"     // 服务器地址 赛科：120.48.54.123
+#if 0   /* 0=自己 106.53.179.53，1=赛科 120.48.54.123 */
+#define CAT1_UDP_REMOTE_HOST   "120.48.54.123"     // 服务器地址 赛科
+#else
+#define CAT1_UDP_REMOTE_HOST   "106.53.179.53"     // 服务器地址 自己
+#endif
 
 #define CAT1_UDP_REMOTE_PORT   8888u               // 数据采集 0x6868 + Tag11
 #define CAT1_OTA_REMOTE_PORT   8889u               // OTA 0x41 拉片
@@ -19,11 +22,11 @@
 #define CAT1_ECSONMI_LINE_MAX   32u                // +ECSONMI URC 拼行（与 AT/ECSORF 缓冲分离）
 
 /** ECSORF 仅回 OK 无数据行时，短延时重读次数（+ECSONMI 仍有效，不清 pending） */
-#define CAT1_ECSORF_EMPTY_RETRY_MAX  3u
+#define CAT1_ECSORF_EMPTY_RETRY_MAX  5u
 /** 收到 +ECSONMI 后，首次 AT+ECSORF 前等待（毫秒） */
-#define CAT1_ECSORF_FIRST_DELAY_MS   50u
+#define CAT1_ECSORF_FIRST_DELAY_MS   100u
 /** 每次 ECSORF 空 OK 重读前等待（毫秒），给模组 socket buffer 就绪时间 */
-#define CAT1_ECSORF_RETRY_DELAY_MS   50u
+#define CAT1_ECSORF_RETRY_DELAY_MS   80u
 /** ECSORF 解析失败时打印应答行前缀长度 */
 #define CAT1_ECSORF_PARSE_DIAG_HEAD  64u
 
@@ -52,7 +55,7 @@
 #define CAT1_OTA_AT_TOTAL_WAIT_MS  3000u
 #define CAT1_OTA_CHUNK_RETRY_MS    CAT1_OTA_AT_TOTAL_WAIT_MS
 
-/** 同一 req_seq 连续重试超过此次数则暂停 OTA、写 Flash 断点并释放主循环（下一步 Tag11 续传） */
+/** 同一 req_seq 连续重试超过此次数则 PAUSE 写断点，随后直接发 0x41 续传 */
 #define CAT1_OTA_CHUNK_RETRY_MAX    5u
 
 // ECSOST 整行 AT 长度：前缀 + Hex(2×PDU)；供 usart2 / skt_udp 共用
@@ -75,11 +78,11 @@
 /** 连续 RC-TRANS ECSOST 失败达到此次数后触发 UDP 软重建 */
 #define CAT1_UDP_REBUILD_FAIL_THRESH  3u
 
-/** OTA 暂停/空闲且有 Flash 断点时，周期性 Tag0x01 探测间隔（触发云端 Tag0x11 续传） */
-#define UDP_OTA_TAG01_PROBE_MS        10000u
+/** OTA 下载无片进度超过此时间则强制 PAUSE，随后本地直接发 0x41 续传 */
+#define UDP_OTA_STALL_PAUSE_MS        10000u    //10s
 
-/** OTA 下载无片进度超过此时间则强制 PAUSE，以便 Tag0x01 续传探测 */
-#define UDP_OTA_STALL_PAUSE_MS        10000u
+/** PAUSE 后等待此时间再自动 RESUME 发 0x41（避免秒级 PAUSE/RESUME 死循环） */
+#define UDP_OTA_RESUME_BACKOFF_MS     10000u    //10s
 
 /** 1=0x41 下行 parse fail 时打印 hex（联调完改 0） */
 #define OTA_DEBUG_DUMP_RX             1u

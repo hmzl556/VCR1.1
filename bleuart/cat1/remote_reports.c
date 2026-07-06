@@ -36,6 +36,8 @@ static uint8_t s_q_tail;
 static uint8_t s_q_count;
 static uint16_t s_next_mid = 1u;
 static uint8_t s_key_capture_enable = REMOTE_KEY_CAPTURE_DEFAULT;
+/** BLE/RC 会话本地开启采集后，忽略云端 Tag11 0x01=2 关闭指令 */
+static uint8_t s_key_capture_hold;
 static const uint8_t s_default_time_bcd[6] = REMOTE_REPORT_FIXED_TIME_BCD;
 static uint8_t s_tlv_frame[CAT1_UDP_MAX_UDP_PDU];
 
@@ -257,6 +259,32 @@ static int remote_queue_tag_tlv(uint8_t tag, const uint8_t *value, uint16_t valu
     plain[4] = (uint8_t)(value_len & 0xFFu);
     memcpy(plain + 5u, value, value_len);
     return remote_queue_tlv_blob(plain, plain_len, RC_PACK_INDEX_NONE);
+}
+
+/**
+ * @brief  读取本机软件版本 BCD（RC-READ 前 4 位 ASCII，与 Tag0x01 DataID 0x02 一致）
+ * @return 0 成功；-1 失败
+ */
+int remote_get_local_sw_version_bcd(uint16_t *out_ver)
+{
+    const uint8_t *rc_read;
+    uint8_t sw[2];
+
+    if (out_ver == NULL)
+    {
+        return -1;
+    }
+    rc_read = ble_rc_svc_get_read();
+    if (rc_read == NULL)
+    {
+        return -1;
+    }
+    if (rc_ascii_digits_to_bcd(rc_read + RC_READ_OFF_DEVICE_SW_VERSION, 4u, sw, 2u) != 0)
+    {
+        return -1;
+    }
+    *out_ver = (uint16_t)(((uint16_t)sw[0] << 8) | sw[1]);
+    return 0;
 }
 
 /**
@@ -487,6 +515,7 @@ void remote_reports_init(void)
     s_q_count = 0u;
     s_next_mid = 1u;
     s_key_capture_enable = REMOTE_KEY_CAPTURE_DEFAULT;
+    s_key_capture_hold = 0u;
     (void)rc_udp_aes_init();
     co_printf("[RC   ] Tag10 key capture default=%s (Tag11 0x01=1 to enable)\r\n",
               (s_key_capture_enable == 1u) ? "ON" : "OFF");
@@ -504,6 +533,36 @@ int remote_is_key_capture_enabled(void)
     enabled = (s_key_capture_enable == 1u) ? 1 : 0;
     taskEXIT_CRITICAL();
     return enabled;
+}
+
+void remote_set_key_capture_enable(uint8_t enable)
+{
+    if (enable != 1u && enable != 2u)
+    {
+        return;
+    }
+    taskENTER_CRITICAL();
+    s_key_capture_enable = enable;
+    if (enable == 1u)
+    {
+        s_key_capture_hold = 1u;
+    }
+    else
+    {
+        s_key_capture_hold = 0u;
+    }
+    taskEXIT_CRITICAL();
+    co_printf("[RC   ] Tag10 key capture %s (Tag11 0x01=%u)\r\n",
+              (enable == 1u) ? "ON" : "OFF", (unsigned)enable);
+}
+
+void remote_key_capture_on_ble_disconnect(void)
+{
+    taskENTER_CRITICAL();
+    s_key_capture_hold = 0u;
+    s_key_capture_enable = REMOTE_KEY_CAPTURE_DEFAULT;
+    taskEXIT_CRITICAL();
+    co_printf("[RC   ] Tag10 key capture reset on BLE disconnect\r\n");
 }
 
 /**
@@ -596,6 +655,8 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
     uint8_t got_interval;
     uint8_t got_count;
     uint8_t got_key_capture;
+    uint8_t got_ota_sw;
+    uint8_t got_ota_pkts;
     uint16_t ota_sw_version;
     uint16_t ota_total_packets;
 
@@ -607,6 +668,8 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
     got_interval = 0u;
     got_count = 0u;
     got_key_capture = 0u;
+    got_ota_sw = 0u;
+    got_ota_pkts = 0u;
     ota_sw_version = 0u;
     ota_total_packets = 0u;
     pos = 0u;
@@ -633,11 +696,25 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
                 {
                     return -1;
                 }
-                taskENTER_CRITICAL();
-                s_key_capture_enable = value_bytes[pos];
-                taskEXIT_CRITICAL();
-                got_key_capture = 1u;
-                pos += 1u;
+                {
+                    uint8_t cap_val = value_bytes[pos];
+                    uint8_t hold;
+
+                    pos += 1u;
+                    got_key_capture = 1u;
+                    if (cap_val == 2u)
+                    {
+                        taskENTER_CRITICAL();
+                        hold = s_key_capture_hold;
+                        taskEXIT_CRITICAL();
+                        if (hold != 0u)
+                        {
+                            co_printf("[RC   ] Tag11 key capture 0x01=2 ignored (RC/BLE hold)\r\n");
+                            break;
+                        }
+                    }
+                    remote_set_key_capture_enable(cap_val);
+                }
                 break;
             case 0x02u:
                 if (remain < 2u)
@@ -666,6 +743,7 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
                 }
                 ota_sw_version = (uint16_t)(((uint16_t)value_bytes[pos] << 8)
                     | value_bytes[pos + 1u]);
+                got_ota_sw = 1u;
                 pos += 2u;
                 break;
             case 0x05u:
@@ -675,6 +753,7 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
                 }
                 ota_total_packets = (uint16_t)(((uint16_t)value_bytes[pos] << 8)
                     | value_bytes[pos + 1u]);
+                got_ota_pkts = 1u;
                 pos += 2u;
                 break;
             default:
@@ -687,7 +766,10 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
         return -1;
     }
 
-    udp_ota_on_tag11_task(ota_sw_version, ota_total_packets);
+    /* 仅当 Tag11 含 DataID 0x04/0x05 时才触发 OTA 任务（纯策略应答不启动升级） */
+    if (got_ota_sw != 0u || got_ota_pkts != 0u) {
+        udp_ota_on_tag11_task(ota_sw_version, ota_total_packets);
+    }
     return 0;
 }
 

@@ -7,6 +7,7 @@
 #define _PM_SLEEP_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,6 +17,13 @@ extern "C" {
 #define PM_WAKE_REASON_NONE     0U  /* Undefined / not a wakeup event    */
 #define PM_WAKE_REASON_KEYSCAN  1U  /* Woken by KEYSCAN EXTI (key press) */
 #define PM_WAKE_REASON_RTC      2U  /* Woken by RTC wakeup timer         */
+
+
+/**
+ * @brief 由 pm_sleep.c 在进入 WFI 前设为 true，唤醒后 ISR 或主循环清除。
+ *        KEYSCAN ISR 据此决定是否在按键瞬间亮 LED1。
+ */
+extern volatile bool g_pm_sleeping;
 
 /**
  * @brief  Enter Sleep mode (CPU+BLE off, SRAM retained, KEYSCAN+RTC wake)

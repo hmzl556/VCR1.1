@@ -10,7 +10,9 @@
 #include "rc_key_input.h"
 #include "pm_state.h"       /* 电源管理 — 按键活动通知 */
 #include "combo_key.h"      /* 组合键管理器（配对/解配）     */
+#include "udp_ota.h"
 #include "ble_adv.h"        /* ble_adv_start_wakeup          */
+#include "cs_core.h"
 #include "userhard.h"
 
 volatile uint16_t key_receive = 0;
@@ -31,12 +33,24 @@ static uint32_t key_last_event_ms = 0;
 static uint32_t key_press_start_ms = 0;
 static bool key_long_triggered = false;
 static bool key_active_is_consumer = false;
-static uint16_t key_active_usage_id = 0;
 static bool key15_voice_started = false;
 
-// ====== 按键 LED 指示 ======
-static uint32_t g_key_led_on_ms = 0;       // 按键 LED 亮起时间戳
-static bool     g_key_led_is_led1 = false;  // true=LED1（未连接时）, false=LED2（已连接时）
+/* KEY_15 语音与 RC-KEY notify 分开发送，避免同周期多次 FSM_Write */
+static struct {
+	uint8_t pending;
+	uint8_t action;
+	uint16_t usage;
+	uint16_t key_id;
+} s_key15_rc_defer;
+
+static void key15_rc_notify_defer(uint8_t action)
+{
+	s_key15_rc_defer.pending = 1u;
+	s_key15_rc_defer.action = action;
+	s_key15_rc_defer.usage = key_active_usage;
+	s_key15_rc_defer.key_id = key_active;
+}
+
 
 // ====== 恢复出厂设置状态机 ======
 typedef enum
@@ -130,6 +144,13 @@ static void factory_reset_process(uint32_t now_ms, uint16_t key_id,
                 {
                     if (key_id == TASK_KEYSCAN_KEY4)
                     {
+                        /* OTA 会话期间不执行工厂复位清绑定/进休眠 */
+                        if (udp_ota_session_busy() != 0u) {
+                            CLRLED2;
+                            factory_rst_state = FACTORY_RST_IDLE;
+                            co_printf("Factory reset: ignored, OTA session busy.\r\n");
+                            break;
+                        }
                         CLRLED2;
                         factory_rst_state = FACTORY_RST_CONFIRMED;
                         factory_rst_state_ts_ms = now_ms;
@@ -154,6 +175,11 @@ static void factory_reset_process(uint32_t now_ms, uint16_t key_id,
             {
                 CLRLED2;
                 factory_rst_state = FACTORY_RST_IDLE;
+                /* OTA 会话期间工厂复位完成也不进 SLEEP */
+                if (udp_ota_session_busy() != 0u) {
+                    co_printf("Factory reset: complete ignored, OTA session busy.\r\n");
+                    break;
+                }
                 // 工厂复位后进入休眠，用户按 KEY14+KEY5 可重新配对
                 pm_state_transition(PM_STATE_SLEEP);
                 co_printf("Factory reset: complete, entering SLEEP.\r\n");
@@ -192,6 +218,7 @@ void task_keyscan_reset_on_ble_disconnect(void)
 	key_long_triggered = false;
 	key_active_is_consumer = false;
 	key15_voice_started = false;
+	s_key15_rc_defer.pending = 0u;
 	key_receive = 0;
 	//CLRLED2;							// 清除 LED2（蓝） 状态为 OFF
 }
@@ -202,7 +229,7 @@ void task_keyscan_reset_on_ble_disconnect(void)
 */
 static uint32_t task_keyscan_get_now_ms(void)
 {
-	return voiceUptimeMs;
+	return app_now_ms();
 }
 
 /**
@@ -218,7 +245,20 @@ static void task_keyscan_rc_notify(uint8_t action)
 	} else {
 		key_type = key_active_is_consumer ? 0x02u : 0x01u;
 	}
-	rc_key_input_event(key_type, action, key_active_usage);
+	rc_key_input_event(key_type, action, key_active_usage, key_active);
+}
+
+void task_keyscan_flush_deferred_voice_rc(void)
+{
+	if (s_key15_rc_defer.pending == 0u) {
+		return;
+	}
+
+	/* 先让语音 chr2 indicate / chr0 notify 入队完成，再发 RC-KEY notify */
+	cs_schedule();
+	rc_key_input_event(0x03u, s_key15_rc_defer.action,
+	                   s_key15_rc_defer.usage, s_key15_rc_defer.key_id);
+	s_key15_rc_defer.pending = 0u;
 }
 
 /**
@@ -244,11 +284,6 @@ void task_keyscan_process(void)
 	uint32_t hw_snapshot[5];
 	KEYSCAN_ReadKeyData(hw_snapshot);
 
-	// ====== 按键 LED 超时熄灭 ======
-	if (g_key_led_on_ms != 0 && (now_ms - g_key_led_on_ms) >= KEY_LED_ON_MS) {
-		if (g_key_led_is_led1) CLRLED1; else CLRLED2;
-		g_key_led_on_ms = 0;
-	}
 
 	// ====== 组合键互斥调度 ======
 	// 工厂复位空闲时，简单组合键（配对/解配）才工作
@@ -269,7 +304,6 @@ void task_keyscan_process(void)
             key_state = KEY_STATE_IDLE;
             key_active = 0;
             key_active_is_consumer = false;
-            key_active_usage_id = 0;
         }
         return;
     }
@@ -321,19 +355,19 @@ void task_keyscan_process(void)
 				key_press_start_ms = now_ms;
 				key_long_triggered = false;
 
-					// 按键 LED 指示：未连接时 LED1 亮 2s，已连接时 LED2 亮 2s
-					if (ble_gap_get_peer() != NULL) {
-						SETLED2;
-						g_key_led_is_led1 = false;
-					} else {
-						SETLED1;
-						g_key_led_is_led1 = true;
-					}
-					g_key_led_on_ms = now_ms;
+				// 按键 LED 指示：按下亮，松开灭
+				if (ble_gap_get_peer() != NULL) {
+					SETLED2;
+				} else {
+					SETLED1;
+				}
 
 				if (ble_gap_get_peer() != NULL && key_active != 0) {
 					co_printf("\r\nKeyboard press KEY_%d, send via HID.\r\n", key_active);
 					hid_kbd_send_key_id_current(key_active);
+					if (udp_ota_session_busy() != 0u) {
+						cs_schedule();
+					}
 				}
 
 				if (key_active != TASK_KEYSCAN_KEY15) {
@@ -365,11 +399,12 @@ void task_keyscan_process(void)
 			// 长按判定：仅触发一次
 			if (!key_long_triggered && (now_ms - key_press_start_ms) >= KEY_LONG_PRESS_MS) {
 				key_long_triggered = true;
+				/* OTA 会话期间禁止 KEY_15 长按启动语音采集 */
 				if (key_active == TASK_KEYSCAN_KEY15) {
-					if (!key15_voice_started) {
+					if (udp_ota_session_busy() == 0u && !key15_voice_started) {
 						key15_voice_started = true;
 						(void)voice_ctrl_post_start();
-						rc_key_input_event(0x03u, 0x01u, key_active_usage);
+						key15_rc_notify_defer(0x01u);
 						co_printf("Voice capture started by KEY_15 (press)\r\n");
 					}
 				}
@@ -382,19 +417,23 @@ void task_keyscan_process(void)
 					} else {
 						hid_kbd_send_release_current();
 					}
+					if (udp_ota_session_busy() != 0u) {
+						cs_schedule();
+					}
 				}
 
 				if (key_active == TASK_KEYSCAN_KEY15) {
 					if (key15_voice_started) {
 						key15_voice_started = false;
 						(void)voice_ctrl_post_stop();
-						rc_key_input_event(0x03u, 0x00u, key_active_usage);
+						key15_rc_notify_defer(0x00u);
 						co_printf("Voice capture stopped by KEY_15 (release)\r\n\r\n");
 					}
 				} else {
 					task_keyscan_rc_notify(0x00u);
 				}
-				//CLRLED2;									// 清除 LED2（蓝） 状态为 OFF
+				CLRLED2;	
+				CLRLED1;								// 清除 LED2（蓝） 状态为 OFF
 				key_state = KEY_STATE_IDLE;
 				key_active = 0;
 				key_active_usage = 0;

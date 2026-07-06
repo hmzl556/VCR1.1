@@ -15,7 +15,6 @@
 .\objects\app_rtos.o: ..\..\cs\inc\gap.h
 .\objects\app_rtos.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\app_rtos.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
-.\objects\app_rtos.o: ..\freertos\include\semphr.h
 .\objects\app_rtos.o: ..\freertos\include\queue.h
 .\objects\app_rtos.o: ..\freertos\include\task.h
 .\objects\app_rtos.o: ..\freertos\include\list.h

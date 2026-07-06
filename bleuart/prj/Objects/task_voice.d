@@ -37,4 +37,3 @@
 .\objects\task_voice.o: ..\freertos\include\deprecated_definitions.h
 .\objects\task_voice.o: ..\freertos\portable\RVDS\ARM_CM0\portmacro.h
 .\objects\task_voice.o: ..\freertos\include\mpu_wrappers.h
-.\objects\task_voice.o: ..\inc\app_rtos.h

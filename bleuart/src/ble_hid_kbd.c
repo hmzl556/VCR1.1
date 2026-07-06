@@ -95,11 +95,6 @@ static const uint8_t hid_report_map[] =
 // HID 服务（0x1812）运行时句柄与状态。
 static gatt_svc_t g_hid_boot_svc = NULL;
 static gatt_chr_t g_hid_boot_in_chr = NULL;
-static gatt_chr_t g_hid_boot_out_chr = NULL;
-static gatt_chr_t g_hid_info_chr = NULL;
-static gatt_chr_t g_hid_report_map_chr = NULL;
-static gatt_chr_t g_hid_protocol_mode_chr = NULL;
-static gatt_chr_t g_hid_control_point_chr = NULL;
 static gatt_chr_t g_hid_report_in_chr = NULL;   // Report ID=1: Keyboard Input
 static gatt_chr_t g_hid_report_in_consumer_chr = NULL;
 static peer_t g_hid_boot_peer = NULL;
@@ -402,25 +397,25 @@ void hid_kbd_init(void)
 
     g_hid_boot_svc = gatts_svc_create(&svc_uuid, hid_boot_svc_cbk, NULL);
 
-    g_hid_info_chr = gatts_chr_add(g_hid_boot_svc, &info_uuid,
-                                   GATT_CHR_PROP_READ,
-                                   ATT_PERM_READ,
-                                   hid_info_cbk, NULL);
+    (void)gatts_chr_add(g_hid_boot_svc, &info_uuid,
+                        GATT_CHR_PROP_READ,
+                        ATT_PERM_READ,
+                        hid_info_cbk, NULL);
 
-    g_hid_report_map_chr = gatts_chr_add(g_hid_boot_svc, &report_map_uuid,
-                                         GATT_CHR_PROP_READ,
-                                         ATT_PERM_READ,
-                                         hid_report_map_cbk, NULL);
+    (void)gatts_chr_add(g_hid_boot_svc, &report_map_uuid,
+                        GATT_CHR_PROP_READ,
+                        ATT_PERM_READ,
+                        hid_report_map_cbk, NULL);
 
-    g_hid_protocol_mode_chr = gatts_chr_add(g_hid_boot_svc, &protocol_mode_uuid,
-                                            GATT_CHR_PROP_READ | GATT_CHR_PROP_WRITE,
-                                            ATT_PERM_READ | ATT_PERM_WRITE,
-                                            hid_protocol_mode_cbk, NULL);
+    (void)gatts_chr_add(g_hid_boot_svc, &protocol_mode_uuid,
+                        GATT_CHR_PROP_READ | GATT_CHR_PROP_WRITE,
+                        ATT_PERM_READ | ATT_PERM_WRITE,
+                        hid_protocol_mode_cbk, NULL);
 
-    g_hid_control_point_chr = gatts_chr_add(g_hid_boot_svc, &control_point_uuid,
-                                            GATT_CHR_PROP_WRITE,
-                                            ATT_PERM_WRITE,
-                                            hid_control_point_cbk, NULL);
+    (void)gatts_chr_add(g_hid_boot_svc, &control_point_uuid,
+                        GATT_CHR_PROP_WRITE,
+                        ATT_PERM_WRITE,
+                        hid_control_point_cbk, NULL);
 
     g_hid_report_in_chr = gatts_chr_add(g_hid_boot_svc, &report_in_uuid,
                                         GATT_CHR_PROP_READ | GATT_CHR_PROP_NOTIFY,
@@ -470,13 +465,11 @@ void hid_kbd_init(void)
                           sizeof(g_hid_boot_in_ref),
                           (uint8_t *)g_hid_boot_in_ref);
 
-    g_hid_boot_out_chr = gatts_chr_add(g_hid_boot_svc, &out_uuid,
-                                       GATT_CHR_PROP_READ | GATT_CHR_PROP_WRITE |
-                                           GATT_CHR_PROP_WRITE_WITHOUT_RSP,
-                                       ATT_PERM_READ | ATT_PERM_WRITE,
-                                       hid_boot_out_cbk, NULL);
-
-    //co_printf("HID Boot OUT chr add result: %p\n", g_hid_boot_out_chr);
+    (void)gatts_chr_add(g_hid_boot_svc, &out_uuid,
+                        GATT_CHR_PROP_READ | GATT_CHR_PROP_WRITE |
+                            GATT_CHR_PROP_WRITE_WITHOUT_RSP,
+                        ATT_PERM_READ | ATT_PERM_WRITE,
+                        hid_boot_out_cbk, NULL);
 
     gatts_svc_start(g_hid_boot_svc);
 

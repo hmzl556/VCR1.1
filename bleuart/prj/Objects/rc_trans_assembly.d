@@ -8,6 +8,7 @@
 .\objects\rc_trans_assembly.o: ..\cat1\ble_rc_svc.h
 .\objects\rc_trans_assembly.o: ..\cat1\rc_cat1_bridge.h
 .\objects\rc_trans_assembly.o: ..\..\bsp\common\inc\co_printf.h
+.\objects\rc_trans_assembly.o: ..\cat1\OTA\udp_ota.h
 .\objects\rc_trans_assembly.o: ..\freertos\include\FreeRTOS.h
 .\objects\rc_trans_assembly.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
 .\objects\rc_trans_assembly.o: ..\freertos\FreeRTOSConfig.h

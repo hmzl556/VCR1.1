@@ -4,7 +4,7 @@
 #include "gpio.h"
 #include "userhard.h"
 #include "task_keyscan.h"
-
+#include "pm_sleep.h"       /* g_pm_sleeping — 休眠唤醒瞬间亮 LED1 */
 
 
 /**
@@ -131,6 +131,17 @@ uint8_t app_keyscan_read_key_id(void)
 //键盘扫描中断服务函数
 void KEYSCAN_IRQHandler(void)
 {
+    /*
+     * 休眠唤醒瞬间亮 LED1：WFI 返回后 CPU 第一段执行的代码就是此 ISR。
+     * 先确保 GPIOB 时钟开启（Sleep 模式可能关断了 APB2），
+     * 再点亮 LED1 并清除标志。后续 keyscan_process 的释放路径负责灭灯。
+     */
+    if (g_pm_sleeping) {
+        RCC_EnableAPB2PeriphClk(RCC_APB2_PERIPH_GPIOB, ENABLE);
+        SETLED1;
+        g_pm_sleeping = false;
+    }
+
     /* KEYSCAN 原始扫描结果缓存（最多 5 个 32-bit 数据字）。 */
     uint32_t key_data[5] = {0};
     /* num 表示匹配到的按键编号，未匹配时最终等于 KEYSCAN_KEY_MAX。 */

@@ -69,6 +69,7 @@ static uint8_t  s_ecsorf_empty_retry;
 static uint8_t  s_ecsorf_wait_retry;
 static uint8_t  s_ecsorf_first_delay_logged;
 static uint8_t  s_ecsorf_line_overflow_logged;
+static uint8_t  s_ecsorf_last_mismatch;
 static uint32_t s_ecsorf_retry_at_ms;
 
 static uint8_t           s_at_active;
@@ -266,9 +267,33 @@ static int cat1_ecsorf_try_parse_data_line(const char *line)
 
 	hex = hex_open + 1u;
 	hex_len = (unsigned)(hex_close - hex);
-	if (data_len == 0u || data_len > (unsigned)s_recv_target_cap
-		|| hex_len != data_len * 2u) {
-		cat1_ecsorf_log_parse_fail(parse_line, "len_mismatch", data_len, hex_len);
+	if (hex_len != data_len * 2u) {
+		/*
+		 * 模组偶发 hex 串比声明长度少 1~2 个 nibble（UART 与 BLE 并发时常见）。
+		 * 若 hex 为偶数且不超过声明长度，按 hex 实长解码。
+		 */
+		if ((hex_len & 1u) == 0u && hex_len >= 2u) {
+			unsigned hex_bytes = hex_len / 2u;
+
+			if (hex_bytes <= (unsigned)s_recv_target_cap && hex_bytes <= data_len
+			    && hex_bytes + 1u >= data_len) {
+				co_printf("[CAT1 UDP] ECSORF hex short %u/%u, use %u bytes\r\n",
+				          hex_len, data_len * 2u, hex_bytes);
+				data_len = hex_bytes;
+			} else {
+				cat1_ecsorf_log_parse_fail(parse_line, "len_mismatch", data_len, hex_len);
+				s_ecsorf_last_mismatch = 1u;
+				return -1;
+			}
+		} else {
+			cat1_ecsorf_log_parse_fail(parse_line, "len_mismatch", data_len, hex_len);
+			s_ecsorf_last_mismatch = 1u;
+			return -1;
+		}
+	}
+	if (data_len == 0u || data_len > (unsigned)s_recv_target_cap) {
+		cat1_ecsorf_log_parse_fail(parse_line, "len_oob", data_len, hex_len);
+		s_ecsorf_last_mismatch = 1u;
 		return -1;
 	}
 	if (s_recv_pending != 0u) {
@@ -293,6 +318,7 @@ static int cat1_ecsorf_try_parse_data_line(const char *line)
 	s_ecsorf_empty_retry = 0u;
 	s_ecsorf_wait_retry = 0u;
 	s_ecsorf_first_delay_logged = 0u;
+	s_ecsorf_last_mismatch = 0u;
 	return 1;
 }
 
@@ -311,6 +337,7 @@ static void cat1_on_ecsonmi(uint16_t len)
 	s_ecsorf_empty_retry = 0u;
 	s_ecsorf_wait_retry = 0u;
 	s_ecsorf_first_delay_logged = 0u;
+	s_ecsorf_last_mismatch = 0u;
 	co_printf("[CAT1 UDP] ECSONMI recv sock=%u len=%u\r\n",
 	          (unsigned)s_sock_id, (unsigned)len);
 }
@@ -402,6 +429,11 @@ static cat1_modem_result_t cat1_ecsorf_handle_empty_ok(void)
 	if (s_recv_pending != 0u) {
 		cat1_modem_finish(CAT1_MODEM_OK);
 		return CAT1_MODEM_OK;
+	}
+	if (s_ecsorf_last_mismatch != 0u) {
+		co_printf("[CAT1 UDP] ECSORF mismatch, retry read (ecsonmi=%u)\r\n",
+		          (unsigned)s_ecsonmi_len);
+		s_ecsorf_last_mismatch = 0u;
 	}
 	if (s_ecsorf_empty_retry < CAT1_ECSORF_EMPTY_RETRY_MAX) {
 		s_ecsorf_empty_retry++;

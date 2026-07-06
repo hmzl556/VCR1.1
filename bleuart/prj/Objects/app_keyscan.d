@@ -31,3 +31,4 @@
 .\objects\app_keyscan.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\app_keyscan.o: ..\inc\userhard.h
 .\objects\app_keyscan.o: ..\inc\task_keyscan.h
+.\objects\app_keyscan.o: ..\pmu\inc\pm_sleep.h

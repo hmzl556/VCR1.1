@@ -364,4 +364,25 @@ void ble_dtss_on_disconnect(void)
 	voice_chr2_value[1] = VOICE_CTRL_STATE_IDLE;
 }
 
+void ble_dtss_force_cccd_enable(peer_t peer)
+{
+	if (peer == NULL)
+	{
+		return;
+	}
+
+	bleSendEn = 0xA6U;
+	dtss_chr = dtss_chr0;
+	dtss_peer = peer;
+	voice_indication_chr = dtss_chr2;
+	voice_indication_peer = peer;
+	co_printf("[VOICE] chr0 send start event! (forced)\r\n");
+	co_printf("[VOICE] chr2 send start event! (forced)\r\n");
+}
+
+int ble_dtss_is_subscribed(void)
+{
+	return (bleSendEn == 0xA6U && dtss_peer != NULL && dtss_chr != NULL) ? 1 : 0;
+}
+
 

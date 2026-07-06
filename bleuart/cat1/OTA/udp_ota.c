@@ -14,9 +14,16 @@
 #include "userhard.h"
 #include "cat1_skt_udp.h"
 #include "cat1_udp_config.h"
+#include "remote_reports.h"
 #include "br_timer.h"
 #include "co_printf.h"
 #include "br1601x.h"
+#include "ble_adv.h"
+#include "ble_gap.h"
+#include "ble_hid_kbd.h"
+#include "pm_state.h"
+#include "app_voice_ctrl.h"
+#include "app_audio_pcm.h"
 #include <string.h>
 
 /** @brief §3.1 下载时序阶段（与 s_expect_seq 配合） */
@@ -59,10 +66,12 @@ static uint32_t s_dl_led_last_ms;
 static uint8_t  s_dl_led_on;
 static uint32_t s_wait_chunk_since_ms;
 static uint16_t s_chunk_retry_count;
-static uint32_t s_tag01_probe_last_ms;
 static uint16_t s_stall_watch_written;
 static uint32_t s_stall_watch_since_ms;
 static uint8_t  s_pause_event;
+static uint32_t s_pause_done_ms;
+/** Tag11 启动至 fail/复位前的 OTA 会话标志（PAUSE 不清） */
+static uint8_t  s_ota_session;
 
 #if OTA_DEBUG_DUMP_RX || OTA_DEBUG_DUMP_TX
 static void ota_debug_dump_hex_lines(const char *tag, const uint8_t *pdu, uint16_t len)
@@ -245,6 +254,7 @@ static void udp_ota_build_uplink_info(void)
 static void udp_ota_fail(uint8_t status)
 {
 	(void)status;
+	udp_ota_session_exit();
 	udp_bootload_clear_checkpoint();
 	CLRLED1;
 	s_chunk_pending = 0u;
@@ -254,14 +264,14 @@ static void udp_ota_fail(uint8_t status)
 	s_written_seq = 0u;
 	s_chunk_retry_count = 0u;
 	s_wait_chunk_since_ms = 0u;
-	s_tag01_probe_last_ms = 0u;
+	s_pause_done_ms = 0u;
 	udp_ota_clear_uplink_cache();
 	ota_debug_reset_tx_req1_log();
 	co_printf("[OTA  ] fail status=%u\r\n", (unsigned)status);
 }
 
 /**
- * @brief  暂停 OTA：写 Flash 断点、释放主循环（Tag11 同版本可续传）
+ * @brief  暂停 OTA：写 Flash 断点；退避后由 poll_auto_resume 直接发 0x41 续传
  */
 static void udp_ota_pause(uint8_t reason)
 {
@@ -299,9 +309,11 @@ static void udp_ota_pause(uint8_t reason)
 	s_dl_phase = OTA_DL_IDLE;
 	s_chunk_retry_count = 0u;
 	s_wait_chunk_since_ms = 0u;
-	s_tag01_probe_last_ms = 0u;
 	udp_ota_clear_uplink_cache();
 	s_pause_event = 1u;
+	s_pause_done_ms = udp_ota_now_ms();
+	s_stall_watch_written = s_written_seq;
+	s_stall_watch_since_ms = 0u;
 }
 
 static void udp_ota_check_retry_limit(void)
@@ -376,6 +388,7 @@ static uint8_t udp_ota_try_resume_from_checkpoint(uint16_t sw_version_bcd,
 	udp_ota_clear_uplink_cache();
 	s_dl_phase = OTA_DL_NEED_SEND;
 	SETLED1;
+	udp_ota_session_enter();
 
 	co_printf("[OTA  ] Tag11 RESUME ver=0x%04X written=%u/%u, req chunk %u\r\n",
 	          (unsigned)sw_version_bcd, (unsigned)cp.written_seq,
@@ -385,15 +398,16 @@ static uint8_t udp_ota_try_resume_from_checkpoint(uint16_t sw_version_bcd,
 
 void udp_ota_init(void)
 {
+	s_ota_session = 0u;
 	s_dl_phase = OTA_DL_IDLE;
 	s_chunk_pending = 0u;
 	s_led_blink_active = 0u;
 	s_dl_led_on = 0u;
 	s_wait_chunk_since_ms = 0u;
-	s_tag01_probe_last_ms = 0u;
 	s_stall_watch_written = 0u;
 	s_stall_watch_since_ms = 0u;
 	s_pause_event = 0u;
+	s_pause_done_ms = 0u;
 	udp_bootload_init();
 
 	{
@@ -423,6 +437,8 @@ void udp_ota_on_udp_ready(void)
 
 void udp_ota_on_tag11_task(uint16_t sw_version_bcd, uint16_t total_packets)
 {
+	uint16_t local_ver;
+
 	if (sw_version_bcd == 0u && total_packets == 0u) {
 		co_printf("[OTA  ] Tag11 no upgrade task\r\n");
 		return;
@@ -435,6 +451,25 @@ void udp_ota_on_tag11_task(uint16_t sw_version_bcd, uint16_t total_packets)
 
 	if (total_packets == 0u) {
 		co_printf("[OTA  ] Tag11 invalid total_packets\r\n");
+		return;
+	}
+
+	if (remote_get_local_sw_version_bcd(&local_ver) != 0) {
+		co_printf("[OTA  ] Tag11 local version read fail\r\n");
+		return;
+	}
+
+	if (sw_version_bcd < local_ver) {
+		co_printf("[OTA  ] Tag11 old version=0x%04X downgrade rejected srv=0x%04X\r\n",
+		          (unsigned)local_ver, (unsigned)sw_version_bcd);
+		udp_bootload_clear_checkpoint();
+		return;
+	}
+
+	if (sw_version_bcd == local_ver) {
+		co_printf("[OTA  ] Tag11 same version skip srv=0x%04X local=0x%04X\r\n",
+		          (unsigned)sw_version_bcd, (unsigned)local_ver);
+		udp_bootload_clear_checkpoint();
 		return;
 	}
 
@@ -461,8 +496,9 @@ void udp_ota_on_tag11_task(uint16_t sw_version_bcd, uint16_t total_packets)
 	udp_ota_clear_uplink_cache();
 	ota_debug_reset_tx_req1_log();
 	s_dl_phase = OTA_DL_NEED_SEND;
+	udp_ota_session_enter();
 
-	co_printf("[OTA  ] Tag11 start OTA ver=0x%04X pkts=%u, req chunk 1\r\n",
+	co_printf("\r\n[OTA  ] Tag11 start OTA ver=0x%04X pkts=%u, req chunk 1\r\n\r\n",
 	          (unsigned)sw_version_bcd, (unsigned)total_packets);
 }
 
@@ -552,7 +588,7 @@ int udp_ota_on_rx(const uint8_t *pdu, uint16_t pdu_len)
 		s_para.prog_checksum = (uint32_t)s_saved_checksum;
 		s_chunk_need_prepare = 1u;
 		SETLED1;
-		co_printf("[OTA  ] chunk1 csum=0x%04X len=%u LED1 ON\r\n",
+		co_printf("\r\n[OTA  ] chunk1 csum=0x%04X len=%u LED1 ON\r\n\r\n",
 		          (unsigned)s_saved_checksum, (unsigned)s_para.prog_length);
 	} else if (info.total_packets != s_total_packets
 	           || info.new_version != s_new_version) {
@@ -732,49 +768,125 @@ uint8_t udp_ota_is_active(void)
 	return (uint8_t)(s_dl_phase != OTA_DL_IDLE);
 }
 
+/**
+ * @brief  OTA 会话是否仍占用系统（下载 + PAUSE 退避 + VERIFY）
+ * @note   与 udp_ota_is_active 不同：PAUSE 时 phase=IDLE 但 session 仍为 busy
+ */
+uint8_t udp_ota_session_busy(void)
+{
+	return s_ota_session;
+}
+
+/**
+ * @brief  进入 OTA 会话隔离：显式关广播、停语音采集；已连接时保持 HID
+ * @note   幂等；Tag11 fresh start 与 checkpoint 续传各调用一次
+ */
+void udp_ota_session_enter(void)
+{
+	peer_t peer;
+
+	if (s_ota_session != 0u) {
+		return;
+	}
+	s_ota_session = 1u;
+	(void)ble_adv_stop();
+	(void)voice_ctrl_post_stop();
+	if (g_audio_pcm_enabled != 0u) {
+		Audio_Pcm_Stop();
+	}
+
+	peer = ble_gap_get_peer();
+	if (peer != NULL) {
+		hid_kbd_force_cccd_enable(peer);
+		pm_activity_notify(PM_ACTIVITY_KEY);
+		co_printf("[OTA  ] session enter: keep HID peer=%08X\r\n", (unsigned)peer);
+	}
+	co_printf("[OTA  ] session enter: adv/voice off\r\n");
+}
+
+/**
+ * @brief  结束 OTA 会话，恢复正常广播/PM/数据采集路径
+ * @note   校验 OK 复位前不必调用；udp_ota_fail 内会调用
+ */
+void udp_ota_session_exit(void)
+{
+	if (s_ota_session == 0u) {
+		return;
+	}
+	s_ota_session = 0u;
+	co_printf("[OTA  ] session exit\r\n");
+}
+
 uint8_t udp_ota_has_pending_uplink(void)
 {
 	return (uint8_t)(s_dl_phase == OTA_DL_NEED_SEND
 	                 || s_dl_phase == OTA_DL_WAIT_CHUNK);
 }
 
-static uint8_t udp_ota_has_resumable_checkpoint(void)
+static uint8_t udp_ota_resume_after_pause(void)
 {
 	OTA_CHECKPOINT_STRUCT cp;
-
-	if (udp_bootload_read_checkpoint(&cp) == 0u) {
-		return 0u;
-	}
-	if (cp.written_seq == 0u || cp.written_seq >= cp.total_packets) {
-		return 0u;
-	}
-	return 1u;
-}
-
-uint8_t udp_ota_should_send_tag01_probe(void)
-{
-	uint32_t now_ms;
-	uint32_t elapsed;
+	uint8_t from_flash = 0u;
 
 	if (s_dl_phase != OTA_DL_IDLE) {
 		return 0u;
 	}
-	if (udp_ota_has_resumable_checkpoint() == 0u) {
+
+	if (s_new_version != 0u && s_total_packets > 0u
+	    && s_written_seq > 0u && s_written_seq < s_total_packets) {
+		/* 同一次会话 PAUSE：RAM 状态仍有效 */
+	} else if (udp_bootload_read_checkpoint(&cp) != 0u
+	           && cp.written_seq > 0u && cp.written_seq < cp.total_packets) {
+		s_total_packets = cp.total_packets;
+		s_new_version = cp.version;
+		s_saved_checksum = cp.prog_checksum;
+		s_prog_start = FLASH_APP2_START;
+		s_prog_end = FLASH_APP2_START + cp.prog_length - 1u;
+		memset(&s_para, 0, sizeof(s_para));
+		s_para.prog_store_addr = FLASH_APP2_START;
+		s_para.prog_write_addr = FLASH_APP1_START;
+		s_para.prog_length = cp.prog_length;
+		s_para.prog_checksum = (uint32_t)cp.prog_checksum;
+		s_written_seq = cp.written_seq;
+		from_flash = 1u;
+	} else {
 		return 0u;
 	}
-	now_ms = udp_ota_now_ms();
-	if (s_tag01_probe_last_ms != 0u) {
-		elapsed = now_ms - s_tag01_probe_last_ms;
-		if (elapsed < UDP_OTA_TAG01_PROBE_MS) {
-			return 0u;
-		}
-	}
+
+	s_expect_seq = (uint16_t)(s_written_seq + 1u);
+	s_chunk_pending = 0u;
+	s_chunk_need_prepare = 0u;
+	s_chunk_retry_count = 0u;
+	s_wait_chunk_since_ms = 0u;
+	udp_ota_clear_uplink_cache();
+	s_dl_phase = OTA_DL_NEED_SEND;
+	SETLED1;
+	s_stall_watch_written = s_written_seq;
+	s_stall_watch_since_ms = 0u;
+
+	co_printf("[OTA  ] RESUME after PAUSE ver=0x%04X written=%u/%u req chunk %u src=%s\r\n",
+	          (unsigned)s_new_version, (unsigned)s_written_seq,
+	          (unsigned)s_total_packets, (unsigned)s_expect_seq,
+	          from_flash != 0u ? "flash" : "ram");
 	return 1u;
 }
 
-void udp_ota_on_tag01_probe_sent(void)
+uint8_t udp_ota_poll_auto_resume(void)
 {
-	s_tag01_probe_last_ms = udp_ota_now_ms();
+	uint32_t now_ms;
+	uint32_t elapsed;
+
+	if (s_pause_done_ms == 0u || s_dl_phase != OTA_DL_IDLE) {
+		return 0u;
+	}
+	now_ms = udp_ota_now_ms();
+	elapsed = now_ms - s_pause_done_ms;
+	if (elapsed < UDP_OTA_RESUME_BACKOFF_MS) {
+		return 0u;
+	}
+	s_pause_done_ms = 0u;
+	co_printf("[OTA  ] auto RESUME backoff %u ms elapsed\r\n", (unsigned)elapsed);
+	return udp_ota_resume_after_pause();
 }
 
 uint8_t udp_ota_poll_stall_pause(void)

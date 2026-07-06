@@ -41,11 +41,3 @@
 .\objects\app_audio_pcm.o: ..\..\cs\inc\hogp.h
 .\objects\app_audio_pcm.o: ..\inc\ble_adv.h
 .\objects\app_audio_pcm.o: ..\inc\ble_gap.h
-.\objects\app_audio_pcm.o: ..\inc\app_rtos.h
-.\objects\app_audio_pcm.o: ..\freertos\include\FreeRTOS.h
-.\objects\app_audio_pcm.o: ..\freertos\FreeRTOSConfig.h
-.\objects\app_audio_pcm.o: ..\freertos\include\projdefs.h
-.\objects\app_audio_pcm.o: ..\freertos\include\portable.h
-.\objects\app_audio_pcm.o: ..\freertos\include\deprecated_definitions.h
-.\objects\app_audio_pcm.o: ..\freertos\portable\RVDS\ARM_CM0\portmacro.h
-.\objects\app_audio_pcm.o: ..\freertos\include\mpu_wrappers.h

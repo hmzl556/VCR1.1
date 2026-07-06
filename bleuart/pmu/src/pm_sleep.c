@@ -23,7 +23,10 @@
 #include "exti.h"       /* EXTI_GetITStatus, EXTI_LINE13, EXTI_LINE9 */
 #include "gmem.h"       /* bleAdvStat */
 #include "ble_adv.h"    /* ble_adv_stop() */
-#include "userhard.h"   /* CLRLED1, CLRLED2                       */
+#include "userhard.h"   /* CLRLED1, CLRLED2, SETLED1                 */
+
+/** @brief 休眠中标志：进入 WFI 前置 true，KEYSCAN ISR 据此在按键唤醒瞬间亮 LED1 */
+volatile bool g_pm_sleeping = false;
 
 /** @brief 标记 RTC 是否已完成一次性初始化 */
 static bool g_rtc_initialized = false;
@@ -238,18 +241,32 @@ uint8_t pm_sleep_enter(void)
      *    CPU stops here. Wakeup occurs when:
      *    - KEYSCAN detects a key press (EXTI_LINE13)
      *    - RTC wakeup timer expires (EXTI_LINE9)
+     *
+     *    g_pm_sleeping 标志供 KEYSCAN ISR 判断：若为 true 则在 ISR 中
+     *    立即 SETLED1（用户按键唤醒的瞬间亮灯），然后由 ISR 清除此标志。
      */
+    g_pm_sleeping = true;
     PWR_EnterSLEEPMode(PWR_SLEEPENTRY_WFI);
 
     /*
      * ===== CPU resumes HERE after wakeup =====
+     * 注意：Cortex-M0 在 WFI 返回后可能先执行后续指令再响应 ISR，
+     * 因此这里不能立即清除 g_pm_sleeping（否则 ISR 看到的是 false）。
+     * 标志的清除由 ISR（按键唤醒）或下方的超时保护（RTC唤醒）负责。
      */
 
-    PM_LOG("Sleep exit: CPU woken, detecting wake source...");
-
-    /* 6. Detect what woke us */
+    /* 6. Detect what woke us (also clears EXTI/RTC flags) */
     wake_reason = pm_detect_wake_reason();
 
+    /*
+     * 6.1 兜底清除 g_pm_sleeping：
+     *      按键唤醒 → ISR 已清除，此检查无效（g_pm_sleeping 已为 false）。
+     *      RTC 唤醒 → ISR 未触发，此处兜底清除，防止下次正常按键被误判。
+     */
+    if (g_pm_sleeping) {
+        g_pm_sleeping = false;
+    }
+    
     /* 7. Disable RTC wakeup timer (active only during sleep) */
     RTC_EnableWakeUp(DISABLE);
 

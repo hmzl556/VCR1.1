@@ -5,3 +5,4 @@
 .\objects\gmem.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
 .\objects\gmem.o: ..\..\cs\inc\gatt.h
 .\objects\gmem.o: ..\inc\gmem.h
+.\objects\gmem.o: ..\..\cs\inc\br_timer.h

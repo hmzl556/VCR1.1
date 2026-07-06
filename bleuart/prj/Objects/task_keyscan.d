@@ -49,5 +49,7 @@
 .\objects\task_keyscan.o: ..\pmu\inc\pm_state.h
 .\objects\task_keyscan.o: ..\pmu\inc\pm_config.h
 .\objects\task_keyscan.o: ..\inc\combo_key.h
+.\objects\task_keyscan.o: ..\cat1\OTA\udp_ota.h
 .\objects\task_keyscan.o: ..\inc\ble_adv.h
+.\objects\task_keyscan.o: ..\..\cs\inc\cs_core.h
 .\objects\task_keyscan.o: ..\inc\userhard.h

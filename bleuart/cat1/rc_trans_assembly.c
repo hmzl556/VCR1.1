@@ -3,6 +3,7 @@
 #include "ble_rc_svc.h"
 #include "rc_cat1_bridge.h"
 #include "co_printf.h"
+#include "udp_ota.h"
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -297,6 +298,12 @@ int rc_trans_on_write(peer_t peer, const uint8_t *val, uint16_t len)
         return -1;
     }
 
+    /* OTA 会话期间拒绝 STB 下发的 RC-TRANS（Cat.1 模组留给 OTA 拉片） */
+    if (udp_ota_session_busy() != 0u) {
+        rc_trans_fail(peer, RC_RESULT_BUSY_REJECT, RC_PACK_INDEX_NONE);
+        return -1;
+    }
+
     rc_trans_log_rx(val, len);
 
     if (s_assembled_ready)
@@ -318,6 +325,10 @@ int rc_trans_on_write(peer_t peer, const uint8_t *val, uint16_t len)
     if (cur->state != RC_STATE_READY && cur->state != RC_STATE_DONE &&
         cur->state != RC_STATE_ERROR)
     {
+        co_printf("[RC   ] TRANS reject: state=%s(0x%02X) need CONF/READY\r\n",
+                  (cur->state == RC_STATE_IDLE) ? "IDLE" :
+                  (cur->state == RC_STATE_BUSY) ? "BUSY" : "?",
+                  (unsigned)cur->state);
         rc_trans_fail(peer, RC_RESULT_PARAM_ERROR, RC_PACK_INDEX_NONE);
         return -1;
     }

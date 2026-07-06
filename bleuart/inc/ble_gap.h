@@ -48,6 +48,8 @@ void ble_gap_process_disconnect_pending(void);
 // LED 指示：配对广播且未连接时 LED2 快闪
 void ble_gap_led_indicate(void);
 
+void ble_gap_clear_bonding_info(void);
+
 extern void ble_rf_tx_power_set(ble_rf_tx_power_t pwr);
 
 #endif

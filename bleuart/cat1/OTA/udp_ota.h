@@ -55,17 +55,20 @@ uint8_t udp_ota_uplink_waits_chunk(void);
 void udp_ota_confirm_tx(void);
 
 uint8_t udp_ota_is_active(void);
+/** @brief 整个 OTA 会话是否占用（含 PAUSE 退避；fail/复位前均为 1） */
+uint8_t udp_ota_session_busy(void);
+/** @brief 进入 OTA 会话：关广播、停语音；幂等 */
+void udp_ota_session_enter(void);
+/** @brief 退出 OTA 会话（udp_ota_fail 等）；幂等 */
+void udp_ota_session_exit(void);
 uint8_t udp_ota_has_pending_uplink(void);
 void udp_ota_boot_indicate_poll(void);
-
-/** Flash 断点有效且 OTA 空闲时，是否应发 Tag0x01 探测续传（间隔见 UDP_OTA_TAG01_PROBE_MS） */
-uint8_t udp_ota_should_send_tag01_probe(void);
-/** Tag0x01 已成功入队（含 boot 握手与周期探测） */
-void udp_ota_on_tag01_probe_sent(void);
 
 /** 下载无进展超时则 PAUSE；@return 1 本周期刚 PAUSE */
 uint8_t udp_ota_poll_stall_pause(void);
 /** 取走一次 PAUSE 事件（bridge 释放 modem/tx 状态） */
 uint8_t udp_ota_take_pause_event(void);
+/** PAUSE 退避到期后恢复 NEED_SEND 并直接发 0x41；@return 1 本周期刚 RESUME */
+uint8_t udp_ota_poll_auto_resume(void);
 
 #endif /* UDP_OTA_H */

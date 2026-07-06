@@ -57,4 +57,5 @@
 .\objects\ble_gap.o: ..\pmu\inc\pm_state.h
 .\objects\ble_gap.o: ..\pmu\inc\pm_config.h
 .\objects\ble_gap.o: ..\inc\combo_key.h
+.\objects\ble_gap.o: ..\cat1\OTA\udp_ota.h
 .\objects\ble_gap.o: ..\cat1\OTA\flash_layout.h

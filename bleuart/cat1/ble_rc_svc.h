@@ -22,6 +22,8 @@ void ble_rc_svc_status_notify(peer_t peer, const rc_status_t *st);
 // RC-KEY-NOTIFY 4 字节镜像上报
 void ble_rc_svc_key_notify(peer_t peer, uint8_t key_type, uint8_t action, uint16_t key_value);
 
+void ble_rc_svc_on_connect(peer_t peer);
+
 void ble_rc_svc_on_disconnect(void);
 
 #endif /* BLE_RC_SVC_H */

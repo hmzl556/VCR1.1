@@ -1,7 +1,7 @@
 .\objects\task_ble.o: ..\src\task_ble.c
 .\objects\task_ble.o: ..\inc\task_ble.h
-.\objects\task_ble.o: ..\..\cs\inc\cs_core.h
 .\objects\task_ble.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\task_ble.o: ..\..\cs\inc\cs_core.h
 .\objects\task_ble.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\task_ble.o: ..\inc\gmem.h
 .\objects\task_ble.o: ..\..\cs\inc\gap.h
@@ -52,5 +52,6 @@
 .\objects\task_ble.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\task_ble.o: ..\pmu\inc\pm_state.h
 .\objects\task_ble.o: ..\pmu\inc\pm_config.h
+.\objects\task_ble.o: ..\cat1\OTA\udp_ota.h
 .\objects\task_ble.o: ..\freertos\include\task.h
 .\objects\task_ble.o: ..\freertos\include\list.h

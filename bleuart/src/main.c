@@ -18,6 +18,7 @@
 #include "ble_rc_svc.h"
 #include "rc_key_input.h"
 #include "rc_cat1_bridge.h"
+#include "rc_protocol.h"
 #include "app_rtos.h"
 #include "pm_state.h"       /* 电源管理状态机 — 休眠/待机态控制 */
 #include "combo_key.h"      /* 组合键管理器（配对/解配）           */
@@ -63,12 +64,6 @@ void callBakSdkTimer(uint8_t ev, void *arg)
 	(void)arg;
 
 	setSdkTimer(8U);			// 重新设置定时器，确保每 8ms 调用一次此回调函数
-	intFlagMs10++;				// 每 8ms 增加一次 10ms 定时器的计数器
-	voiceUptimeMs += 8U;		// 累积语音系统的运行时间，单位为毫秒，需要再次确定是否用到？
-	if (intFlagMs10 >= 125U) {	// 每 125 次 8ms 回调，即每 1 秒钟，执行一次以下操作
-		intFlagMs10 = 0;		// 重置 10ms 定时器计数器
-		secTmo = 1;				// 设置 1 秒钟的定时器标志，供主循环或其他任务检查使用
-	}
 
 	// 如果 FreeRTOS 调度器正在运行，调用 xTaskIncrementTick 来更新系统时间和触发任务切换
 	if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
@@ -83,8 +78,8 @@ void setSdkTimer(uint16_t ms)
 	sdk_timer_add(ms, 2, callBakSdkTimer, NULL);
 }
 
-// 启动 BLE 广播并完成相关初始化，返回状态码 0xa6U 表示成功
-uint8_t myBleStartAdv(void)
+// 初始化 BLE 栈与 GATT/GAP（不启动广播），供 OTA 会话并行 HID 使用
+uint8_t ble_stack_init_only(void)
 {
 	ble_stack_init();			// 初始化 BLE 栈（host_init 初始化 GATT 层）
 
@@ -96,8 +91,15 @@ uint8_t myBleStartAdv(void)
 	ble_rc_svc_init();			// 初始化 RC 服务
 
 	ble_gap_init();				// GAP 初始化 + peer_recover 绑定恢复
-	ble_adv_init();				// 初始化 BLE 广播
+	ble_adv_init();				// 初始化 BLE 广播（不调用 start，避免干扰 OTA）
 	rc_key_input_init();		// 初始化遥控按键输入模块
+	return 0xa6U;				// 返回状态码 0xa6U 表示 BLE 栈已成功初始化
+}
+
+// 启动 BLE 广播并完成相关初始化，返回状态码 0xa6U 表示成功
+uint8_t myBleStartAdv(void)
+{
+	(void)ble_stack_init_only();// 初始化 BLE 栈与 GATT/GAP（不启动广播），供 OTA 会话并行 HID 使用
 	ble_adv_start_by_bonding();	// 根据绑定状态选择广播模式
 	return 0xa6U;				// 返回状态码 0xa6U 表示 BLE 广播已成功启动
 }
@@ -116,6 +118,10 @@ int main(void)
 
 	// 注意：BLE 栈初始化较慢，必须在启动 FreeRTOS 之前完成
 	co_printf("\r\n\r\nInitialization complete, starting FreeRTOS...\r\n");
+	
+	// 输出固件的软件版本号
+	co_printf("[BOOT ] SW version: %s\r\n", RC_READ_VAL_DEVICE_SW_VERSION);
+
 	// 输出 C 语言堆内存大小，供调试参考
 	co_printf("C heap %u bytes\r\n", (unsigned)((char *)&__heap_limit - (char *)&__heap_base));
 
@@ -130,8 +136,9 @@ int main(void)
 	 * - 必须在 BLE 任务启动之前，确保任务内首次 pm_state_process() 调用安全
 	 */
 
-	pm_state_init();
-	combo_key_init();
+	pm_state_init();			// 初始化电源管理状态机
+	
+	combo_key_init();			// 初始化组合键管理器
 	
 	(void)xTaskCreateStatic(task_ble_entry, "ble", 512, NULL, 3, s_ble_stack, &s_ble_tcb);
 

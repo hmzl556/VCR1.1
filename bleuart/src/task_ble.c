@@ -10,6 +10,7 @@
 #include "rc_cat1_bridge.h"
 #include "co_printf.h"
 #include "pm_state.h"       /* 电源管理状态机 — 空闲超时检查 */
+#include "udp_ota.h"
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -22,26 +23,47 @@ extern void setSdkTimer(uint16_t ms);   // 声明外部函数，设置 SDK 定�
  */
 void task_ble_entry(void *pvParameters)
 {
-	uint8_t runLedStat = 0;				// 记录 LED 状态，初始值为 0 表示 LED 关闭
-
 	(void)pvParameters;
 
-	// 主循环，持续处理 BLE 相关的事件和状态，同时更新 LED 状态和定时器
-	//static uint16_t loop_diag_cnt = 0;
-
 	for (;;) {
-		if (udp_ota_is_active() != 0u) {
+		/*
+		 * OTA 会话混合循环（udp_ota_session_busy）：
+		 *   - 每轮 burst 内穿插 cs_schedule / 按键 HID（避免 Cat.1 阻塞饿死 BLE）
+		 *   - 已连接时不重建 BLE 栈；仅关广播/语音/Tag10 采集
+		 *   - 全力轮询 OTA 拉片（rc_cat1_poll_ota_exclusive）
+		 * PAUSE 退避期间 session 仍为 busy，本分支持续生效。
+		 */
+		if (udp_ota_session_busy() != 0u) {
 			unsigned ota_iter;
 
+			/* 已连接时禁止 ble_stack_init_only，避免重建栈导致 HID 断链 */
+			if (bleAdvStat != 0xa6U) {
+				if (ble_gap_get_peer() == NULL) {
+					bleAdvStat = ble_stack_init_only();
+					pm_state_sync_after_ble_init();
+				} else {
+					bleAdvStat = 0xa6U;
+				}
+			}
+
+			/* OTA burst 内穿插 BLE 调度与按键，避免 Cat.1 阻塞导致 HID 无响应 */
 			for (ota_iter = 0u; ota_iter < 24u; ota_iter++) {
+				cs_schedule();
+				ble_gap_process_disconnect_pending();
+				task_keyscan_process();
 				rc_cat1_poll_ota_exclusive();
 				udp_ota_download_led_poll();
+				cs_schedule();
 				taskYIELD();
 			}
+
+			cat1_ble_process_pending();
+			udp_ota_boot_indicate_poll();
 			setSdkTimer(8U);
 			taskYIELD();
 			continue;
 		}
+
 		/*
 		 * 电源管理状态机处理（每循环周期调用一次，约 10ms）
 		 * 检查以下超时条件并执行状态转换：
@@ -68,27 +90,24 @@ void task_ble_entry(void *pvParameters)
 		}
 
 		// 处理 BLE 相关的事件和状态
-		//if ((loop_diag_cnt % 500) == 0) co_printf("[LOOP] pre cs_sched\r\n");
 		cs_schedule();
-		//if ((loop_diag_cnt % 500) == 0) co_printf("[LOOP] post cs_sched\r\n");
 
 		// 处理 BLE GAP 层的断开连接事件
 		ble_gap_process_disconnect_pending();
 
 		// 处理 KEYSCAN 相关的事件和状态
-		//if ((loop_diag_cnt % 500) == 0) co_printf("[LOOP] pre keyscan\r\n");
 		task_keyscan_process();
-		//if ((loop_diag_cnt % 500) == 0) co_printf("[LOOP] post keyscan\r\n");
-			
 
 		// 处理 VOICE 相关的事件和状态，确保语音输入能够被及时捕获和处理
 		task_voice_process_once();
+		/* KEY_15 语音 GATT 与 RC-KEY notify 错开，避免同周期多次 FSM_Write */
+		task_keyscan_flush_deferred_voice_rc();
 
 		// Cat.1 轮询放后：UDP AT 可能阻塞数秒，不应挡住按键/LED
 		rc_cat1_poll();
 
 		udp_ota_boot_indicate_poll();
-		
+
 		// 处理 Cat.1 模块事件队列中的事件，确保系统能够及时响应来自 Cat.1 模块的事件和数据
 		cat1_ble_process_pending();
 
@@ -97,6 +116,5 @@ void task_ble_entry(void *pvParameters)
 
 		// 让出 CPU，允许其他任务执行，确保系统的响应性和多任务协作
 		taskYIELD();
-
 	}
 }
