@@ -202,9 +202,9 @@ ARM Macro Assembler    Page 4
 ]
   122 00000000                 IMPORT           __main
   123 00000000                 IMPORT           SystemInit
-  124 00000000 4804            LDR              R0, =SystemInit
+  124 00000000 4807            LDR              R0, =SystemInit
   125 00000002 4780            BLX              R0
-  126 00000004 4804            LDR              R0, =__main
+  126 00000004 4807            LDR              R0, =__main
   127 00000006 4700            BX               R0
   128 00000008                 ENDP
   129 00000008         
@@ -221,43 +221,43 @@ K]
                                PROC
   138 0000000A                 EXPORT           HardFault_Handler          [WEA
 K]
-  139 0000000A E7FE            B                .
-  140 0000000C                 ENDP
-  141 0000000C         
-  142 0000000C         SVC_Handler
+  139 0000000A 4807            LDR              R0, =0xE000ED0C ; SCB->AIRCR ad
+                                                            dress
+  140 0000000C 4907            LDR              R1, =0x05FA0004 ; VECTKEY(0x05F
+                                                            A<<16) | SYSRESETRE
+                                                            Q(1<<2)
+  141 0000000E 6001            STR              R1, [R0]    ; trigger system re
+                                                            set
+  142 00000010 F3BF 8F4F       DSB                          ; ensure write comp
+                                                            letes
+  143 00000014 E7FE            B                .           ; wait for reset to
+                                                             take effect
+  144 00000016                 ENDP
+  145 00000016         
+  146 00000016         SVC_Handler
                                PROC
-  143 0000000C                 EXPORT           SVC_Handler               [WEAK
+  147 00000016                 EXPORT           SVC_Handler               [WEAK
 ]
-  144 0000000C E7FE            B                .
-  145 0000000E                 ENDP
-  146 0000000E         
-  147 0000000E         PendSV_Handler
+  148 00000016 E7FE            B                .
+  149 00000018                 ENDP
+  150 00000018         
+  151 00000018         PendSV_Handler
                                PROC
-  148 0000000E                 EXPORT           PendSV_Handler             [WEA
+  152 00000018                 EXPORT           PendSV_Handler             [WEA
 K]
-  149 0000000E E7FE            B                .
-  150 00000010                 ENDP
-  151 00000010         SysTick_Handler
+  153 00000018 E7FE            B                .
+  154 0000001A                 ENDP
+  155 0000001A         SysTick_Handler
                                PROC
-  152 00000010                 EXPORT           SysTick_Handler            [WEA
+  156 0000001A                 EXPORT           SysTick_Handler            [WEA
 K]
-  153 00000010 E7FE            B                .
-  154 00000012                 ENDP
-  155 00000012         
-  156 00000012         Default_Handler
+  157 0000001A E7FE            B                .
+  158 0000001C                 ENDP
+  159 0000001C         
+  160 0000001C         Default_Handler
                                PROC
-  157 00000012         
-  158 00000012                 EXPORT           WWDG_IRQHandler            [WEA
-K]
-  159 00000012                 EXPORT           BLE_SW_IRQHandler          [WEA
-K]
-  160 00000012                 EXPORT           RTC_IRQHandler             [WEA
-K]
-  161 00000012                 EXPORT           BLE_HSLOT_IRQHandler       [WEA
-K]
-  162 00000012                 EXPORT           FLASH_IRQHandler           [WEA
-K]
-  163 00000012                 EXPORT           RCC_IRQHandler             [WEA
+  161 0000001C         
+  162 0000001C                 EXPORT           WWDG_IRQHandler            [WEA
 
 
 
@@ -265,119 +265,137 @@ ARM Macro Assembler    Page 5
 
 
 K]
-  164 00000012                 EXPORT           EXTI0_1_IRQHandler         [WEA
+  163 0000001C                 EXPORT           BLE_SW_IRQHandler          [WEA
 K]
-  165 00000012                 EXPORT           EXTI2_3_IRQHandler         [WEA
+  164 0000001C                 EXPORT           RTC_IRQHandler             [WEA
 K]
-  166 00000012                 EXPORT           EXTI4_12_IRQHandler        [WEA
+  165 0000001C                 EXPORT           BLE_HSLOT_IRQHandler       [WEA
 K]
-  167 00000012                 EXPORT           BLE_FINETGT_IRQHandler     [WEA
+  166 0000001C                 EXPORT           FLASH_IRQHandler           [WEA
 K]
-  168 00000012                 EXPORT           BLE_FIFO_IRQHandler        [WEA
+  167 0000001C                 EXPORT           RCC_IRQHandler             [WEA
 K]
-  169 00000012                 EXPORT           DMA_Channel1_2_3_4_IRQHandler  
+  168 0000001C                 EXPORT           EXTI0_1_IRQHandler         [WEA
+K]
+  169 0000001C                 EXPORT           EXTI2_3_IRQHandler         [WEA
+K]
+  170 0000001C                 EXPORT           EXTI4_12_IRQHandler        [WEA
+K]
+  171 0000001C                 EXPORT           BLE_FINETGT_IRQHandler     [WEA
+K]
+  172 0000001C                 EXPORT           BLE_FIFO_IRQHandler        [WEA
+K]
+  173 0000001C                 EXPORT           DMA_Channel1_2_3_4_IRQHandler  
 [WEAK]
-  170 00000012                 EXPORT           DMA_Channel5_IRQHandler [WEAK]
-  171 00000012                 EXPORT           TIM1_BRK_UP_TRG_COM_IRQHandler 
+  174 0000001C                 EXPORT           DMA_Channel5_IRQHandler [WEAK]
+  175 0000001C                 EXPORT           TIM1_BRK_UP_TRG_COM_IRQHandler 
 [WEAK]
-  172 00000012                 EXPORT           TIM1_CC_IRQHandler         [WEA
+  176 0000001C                 EXPORT           TIM1_CC_IRQHandler         [WEA
 K]
-  173 00000012                 EXPORT           RESERVED_IRQHandler        [WEA
+  177 0000001C                 EXPORT           RESERVED_IRQHandler        [WEA
 K]
-  174 00000012                 EXPORT           TIM3_IRQHandler            [WEA
+  178 0000001C                 EXPORT           TIM3_IRQHandler            [WEA
 K]
-  175 00000012                 EXPORT           BLE_ERROR_IRQHandler       [WEA
+  179 0000001C                 EXPORT           BLE_ERROR_IRQHandler       [WEA
 K]
-  176 00000012                 EXPORT           BLE_CRYPT_IRQHandler       [WEA
+  180 0000001C                 EXPORT           BLE_CRYPT_IRQHandler       [WEA
 K]
-  177 00000012                 EXPORT           BLE_TIMESTAMP_TGT1_IRQHandler  
+  181 0000001C                 EXPORT           BLE_TIMESTAMP_TGT1_IRQHandler  
 [WEAK]
-  178 00000012                 EXPORT           TIM6_IRQHandler            [WEA
+  182 0000001C                 EXPORT           TIM6_IRQHandler            [WEA
 K]
-  179 00000012                 EXPORT           ADC_IRQHandler             [WEA
+  183 0000001C                 EXPORT           ADC_IRQHandler             [WEA
 K]
-  180 00000012                 EXPORT           SPI2_IRQHandler            [WEA
+  184 0000001C                 EXPORT           SPI2_IRQHandler            [WEA
 K]
-  181 00000012                 EXPORT           I2C1_IRQHandler            [WEA
+  185 0000001C                 EXPORT           I2C1_IRQHandler            [WEA
 K]
-  182 00000012                 EXPORT           BLE_TIMESTAMP_TGT2_IRQHandler  
+  186 0000001C                 EXPORT           BLE_TIMESTAMP_TGT2_IRQHandler  
 [WEAK]
-  183 00000012                 EXPORT           SPI1_IRQHandler            [WEA
+  187 0000001C                 EXPORT           SPI1_IRQHandler            [WEA
 K]
-  184 00000012                 EXPORT           BLE_SLP_IRQHandler         [WEA
+  188 0000001C                 EXPORT           BLE_SLP_IRQHandler         [WEA
 K]
-  185 00000012                 EXPORT           KEYSCAN_IRQHandler         [WEA
+  189 0000001C                 EXPORT           KEYSCAN_IRQHandler         [WEA
 K]
-  186 00000012                 EXPORT           USART1_IRQHandler          [WEA
+  190 0000001C                 EXPORT           USART1_IRQHandler          [WEA
 K]
-  187 00000012                 EXPORT           LPUART1_IRQHandler         [WEA
+  191 0000001C                 EXPORT           LPUART1_IRQHandler         [WEA
 K]
-  188 00000012                 EXPORT           USART2_IRQHandler          [WEA
-K]
-  189 00000012                 EXPORT           IRC_IRQHandler             [WEA
-K]
-  190 00000012         
-  191 00000012         WWDG_IRQHandler
-  192 00000012         BLE_SW_IRQHandler
-  193 00000012         RTC_IRQHandler
-  194 00000012         BLE_HSLOT_IRQHandler
-  195 00000012         FLASH_IRQHandler
-  196 00000012         RCC_IRQHandler
+  192 0000001C                 EXPORT           USART2_IRQHandler          [WEA
 
 
 
 ARM Macro Assembler    Page 6 
 
 
-  197 00000012         EXTI0_1_IRQHandler
-  198 00000012         EXTI2_3_IRQHandler
-  199 00000012         EXTI4_12_IRQHandler
-  200 00000012         BLE_FINETGT_IRQHandler
-  201 00000012         BLE_FIFO_IRQHandler
-  202 00000012         DMA_Channel1_2_3_4_IRQHandler
-  203 00000012         DMA_Channel5_IRQHandler
-  204 00000012         TIM1_BRK_UP_TRG_COM_IRQHandler
-  205 00000012         TIM1_CC_IRQHandler
-  206 00000012         RESERVED_IRQHandler
-  207 00000012         TIM3_IRQHandler
-  208 00000012         BLE_ERROR_IRQHandler
-  209 00000012         BLE_CRYPT_IRQHandler
-  210 00000012         BLE_TIMESTAMP_TGT1_IRQHandler
-  211 00000012         TIM6_IRQHandler
-  212 00000012         ADC_IRQHandler
-  213 00000012         SPI2_IRQHandler
-  214 00000012         I2C1_IRQHandler
-  215 00000012         BLE_TIMESTAMP_TGT2_IRQHandler
-  216 00000012         SPI1_IRQHandler
-  217 00000012         BLE_SLP_IRQHandler
-  218 00000012         KEYSCAN_IRQHandler
-  219 00000012         USART1_IRQHandler
-  220 00000012         LPUART1_IRQHandler
-  221 00000012         USART2_IRQHandler
-  222 00000012         IRC_IRQHandler
-  223 00000012 E7FE            B                .
-  224 00000014         
-  225 00000014                 ENDP
-  226 00000014         
-  227 00000014                 ALIGN
-  228 00000014         
-  229 00000014         ;*******************************************************
+K]
+  193 0000001C                 EXPORT           IRC_IRQHandler             [WEA
+K]
+  194 0000001C         
+  195 0000001C         WWDG_IRQHandler
+  196 0000001C         BLE_SW_IRQHandler
+  197 0000001C         RTC_IRQHandler
+  198 0000001C         BLE_HSLOT_IRQHandler
+  199 0000001C         FLASH_IRQHandler
+  200 0000001C         RCC_IRQHandler
+  201 0000001C         EXTI0_1_IRQHandler
+  202 0000001C         EXTI2_3_IRQHandler
+  203 0000001C         EXTI4_12_IRQHandler
+  204 0000001C         BLE_FINETGT_IRQHandler
+  205 0000001C         BLE_FIFO_IRQHandler
+  206 0000001C         DMA_Channel1_2_3_4_IRQHandler
+  207 0000001C         DMA_Channel5_IRQHandler
+  208 0000001C         TIM1_BRK_UP_TRG_COM_IRQHandler
+  209 0000001C         TIM1_CC_IRQHandler
+  210 0000001C         RESERVED_IRQHandler
+  211 0000001C         TIM3_IRQHandler
+  212 0000001C         BLE_ERROR_IRQHandler
+  213 0000001C         BLE_CRYPT_IRQHandler
+  214 0000001C         BLE_TIMESTAMP_TGT1_IRQHandler
+  215 0000001C         TIM6_IRQHandler
+  216 0000001C         ADC_IRQHandler
+  217 0000001C         SPI2_IRQHandler
+  218 0000001C         I2C1_IRQHandler
+  219 0000001C         BLE_TIMESTAMP_TGT2_IRQHandler
+  220 0000001C         SPI1_IRQHandler
+  221 0000001C         BLE_SLP_IRQHandler
+  222 0000001C         KEYSCAN_IRQHandler
+  223 0000001C         USART1_IRQHandler
+  224 0000001C         LPUART1_IRQHandler
+  225 0000001C         USART2_IRQHandler
+  226 0000001C         IRC_IRQHandler
+  227 0000001C E7FE            B                .
+  228 0000001E         
+  229 0000001E                 ENDP
+  230 0000001E         
+  231 0000001E 00 00           ALIGN
+  232 00000020         
+  233 00000020         ;*******************************************************
                        ************************
-  230 00000014         ; User Stack and Heap initialization
-  231 00000014         ;*******************************************************
+  234 00000020         ; User Stack and Heap initialization
+  235 00000020         ;*******************************************************
                        ************************
-  232 00000014                 IF               :DEF:__MICROLIB
-  233 00000014         
-  234 00000014                 EXPORT           __initial_sp
-  235 00000014                 EXPORT           __heap_base
-  236 00000014                 EXPORT           __heap_limit
-  237 00000014         
-  238 00000014                 ELSE
-  253                          ENDIF
-  254 00000014         
-  255 00000014                 END
+  236 00000020                 IF               :DEF:__MICROLIB
+  237 00000020         
+  238 00000020                 EXPORT           __initial_sp
+  239 00000020                 EXPORT           __heap_base
+  240 00000020                 EXPORT           __heap_limit
+  241 00000020         
+  242 00000020                 ELSE
+  257                          ENDIF
+  258 00000020         
+  259 00000020                 END
               00000000 
               00000000 
+
+
+
+ARM Macro Assembler    Page 7 
+
+
+              E000ED0C 
+              05FA0004 
 Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M0 --apcs=interw
 ork --depend=.\objects\startup_br1601x.d -o.\objects\startup_br1601x.o -ID:\Rua
 nJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include --predefine="__MICRO
@@ -412,7 +430,7 @@ Symbol: __initial_sp
       At line 38 in file startup_br1601x.s
    Uses
       At line 63 in file startup_br1601x.s
-      At line 234 in file startup_br1601x.s
+      At line 238 in file startup_br1601x.s
 
 3 symbols
 
@@ -443,7 +461,7 @@ Symbol: __heap_base
    Definitions
       At line 47 in file startup_br1601x.s
    Uses
-      At line 235 in file startup_br1601x.s
+      At line 239 in file startup_br1601x.s
 Comment: __heap_base used once
 __heap_limit 00001C00
 
@@ -451,7 +469,7 @@ Symbol: __heap_limit
    Definitions
       At line 49 in file startup_br1601x.s
    Uses
-      At line 236 in file startup_br1601x.s
+      At line 240 in file startup_br1601x.s
 Comment: __heap_limit used once
 4 symbols
 
@@ -501,56 +519,56 @@ Symbol: .text
    Uses
       None
 Comment: .text unused
-ADC_IRQHandler 00000012
+ADC_IRQHandler 0000001C
 
 Symbol: ADC_IRQHandler
    Definitions
-      At line 212 in file startup_br1601x.s
+      At line 216 in file startup_br1601x.s
    Uses
       At line 102 in file startup_br1601x.s
-      At line 179 in file startup_br1601x.s
+      At line 183 in file startup_br1601x.s
 
-BLE_CRYPT_IRQHandler 00000012
+BLE_CRYPT_IRQHandler 0000001C
 
 Symbol: BLE_CRYPT_IRQHandler
    Definitions
-      At line 209 in file startup_br1601x.s
+      At line 213 in file startup_br1601x.s
    Uses
       At line 99 in file startup_br1601x.s
-      At line 176 in file startup_br1601x.s
+      At line 180 in file startup_br1601x.s
 
-BLE_ERROR_IRQHandler 00000012
+BLE_ERROR_IRQHandler 0000001C
 
 Symbol: BLE_ERROR_IRQHandler
    Definitions
-      At line 208 in file startup_br1601x.s
+      At line 212 in file startup_br1601x.s
    Uses
       At line 98 in file startup_br1601x.s
-      At line 175 in file startup_br1601x.s
+      At line 179 in file startup_br1601x.s
 
-BLE_FIFO_IRQHandler 00000012
+BLE_FIFO_IRQHandler 0000001C
 
 Symbol: BLE_FIFO_IRQHandler
    Definitions
-      At line 201 in file startup_br1601x.s
+      At line 205 in file startup_br1601x.s
    Uses
       At line 91 in file startup_br1601x.s
-      At line 168 in file startup_br1601x.s
+      At line 172 in file startup_br1601x.s
 
-BLE_FINETGT_IRQHandler 00000012
+BLE_FINETGT_IRQHandler 0000001C
 
 Symbol: BLE_FINETGT_IRQHandler
    Definitions
-      At line 200 in file startup_br1601x.s
+      At line 204 in file startup_br1601x.s
    Uses
       At line 90 in file startup_br1601x.s
-      At line 167 in file startup_br1601x.s
+      At line 171 in file startup_br1601x.s
 
-BLE_HSLOT_IRQHandler 00000012
+BLE_HSLOT_IRQHandler 0000001C
 
 Symbol: BLE_HSLOT_IRQHandler
    Definitions
-      At line 194 in file startup_br1601x.s
+      At line 198 in file startup_br1601x.s
    Uses
 
 
@@ -559,63 +577,63 @@ ARM Macro Assembler    Page 2 Alphabetic symbol ordering
 Relocatable symbols
 
       At line 84 in file startup_br1601x.s
-      At line 161 in file startup_br1601x.s
+      At line 165 in file startup_br1601x.s
 
-BLE_SLP_IRQHandler 00000012
+BLE_SLP_IRQHandler 0000001C
 
 Symbol: BLE_SLP_IRQHandler
    Definitions
-      At line 217 in file startup_br1601x.s
+      At line 221 in file startup_br1601x.s
    Uses
       At line 107 in file startup_br1601x.s
-      At line 184 in file startup_br1601x.s
+      At line 188 in file startup_br1601x.s
 
-BLE_SW_IRQHandler 00000012
+BLE_SW_IRQHandler 0000001C
 
 Symbol: BLE_SW_IRQHandler
    Definitions
-      At line 192 in file startup_br1601x.s
+      At line 196 in file startup_br1601x.s
    Uses
       At line 82 in file startup_br1601x.s
-      At line 159 in file startup_br1601x.s
+      At line 163 in file startup_br1601x.s
 
-BLE_TIMESTAMP_TGT1_IRQHandler 00000012
+BLE_TIMESTAMP_TGT1_IRQHandler 0000001C
 
 Symbol: BLE_TIMESTAMP_TGT1_IRQHandler
    Definitions
-      At line 210 in file startup_br1601x.s
+      At line 214 in file startup_br1601x.s
    Uses
       At line 100 in file startup_br1601x.s
-      At line 177 in file startup_br1601x.s
+      At line 181 in file startup_br1601x.s
 
-BLE_TIMESTAMP_TGT2_IRQHandler 00000012
+BLE_TIMESTAMP_TGT2_IRQHandler 0000001C
 
 Symbol: BLE_TIMESTAMP_TGT2_IRQHandler
    Definitions
-      At line 215 in file startup_br1601x.s
+      At line 219 in file startup_br1601x.s
    Uses
       At line 105 in file startup_br1601x.s
-      At line 182 in file startup_br1601x.s
+      At line 186 in file startup_br1601x.s
 
-DMA_Channel1_2_3_4_IRQHandler 00000012
+DMA_Channel1_2_3_4_IRQHandler 0000001C
 
 Symbol: DMA_Channel1_2_3_4_IRQHandler
    Definitions
-      At line 202 in file startup_br1601x.s
+      At line 206 in file startup_br1601x.s
    Uses
       At line 92 in file startup_br1601x.s
-      At line 169 in file startup_br1601x.s
+      At line 173 in file startup_br1601x.s
 
-DMA_Channel5_IRQHandler 00000012
+DMA_Channel5_IRQHandler 0000001C
 
 Symbol: DMA_Channel5_IRQHandler
    Definitions
-      At line 203 in file startup_br1601x.s
+      At line 207 in file startup_br1601x.s
    Uses
       At line 93 in file startup_br1601x.s
-      At line 170 in file startup_br1601x.s
+      At line 174 in file startup_br1601x.s
 
-Default_Handler 00000012
+Default_Handler 0000001C
 
 
 
@@ -625,45 +643,45 @@ Relocatable symbols
 
 Symbol: Default_Handler
    Definitions
-      At line 156 in file startup_br1601x.s
+      At line 160 in file startup_br1601x.s
    Uses
       None
 Comment: Default_Handler unused
-EXTI0_1_IRQHandler 00000012
+EXTI0_1_IRQHandler 0000001C
 
 Symbol: EXTI0_1_IRQHandler
    Definitions
-      At line 197 in file startup_br1601x.s
+      At line 201 in file startup_br1601x.s
    Uses
       At line 87 in file startup_br1601x.s
-      At line 164 in file startup_br1601x.s
+      At line 168 in file startup_br1601x.s
 
-EXTI2_3_IRQHandler 00000012
+EXTI2_3_IRQHandler 0000001C
 
 Symbol: EXTI2_3_IRQHandler
    Definitions
-      At line 198 in file startup_br1601x.s
+      At line 202 in file startup_br1601x.s
    Uses
       At line 88 in file startup_br1601x.s
-      At line 165 in file startup_br1601x.s
+      At line 169 in file startup_br1601x.s
 
-EXTI4_12_IRQHandler 00000012
+EXTI4_12_IRQHandler 0000001C
 
 Symbol: EXTI4_12_IRQHandler
    Definitions
-      At line 199 in file startup_br1601x.s
+      At line 203 in file startup_br1601x.s
    Uses
       At line 89 in file startup_br1601x.s
-      At line 166 in file startup_br1601x.s
+      At line 170 in file startup_br1601x.s
 
-FLASH_IRQHandler 00000012
+FLASH_IRQHandler 0000001C
 
 Symbol: FLASH_IRQHandler
    Definitions
-      At line 195 in file startup_br1601x.s
+      At line 199 in file startup_br1601x.s
    Uses
       At line 85 in file startup_br1601x.s
-      At line 162 in file startup_br1601x.s
+      At line 166 in file startup_br1601x.s
 
 HardFault_Handler 0000000A
 
@@ -674,14 +692,14 @@ Symbol: HardFault_Handler
       At line 66 in file startup_br1601x.s
       At line 138 in file startup_br1601x.s
 
-I2C1_IRQHandler 00000012
+I2C1_IRQHandler 0000001C
 
 Symbol: I2C1_IRQHandler
    Definitions
-      At line 214 in file startup_br1601x.s
+      At line 218 in file startup_br1601x.s
    Uses
       At line 104 in file startup_br1601x.s
-      At line 181 in file startup_br1601x.s
+      At line 185 in file startup_br1601x.s
 
 
 
@@ -689,32 +707,32 @@ ARM Macro Assembler    Page 4 Alphabetic symbol ordering
 Relocatable symbols
 
 
-IRC_IRQHandler 00000012
+IRC_IRQHandler 0000001C
 
 Symbol: IRC_IRQHandler
    Definitions
-      At line 222 in file startup_br1601x.s
+      At line 226 in file startup_br1601x.s
    Uses
       At line 112 in file startup_br1601x.s
-      At line 189 in file startup_br1601x.s
+      At line 193 in file startup_br1601x.s
 
-KEYSCAN_IRQHandler 00000012
+KEYSCAN_IRQHandler 0000001C
 
 Symbol: KEYSCAN_IRQHandler
    Definitions
-      At line 218 in file startup_br1601x.s
+      At line 222 in file startup_br1601x.s
    Uses
       At line 108 in file startup_br1601x.s
-      At line 185 in file startup_br1601x.s
+      At line 189 in file startup_br1601x.s
 
-LPUART1_IRQHandler 00000012
+LPUART1_IRQHandler 0000001C
 
 Symbol: LPUART1_IRQHandler
    Definitions
-      At line 220 in file startup_br1601x.s
+      At line 224 in file startup_br1601x.s
    Uses
       At line 110 in file startup_br1601x.s
-      At line 187 in file startup_br1601x.s
+      At line 191 in file startup_br1601x.s
 
 NMI_Handler 00000008
 
@@ -725,28 +743,28 @@ Symbol: NMI_Handler
       At line 65 in file startup_br1601x.s
       At line 133 in file startup_br1601x.s
 
-PendSV_Handler 0000000E
+PendSV_Handler 00000018
 
 Symbol: PendSV_Handler
    Definitions
-      At line 147 in file startup_br1601x.s
+      At line 151 in file startup_br1601x.s
    Uses
-      At line 148 in file startup_br1601x.s
+      At line 152 in file startup_br1601x.s
 Comment: PendSV_Handler used once
-RCC_IRQHandler 00000012
+RCC_IRQHandler 0000001C
 
 Symbol: RCC_IRQHandler
    Definitions
-      At line 196 in file startup_br1601x.s
+      At line 200 in file startup_br1601x.s
    Uses
       At line 86 in file startup_br1601x.s
-      At line 163 in file startup_br1601x.s
+      At line 167 in file startup_br1601x.s
 
-RESERVED_IRQHandler 00000012
+RESERVED_IRQHandler 0000001C
 
 Symbol: RESERVED_IRQHandler
    Definitions
-      At line 206 in file startup_br1601x.s
+      At line 210 in file startup_br1601x.s
 
 
 
@@ -755,16 +773,16 @@ Relocatable symbols
 
    Uses
       At line 96 in file startup_br1601x.s
-      At line 173 in file startup_br1601x.s
+      At line 177 in file startup_br1601x.s
 
-RTC_IRQHandler 00000012
+RTC_IRQHandler 0000001C
 
 Symbol: RTC_IRQHandler
    Definitions
-      At line 193 in file startup_br1601x.s
+      At line 197 in file startup_br1601x.s
    Uses
       At line 83 in file startup_br1601x.s
-      At line 160 in file startup_br1601x.s
+      At line 164 in file startup_br1601x.s
 
 Reset_Handler 00000000
 
@@ -775,42 +793,42 @@ Symbol: Reset_Handler
       At line 64 in file startup_br1601x.s
       At line 121 in file startup_br1601x.s
 
-SPI1_IRQHandler 00000012
+SPI1_IRQHandler 0000001C
 
 Symbol: SPI1_IRQHandler
    Definitions
-      At line 216 in file startup_br1601x.s
+      At line 220 in file startup_br1601x.s
    Uses
       At line 106 in file startup_br1601x.s
-      At line 183 in file startup_br1601x.s
+      At line 187 in file startup_br1601x.s
 
-SPI2_IRQHandler 00000012
+SPI2_IRQHandler 0000001C
 
 Symbol: SPI2_IRQHandler
    Definitions
-      At line 213 in file startup_br1601x.s
+      At line 217 in file startup_br1601x.s
    Uses
       At line 103 in file startup_br1601x.s
-      At line 180 in file startup_br1601x.s
+      At line 184 in file startup_br1601x.s
 
-SVC_Handler 0000000C
+SVC_Handler 00000016
 
 Symbol: SVC_Handler
    Definitions
-      At line 142 in file startup_br1601x.s
+      At line 146 in file startup_br1601x.s
    Uses
-      At line 143 in file startup_br1601x.s
+      At line 147 in file startup_br1601x.s
 Comment: SVC_Handler used once
-SysTick_Handler 00000010
+SysTick_Handler 0000001A
 
 Symbol: SysTick_Handler
    Definitions
-      At line 151 in file startup_br1601x.s
+      At line 155 in file startup_br1601x.s
    Uses
       At line 78 in file startup_br1601x.s
-      At line 152 in file startup_br1601x.s
+      At line 156 in file startup_br1601x.s
 
-TIM1_BRK_UP_TRG_COM_IRQHandler 00000012
+TIM1_BRK_UP_TRG_COM_IRQHandler 0000001C
 
 
 
@@ -820,61 +838,61 @@ Relocatable symbols
 
 Symbol: TIM1_BRK_UP_TRG_COM_IRQHandler
    Definitions
-      At line 204 in file startup_br1601x.s
+      At line 208 in file startup_br1601x.s
    Uses
       At line 94 in file startup_br1601x.s
-      At line 171 in file startup_br1601x.s
+      At line 175 in file startup_br1601x.s
 
-TIM1_CC_IRQHandler 00000012
+TIM1_CC_IRQHandler 0000001C
 
 Symbol: TIM1_CC_IRQHandler
    Definitions
-      At line 205 in file startup_br1601x.s
+      At line 209 in file startup_br1601x.s
    Uses
       At line 95 in file startup_br1601x.s
-      At line 172 in file startup_br1601x.s
+      At line 176 in file startup_br1601x.s
 
-TIM3_IRQHandler 00000012
+TIM3_IRQHandler 0000001C
 
 Symbol: TIM3_IRQHandler
    Definitions
-      At line 207 in file startup_br1601x.s
+      At line 211 in file startup_br1601x.s
    Uses
       At line 97 in file startup_br1601x.s
-      At line 174 in file startup_br1601x.s
+      At line 178 in file startup_br1601x.s
 
-TIM6_IRQHandler 00000012
+TIM6_IRQHandler 0000001C
 
 Symbol: TIM6_IRQHandler
    Definitions
-      At line 211 in file startup_br1601x.s
+      At line 215 in file startup_br1601x.s
    Uses
       At line 101 in file startup_br1601x.s
-      At line 178 in file startup_br1601x.s
+      At line 182 in file startup_br1601x.s
 
-USART1_IRQHandler 00000012
+USART1_IRQHandler 0000001C
 
 Symbol: USART1_IRQHandler
    Definitions
-      At line 219 in file startup_br1601x.s
+      At line 223 in file startup_br1601x.s
    Uses
       At line 109 in file startup_br1601x.s
-      At line 186 in file startup_br1601x.s
+      At line 190 in file startup_br1601x.s
 
-USART2_IRQHandler 00000012
+USART2_IRQHandler 0000001C
 
 Symbol: USART2_IRQHandler
    Definitions
-      At line 221 in file startup_br1601x.s
+      At line 225 in file startup_br1601x.s
    Uses
       At line 111 in file startup_br1601x.s
-      At line 188 in file startup_br1601x.s
+      At line 192 in file startup_br1601x.s
 
-WWDG_IRQHandler 00000012
+WWDG_IRQHandler 0000001C
 
 Symbol: WWDG_IRQHandler
    Definitions
-      At line 191 in file startup_br1601x.s
+      At line 195 in file startup_br1601x.s
    Uses
       At line 81 in file startup_br1601x.s
 
@@ -883,7 +901,7 @@ Symbol: WWDG_IRQHandler
 ARM Macro Assembler    Page 7 Alphabetic symbol ordering
 Relocatable symbols
 
-      At line 158 in file startup_br1601x.s
+      At line 162 in file startup_br1601x.s
 
 40 symbols
 

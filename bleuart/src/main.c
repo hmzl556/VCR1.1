@@ -53,6 +53,16 @@ int ble_stack_init(void)
 {
 	local_bd_init_from_chip();	// 从芯片读取本地蓝牙地址并初始化相关变量
 	cs_init(local_bd);			// 初始化核心模块，传入本地蓝牙地址以完成相关设置
+
+	/*
+	 * 深度睡眠唤醒后 Flash 需要额外建立时间才能稳定读取。
+	 * host_init() 会通过 BtInitStack 读取 NVDS 配置项，
+	 * 此处增加延时确保 Flash 模拟电路完全稳定。
+	 * delay_n_10us() 是纯指令循环，不依赖任何外设/调度器，
+	 * 100 个单位 = 1ms，相比整体启动时间 (~2500ms) 可忽略。
+	 */
+	delay_n_10us(100U);			/* 100 × 10μs = 1ms Flash 稳定延时 */
+
 	host_init();				// 初始化主机相关模块，准备好 BLE 栈的运行环境
 	return 0;					// 返回 0 表示 BLE 栈初始化成功
 }

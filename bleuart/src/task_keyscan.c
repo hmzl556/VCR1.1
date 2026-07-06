@@ -298,12 +298,14 @@ void task_keyscan_process(void)
 	// ====== 任一组合键活跃时，跳过正常按键处理 ======
     if (factory_rst_state != FACTORY_RST_IDLE || !combo_key_is_idle())
     {
-        // 重置正常按键状态机，避免残留状态干扰
+        // 重置正常按键状态机，避免残留状态干扰；同时清除 LED 防止常亮
         if (key_state != KEY_STATE_IDLE)
         {
             key_state = KEY_STATE_IDLE;
             key_active = 0;
             key_active_is_consumer = false;
+            CLRLED2;
+            CLRLED1;
         }
         return;
     }
@@ -393,6 +395,8 @@ void task_keyscan_process(void)
 				key_candidate = key_id;
 				key_state_ts_ms = now_ms;
 				key_state = KEY_STATE_DEBOUNCE;
+				CLRLED2;
+				CLRLED1;
 				break;
 			}
 
