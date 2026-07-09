@@ -741,7 +741,8 @@ bool hid_kbd_map_key_to_usage(uint16_t key_id, uint16_t *usage_id, bool *is_cons
         // 数字行 1-0
         case 1:  *usage_id = 0x66; break; // '1' HID 0x1E 电源
         case 2:  *usage_id = 0xE2; *is_consumer = true; break; // '2' HID 0x1F 静音
-        case 3:  *usage_id = 0x3D; break; // '3' HID 0x20 电视
+        case 3:  *usage_id = 0x55; break; // '3' HID Gehua 电视
+        //case 3:  *usage_id = 0x3D; break; // '3' HID 规范书 电视
         case 4:  *usage_id = 0x28; break; // '4' HID 0x21 确认
         case 5:  *usage_id = 0x50; break; // '5' HID 0x22 左
         case 6:  *usage_id = 0x4F; break; // '6' HID 0x23 右
@@ -757,7 +758,8 @@ bool hid_kbd_map_key_to_usage(uint16_t key_id, uint16_t *usage_id, bool *is_cons
         case 14: *usage_id = 0xEA; *is_consumer = true; break; // 'R' HID 0x15 音量-
         case 15: *usage_id = 0x3E; break; // 'T' HID 0x17 语音
         case 16: *usage_id = 0x52; break; // 'Y' HID 0x1C 上
-        case 17: *usage_id = 0x91; break; // 'U' HID 0x18 回看0x91
+        case 17: *usage_id = 0x91; break; // 'U' HID 0x18 回看
+        //case 17: *usage_id = 0x91; break; // 'U' HID 回看 Gehua:0x41
         case 18: *usage_id = 0x0C; break; // 'I' HID 0x0C
         case 19: *usage_id = 0x12; break; // 'O' HID 0x12
         case 20: *usage_id = 0x13; break; // 'P' HID 0x13

@@ -17,6 +17,7 @@
 
 #include "pm_config.h"
 #include "pm_sleep.h"
+#include <string.h>
 #include "pwr.h"        /* PWR_EnterSLEEPMode, PWR_SLEEPENTRY_WFI */
 #include "rtc.h"        /* RTC_Init, RTC_ConfigWakeUpClock, etc.   */
 #include "rcc.h"        /* RCC_EnableLSI, RCC_GetFlagStatus etc.   */
@@ -24,6 +25,8 @@
 #include "gmem.h"       /* bleAdvStat */
 #include "ble_adv.h"    /* ble_adv_stop() */
 #include "userhard.h"   /* CLRLED1, CLRLED2, SETLED1                 */
+#include "cat1_skt_udp.h" /* cat1_sleep_prepare, cat1_sleep_wakeup     */
+#include "app_audio_pcm.h" /* Audio_Pcm_HardwareShutdown                */
 
 /** @brief 休眠中标志：进入 WFI 前置 true，KEYSCAN ISR 据此在按键唤醒瞬间亮 LED1 */
 volatile bool g_pm_sleeping = false;
@@ -167,18 +170,40 @@ static uint8_t pm_detect_wake_reason(void)
  */
 static void pm_peripherals_sleep_shutdown(void)
 {
+    GPIO_InitType gpio_lp;
+
     /* Turn off LEDs */
     CLRLED1;
     CLRLED2;
+    PM_LOG("  [shutdown] LEDs off");
 
-    /* Disable CAT1 UART completely (TX+RX) — we're going to sleep,
-       no data reception needed during deep sleep. On wakeup, CAT1
-       will be re-initialized by the BLE restart path (myBleStartAdv
-       calls rc_cat1_init which re-inits everything). */
+    /* Disable CAT1 UART completely (TX+RX) */
     USART2->CTRL1 &= (uint16_t)(~((uint16_t)USART_CTRL1_TXEN | (uint16_t)USART_CTRL1_RXEN));
+    PM_LOG("  [shutdown] UART off");
 
-    /* TODO (optional): also shutdown ADC, MICBIAS, IRC if they were enabled.
-       For now, the main power savings come from BLE off + CPU sleep + UART off. */
+    /*
+     * P0 — Shutdown ADC / DMA / MICBIAS / AUDIOPLL.
+     * Reuses Audio_Pcm_HardwareShutdown() which also resets the once-flags
+     * so the next voice capture does a full hardware re-init.
+     */
+    Audio_Pcm_HardwareShutdown();
+    PM_LOG("  [shutdown] Audio HW off");
+
+    /*
+     * P1 — Unused GPIO → analog mode to eliminate floating-input leakage.
+     * GPIOA: PA4,5
+     * GPIOB: PB0,2,6  (PB1 不可配，可能未引出或被复用)
+     */
+    memset(&gpio_lp, 0, sizeof(gpio_lp));
+    gpio_lp.GPIO_Mode = GPIO_MODE_ANALOG;
+    gpio_lp.GPIO_Pull = GPIO_NO_PULL;
+
+    gpio_lp.Pin = GPIO_PIN_4 | GPIO_PIN_5;
+    GPIO_InitPeripheral(GPIOA, &gpio_lp);
+
+    gpio_lp.Pin = GPIO_PIN_0 | GPIO_PIN_2 | GPIO_PIN_6;
+    GPIO_InitPeripheral(GPIOB, &gpio_lp);
+    PM_LOG("  [shutdown] GPIO analog done");
 }
 
 /**
@@ -189,8 +214,8 @@ static void pm_peripherals_sleep_shutdown(void)
  */
 static void pm_peripherals_sleep_restore(void)
 {
-    /* Re-enable CAT1 UART RX (TX remains off until standby exit or BLE restart) */
-    USART2->CTRL1 |= USART_CTRL1_RXEN;
+    /* Re-enable CAT1 UART RX+TX (TX needed for cat1_sleep_wakeup AT commands) */
+    USART2->CTRL1 |= (USART_CTRL1_RXEN | USART_CTRL1_TXEN);
 }
 
 /*===========================================================================
@@ -224,17 +249,22 @@ uint8_t pm_sleep_enter(void)
 
     /* 1. Stop BLE advertising if running */
     ble_adv_stop();
+    PM_LOG("Sleep step1: BLE stopped");
 
     /* 2. Reset bleAdvStat to force BLE restart on main loop after wake */
     bleAdvStat = 0U;
 
+    /* 2.1 Put CAT1 into DRX sleep before disabling UART（QSCLK=1） */
+    cat1_sleep_prepare();
+    PM_LOG("Sleep step2: CAT1 sleep prepared");
+
     /* 3. Shutdown non-essential peripherals */
     pm_peripherals_sleep_shutdown();
+    PM_LOG("Sleep step3: peripherals off");
 
     /* 4. Configure RTC wakeup timer */
     pm_rtc_wakeup_config();
-
-    PM_LOG("Sleep enter: entering Sleep mode (WFI)...");
+    PM_LOG("Sleep step4: RTC configured, entering WFI...");
 
     /*
      * 5. Enter Sleep mode via WFI.
@@ -272,6 +302,9 @@ uint8_t pm_sleep_enter(void)
 
     /* 8. Restore peripherals needed for normal operation */
     pm_peripherals_sleep_restore();
+
+    /* 8.1 Wake CAT1 from DRX sleep（QSCLK=0） */
+    cat1_sleep_wakeup();
 
     PM_LOG("Sleep exit: wake reason=%u, returning to main loop", (unsigned)wake_reason);
     return wake_reason;

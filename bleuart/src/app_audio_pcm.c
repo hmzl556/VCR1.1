@@ -213,6 +213,37 @@ void Audio_Pcm_Start(void)
 	bleSendVoiceStartFrame();               // 发送 START 帧
 }
 
+/**
+ * @brief  完全关闭 ADC/DMA/MICBIAS/PGA/AUDIOPLL 硬件
+ * @note   供 Audio_Pcm_Stop() 和 pm_peripherals_sleep_shutdown() 复用。
+ *         下次 Audio_Pcm_Start() 会从 RCC 开始完整重新初始化。
+ */
+void Audio_Pcm_HardwareShutdown(void)
+{
+	/* 1. 确保时钟已开才能安全访问寄存器 */
+	RCC_EnableAHBPeriphClk(RCC_AHB_PERIPH_ADC, ENABLE);
+	RCC_EnableAHBPeriphClk(RCC_AHB_PERIPH_DMA, ENABLE);
+
+	/* 2. 关 ADC 及其子模块 */
+	ADC_Enable(ADC, DISABLE);
+	ADC_EnableMICBIAS(ADC, DISABLE);
+	ADC_EnablePGA(ADC, DISABLE);
+	ADC_EnableDMA(ADC, DISABLE);
+
+	/* 3. 关 DMA 通道 */
+	DMA_EnableChannel(DMA_CH1, DISABLE);
+
+	/* 4. 关时钟省电 */
+	RCC_Enable_ADC_CLK_SRC_AUDIOPLL(DISABLE);
+	RCC_EnableAHBPeriphClk(RCC_AHB_PERIPH_ADC, DISABLE);
+	RCC_EnableAHBPeriphClk(RCC_AHB_PERIPH_DMA, DISABLE);
+
+	/* 5. 重置状态标志，下次 Start 走完整初始化 */
+	g_audio_dma_adc_once   = 0U;
+	g_audio_capture_hw_on  = 0U;
+	g_audio_platform_ready = 0U;
+}
+
 void Audio_Pcm_Stop(void)
 {
 	if (g_audio_pcm_enabled == 0U) {  // 未在采集则直接返回
@@ -220,9 +251,10 @@ void Audio_Pcm_Stop(void)
 	}
 
 	g_audio_pcm_enabled = 0;  // 主循环不再处理半缓冲
-	Audio_Pcm_CaptureDisable();  // 仅关 DMA 中断
+	Audio_Pcm_CaptureDisable();  // 关 DMA 中断
 	Encoder_Sbc_Disable();  // 释放 SBC，下次 Start 再 Enable
 	Audio_Pcm_ResetStartupState();  // 清 ping/pong 与滤波状态
+	Audio_Pcm_HardwareShutdown();  // ★ 关 ADC/DMA/MICBIAS/PGA/AUDIOPLL
 
 	ble_dtss_send_control_response(0x02U);  // 通知对端停止采集
 	bleSendVoiceEndFrame();                 // 发送 AUDIOEND 帧

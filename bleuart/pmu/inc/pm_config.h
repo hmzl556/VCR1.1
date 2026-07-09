@@ -28,14 +28,12 @@ extern "C" {
  *         【测试模式】改为 10000ms，方便验证状态切换
  */
 //#define PM_WORK_TO_STANDBY_MS         8000U
-#define PM_WORK_TO_STANDBY_MS         120000U   /* 测试用：10秒 */
+#define PM_WORK_TO_STANDBY_MS         60000U   /* 测试用：10秒 */
 
 /**
- * @brief  待机态 → 休眠态：持续无业务超时（45 秒）
- * @note   待机态下连接仍保持，若 45 秒内无任何交互则进入休眠
- *         范围建议：30000 ~ 120000 ms
- *
- *         【测试模式】改为 45000ms，方便验证状态切换
+ * @brief  最后一次活动 → 休眠态：总空闲超时（120 秒）
+ * @note   从最后一次业务活动开始计时，跨工作态和待机态连续计算
+ *         实际待在待机态的时长 = PM_STANDBY_TO_SLEEP_MS - PM_WORK_TO_STANDBY_MS
  */
 //#define PM_STANDBY_TO_SLEEP_MS       45000U
 #define PM_STANDBY_TO_SLEEP_MS       120000U   /* 测试用：45秒 */

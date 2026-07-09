@@ -1287,3 +1287,138 @@ void cat1_skt_udp_log_recv_diag(uint16_t req_seq)
 	          (unsigned)s_at_phase,
 	          head);
 }
+
+/*===========================================================================
+ * 休眠态 CAT1 管理 — 进入/退出 QSCLK 睡眠模式
+ *
+ * 休眠前发送 AT+QSCLK=1 让模组进入 DRX 睡眠（保持寻呼接收能力），
+ * 唤醒后发送 AT+QSCLK=0 恢复全功能。
+ * 由于 PWRKEY 常接地且无 GPIO 控制，无法物理断电，只能通过 AT 命令降功耗。
+ *===========================================================================*/
+
+/**
+ * @brief  阻塞发送 AT 命令并等待 "OK" 或 "ERROR" 响应
+ * @param  cmd        AT 命令字符串（不含 \r\n）
+ * @param  timeout_ms 超时毫秒数
+ * @return true = 收到 OK, false = 超时或收到 ERROR
+ * @note   调用前确保无进行中的 AT 事务（cat1_modem_is_busy() == 0）
+ */
+static bool cat1_blocking_at(const char *cmd, uint32_t timeout_ms)
+{
+    char  line_buf[64];
+    int   line_len;
+    uint32_t start_ms;
+    char  rx_line[32];
+    uint8_t rx_idx;
+
+    /*
+     * 等待正在进行的 AT 事务结束。
+     * 主动调用 cat1_modem_step() 推进状态机超时，
+     * 否则 CAT1 断电/无响应时 s_at_active 永远卡在 1。
+     */
+    start_ms = sdk_timer_get_current_ms();
+    while (cat1_modem_is_busy() != 0u) {
+        (void)cat1_modem_step();
+        if ((sdk_timer_get_current_ms() - start_ms) >= 5000u) {
+            co_printf("[CAT1] blocking_at: wait busy timeout\r\n");
+            return false;
+        }
+    }
+
+    /* 组装命令行：cmd + \r\n */
+    line_len = snprintf(line_buf, sizeof(line_buf), "%s\r\n", cmd);
+    if (line_len < 0 || (unsigned)line_len >= sizeof(line_buf)) {
+        return false;
+    }
+
+    /* 清空 RX 环，避免旧数据干扰 */
+    USART2_CAT1_RxFlush();
+
+    /* 阻塞发送命令行 */
+    usart2_at_send(line_buf, (unsigned)line_len);
+
+    /* 轮询 RX 环等待 "OK" 或 "ERROR" */
+    start_ms = sdk_timer_get_current_ms();
+    rx_idx   = 0u;
+
+    for (;;) {
+        uint8_t b;
+
+        while (USART2_CAT1_RxPop(&b) != 0u) {
+            if (b == '\r') {
+                continue;
+            }
+            if (b == '\n') {
+                /* 一行结束，检查是否为 OK 或 ERROR */
+                if (rx_idx > 0u) {
+                    rx_line[rx_idx] = '\0';
+                    if (strcmp(rx_line, "OK") == 0) {
+                        return true;
+                    }
+                    if (strcmp(rx_line, "ERROR") == 0) {
+                        co_printf("[CAT1] blocking_at: %s -> ERROR\r\n", cmd);
+                        return false;
+                    }
+                    rx_idx = 0u;
+                }
+            } else if (rx_idx < sizeof(rx_line) - 1u) {
+                rx_line[rx_idx++] = (char)b;
+            }
+        }
+
+        if ((sdk_timer_get_current_ms() - start_ms) >= timeout_ms) {
+            co_printf("[CAT1] blocking_at: %s timeout %lums\r\n",
+                      cmd, (unsigned long)timeout_ms);
+            return false;
+        }
+    }
+}
+
+/**
+ * @brief  休眠前准备：让 CAT1 进入 QSCLK 睡眠模式
+ * @note   模组在 DRX 睡眠期间仍可接收寻呼和 UDP 数据，
+ *         收到后自动缓冲于内部 RAM，唤醒 MCU 后可取走。
+ */
+void cat1_sleep_prepare(void)
+{
+    co_printf("[CAT1] sleep prepare: AT+QSCLK=1\r\n");
+    (void)cat1_blocking_at("AT+QSCLK=1", 3000u);
+    co_printf("[CAT1] sleep prepare done\r\n");
+}
+
+/**
+ * @brief  休眠唤醒后恢复：让 CAT1 退出 QSCLK 睡眠模式
+ * @note   模组可能处于睡眠态，UART 先发 AT 字节唤醒它，
+ *         再发 AT+QSCLK=0 恢复正常功能。
+ */
+void cat1_sleep_wakeup(void)
+{
+    uint32_t start_ms;
+
+    /*
+     * 先发一个空 AT 命令唤醒模组 UART（睡眠态下前几个字节可能丢失）。
+     * 不用等响应，只需让数据出现在 TX 线上触发模组唤醒。
+     */
+    usart2_at_send("AT\r\n", 4u);
+
+    /* 等待模组稳定（文档建议 ≥50ms） */
+    start_ms = sdk_timer_get_current_ms();
+    while ((sdk_timer_get_current_ms() - start_ms) < 100u) {
+        /* 空转等待 */
+    }
+
+    /* 清空唤醒期间可能产生的杂乱数据 */
+    USART2_CAT1_RxFlush();
+
+    co_printf("[CAT1] sleep wakeup: AT+QSCLK=0\r\n");
+    (void)cat1_blocking_at("AT+QSCLK=0", 3000u);
+
+    /*
+     * AT+QSCLK=0 完成后，模组可能立即吐出缓存的 +ECSONMI URC。
+     * cat1_blocking_at 只匹配 OK/ERROR，其他行会被丢弃。
+     * 此处主动抽干 RX 环并解析 +ECSONMI，确保 OTA 数据不丢。
+     */
+    cat1_skt_udp_drain_urc();
+
+    co_printf("[CAT1] sleep wakeup done\r\n");
+}

@@ -96,16 +96,26 @@ static uint8_t adv_dat_reconnect[] = {
     0x02, // 指示信息=0x02（广播类型2）// 符合GY/T 407-2024 条款附录C.1
 };
 
-// 唤醒广播（128-bit UUID Service Data + 地址，28字节；HID UUID 放 Scan Response）
+// 唤醒广播（UUID反转+Flags；28字节）
 static uint8_t adv_dat_wakeup[] = {
     0x02, 0x01, 0x04,          // Flags: BR/EDR Not Supported（不可发现）
     0x18, 0x21,                // AD Type 0x21: Service Data - 128-bit UUID, 24字节数据
-    0x00, 0xA0, 0x46, 0x3F, 0xC3, 0xEB, 0xE7, 0xE4,
-    0x6F, 0x7E, 0xD3, 0x9A, 0xA4, 0x51, 0xEE, 0x19, // UUID (16B)
-    0x16,                      // 指示信息: bit0-1=2(同回连0x02) bit2=1(含地址) bit4=1(唤醒)
-    0x00, 0x00, 0x00,          // 源地址(索引 22-24, 运行时填充)
-    0x00, 0x00, 0x00,          // 目标地址(索引 25-27, 运行时填充)
+    0x19, 0xEE, 0x51, 0xA4, 0x9A, 0xD3, 0x7E, 0x6F,
+    0xE4, 0xE7, 0xEB, 0xC3, 0x3F, 0x46, 0xA0, 0x00, // UUID (16B, 反转)
+    0x15,                      // 指示信息: bit0-1=1(类型2) bit2=1(含地址) bit4=1(唤醒)
+    0x00, 0x00, 0x00,          // 源地址(LSB在前, 索引22-24)
+    0x00, 0x00, 0x00,          // 目标地址(LSB在前, 索引25-27)
 };                             // 28 字节
+// // 唤醒广播（128-bit UUID Service Data + 地址，28字节；HID UUID 放 Scan Response）
+// static uint8_t adv_dat_wakeup[] = {
+//     0x02, 0x01, 0x04,          // Flags: BR/EDR Not Supported（不可发现）
+//     0x18, 0x21,                // AD Type 0x21: Service Data - 128-bit UUID, 24字节数据
+//     0x00, 0xA0, 0x46, 0x3F, 0xC3, 0xEB, 0xE7, 0xE4,
+//     0x6F, 0x7E, 0xD3, 0x9A, 0xA4, 0x51, 0xEE, 0x19, // UUID (16B)
+//     0x15,                      // 指示信息: bit0-1=1(类型2, 按标准取值1) bit2=1(含地址) bit4=1(唤醒)
+//     0x00, 0x00, 0x00,          // 源地址(LSB在前: local_bd[0][1][2], 索引22-24)
+//     0x00, 0x00, 0x00,          // 目标地址(LSB在前: stb_mac[0][1][2], 索引25-27)
+// };                             // 28 字节
 
 // 唤醒广播 Scan Response（HID UUID，扫描响应不占 31 字节限制）
 static uint8_t adv_dat_wakeup_scan_rsp[] = {
@@ -292,14 +302,14 @@ void ble_adv_start_wakeup(void)
     // 读 STB MAC
     Qflash_Read(addr, stb_mac, 6);
 
-    // 源地址（遥控器 MAC 低 3 字节，高字节在前）→ 索引 22-24
-    adv_dat_wakeup[22] = local_bd[2];
+    // 源地址（遥控器 MAC 低 3 字节，LSB 在前）→ 索引 22-24
+    adv_dat_wakeup[22] = local_bd[0];
     adv_dat_wakeup[23] = local_bd[1];
-    adv_dat_wakeup[24] = local_bd[0];
-    // 目标地址（STB MAC 低 3 字节，高字节在前）→ 索引 25-27
-    adv_dat_wakeup[25] = stb_mac[2];
+    adv_dat_wakeup[24] = local_bd[2];
+    // 目标地址（STB MAC 低 3 字节，LSB 在前）→ 索引 25-27
+    adv_dat_wakeup[25] = stb_mac[0];
     adv_dat_wakeup[26] = stb_mac[1];
-    adv_dat_wakeup[27] = stb_mac[0];
+    adv_dat_wakeup[27] = stb_mac[2];
 
     co_printf("Wakeup raw[18]:");
     for (uint8_t j = 0; j < sizeof(adv_dat_wakeup); j++)
@@ -314,6 +324,12 @@ void ble_adv_start_wakeup(void)
     cs_schedule();
     le_adv_add(&adv_par_wakeup, NULL, NULL);
     ble_adv_start();
+
+    // 等一个广播间隔(20ms)，确保首个唤醒广播包已发出
+    for (uint8_t k = 0; k < 5; k++) {
+        cs_schedule();
+        delay_n_10us(400U);  // 4ms × 5 = 20ms
+    }
 }
 
 void ble_adv_start_by_bonding(void)

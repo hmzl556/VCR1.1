@@ -23,6 +23,7 @@ void Audio_Pcm_ResetStartupState(void);
 void Audio_Pcm_Start(void);
 void Audio_Pcm_Stop(void);
 void Audio_Pcm_CheckAndProcess(void);
+void Audio_Pcm_HardwareShutdown(void);   /* 完全关闭 ADC/DMA/MICBIAS/PGA/AUDIOPLL */
 void DMA_Channel1_2_3_4_IRQHandler(void);
 
 #endif /* __APP_AUDIO_PCM_H__ */
