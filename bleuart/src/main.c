@@ -51,10 +51,15 @@ void host_init_done(void *hdl, void *context, void *arg, uint16_t len)
 // 初始化 BLE 栈，设置本地蓝牙地址并完成相关初始化
 int ble_stack_init(void)
 {
+	/*
+	 * 长按唤醒时 KEYSCAN ISR 反复触发会打断 co_printf → STDOUT
+	 * 的 LPUART TX 死等循环导致活锁。此处临时关断，出口恢复。
+	 */
+	NVIC_DisableIRQ(KEYSCAN_IRQn);
+
 	local_bd_init_from_chip();	// 从芯片读取本地蓝牙地址并初始化相关变量
 	cs_init(local_bd);			// 初始化核心模块，传入本地蓝牙地址以完成相关设置
-
-	/*
+		/*
 	 * 深度睡眠唤醒后 Flash 需要额外建立时间才能稳定读取。
 	 * host_init() 会通过 BtInitStack 读取 NVDS 配置项，
 	 * 此处增加延时确保 Flash 模拟电路完全稳定。
@@ -62,8 +67,9 @@ int ble_stack_init(void)
 	 * 100 个单位 = 1ms，相比整体启动时间 (~2500ms) 可忽略。
 	 */
 	delay_n_10us(100U);			/* 100 × 10μs = 1ms Flash 稳定延时 */
-
 	host_init();				// 初始化主机相关模块，准备好 BLE 栈的运行环境
+
+	NVIC_EnableIRQ(KEYSCAN_IRQn);	/* 恢复按键中断 */
 	return 0;					// 返回 0 表示 BLE 栈初始化成功
 }
 
@@ -120,9 +126,10 @@ static StackType_t s_ble_stack[512];	// 512 字节的任务栈空间，根据实
 // 主函数，程序入口点
 int main(void)
 {
-	delay_n_10us(50U * 1000U);	// 上电后延时 50ms，等待电源稳定
+	delay_n_10us(50U * 100U);	// 上电后延时 50ms，等待电源稳定
 	initialGmem();				// 初始化全局内存与变量
 	initialGpio();				// 初始化 GPIO，主要是 LED
+	delay_n_10us(1000U * 100U);	// 延时 1s 让LTE上电稳定
 	co_log_init();				// 初始化日志模块，后续可使用 co_printf 输出日志
 	ble_keyscan_init();			// 初始化按键扫描模块
 
@@ -147,9 +154,11 @@ int main(void)
 	 */
 
 	pm_state_init();			// 初始化电源管理状态机
+	co_printf("[BOOT ] pm done\r\n");
 	
 	combo_key_init();			// 初始化组合键管理器
-	
+	co_printf("[BOOT ] combo done\r\n");
+
 	(void)xTaskCreateStatic(task_ble_entry, "ble", 512, NULL, 3, s_ble_stack, &s_ble_tcb);
 
 	vTaskStartScheduler();		// 启动 FreeRTOS 调度器，开始执行任务

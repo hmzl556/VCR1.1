@@ -758,8 +758,8 @@ bool hid_kbd_map_key_to_usage(uint16_t key_id, uint16_t *usage_id, bool *is_cons
         case 14: *usage_id = 0xEA; *is_consumer = true; break; // 'R' HID 0x15 音量-
         case 15: *usage_id = 0x3E; break; // 'T' HID 0x17 语音
         case 16: *usage_id = 0x52; break; // 'Y' HID 0x1C 上
-        case 17: *usage_id = 0x91; break; // 'U' HID 0x18 回看
-        //case 17: *usage_id = 0x91; break; // 'U' HID 回看 Gehua:0x41
+        case 17: *usage_id = 0x41; break; // 'U' HID 0x18 回看 Gehua
+        //case 17: *usage_id = 0x91; break; // 'U' HID 回看 规范书
         case 18: *usage_id = 0x0C; break; // 'I' HID 0x0C
         case 19: *usage_id = 0x12; break; // 'O' HID 0x12
         case 20: *usage_id = 0x13; break; // 'P' HID 0x13

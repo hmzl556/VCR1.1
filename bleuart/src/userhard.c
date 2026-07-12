@@ -18,18 +18,13 @@ void initialGpio(void)
 	GPIO_DeInit(GPIOB);
 
 	GPIO_InitStruct(&gpioSet);
-	gpioSet.Pin = GPIO_PIN_3 + GPIO_PIN_7;
+	gpioSet.Pin = GPIO_PIN_2 + GPIO_PIN_3 + GPIO_PIN_7;
+	//gpioSet.Pin = GPIO_PIN_3 + GPIO_PIN_7;
 	gpioSet.GPIO_Mode = GPIO_MODE_OUTPUT_PP;
 	gpioSet.GPIO_Pull = GPIO_NO_PULL;
 	GPIO_InitPeripheral(GPIOB, &gpioSet);
+	GPIO_SetBits(GPIOB, GPIO_PIN_2);
 	GPIO_ResetBits(GPIOB, GPIO_PIN_3);
 	GPIO_ResetBits(GPIOB, GPIO_PIN_7);
 }
 
-// 重置应用程序，跳转到指定地址执行
-void rstApplication(void)
-{
-	JumpAddress = 0x0100017cUL;
-	jump_To_Application = (pFunction)JumpAddress;
-	jump_To_Application();
-}

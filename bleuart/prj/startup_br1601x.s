@@ -136,11 +136,7 @@ NMI_Handler     PROC
 HardFault_Handler\
                 PROC
                 EXPORT  HardFault_Handler          [WEAK]
-                LDR     R0, =0xE000ED0C            ; SCB->AIRCR address
-                LDR     R1, =0x05FA0004            ; VECTKEY(0x05FA<<16) | SYSRESETREQ(1<<2)
-                STR     R1, [R0]                   ; trigger system reset
-                DSB                                 ; ensure write completes
-                B       .                          ; wait for reset to take effect
+                B       .
                 ENDP
 					
 SVC_Handler     PROC

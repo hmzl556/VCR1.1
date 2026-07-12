@@ -1,5 +1,5 @@
-.\objects\cat1_usart2.o: ..\cat1\cat1_usart2.c
-.\objects\cat1_usart2.o: ..\cat1\cat1_usart2.h
+.\objects\cat1_usart2.o: ..\cat1\cat1\cat1_usart2.c
+.\objects\cat1_usart2.o: ..\cat1\cat1\cat1_usart2.h
 .\objects\cat1_usart2.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\cat1_usart2.o: ..\..\bsp\core\inc\core_cm0.h
 .\objects\cat1_usart2.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
@@ -27,6 +27,6 @@
 .\objects\cat1_usart2.o: ..\..\bsp\driver\inc\keyscan.h
 .\objects\cat1_usart2.o: ..\..\bsp\driver\inc\qflash.h
 .\objects\cat1_usart2.o: ..\..\bsp\driver\inc\misc.h
-.\objects\cat1_usart2.o: ..\cat1\cat1_udp_config.h
+.\objects\cat1_usart2.o: ..\cat1\cat1\cat1_udp_config.h
 .\objects\cat1_usart2.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\cat1_usart2.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h

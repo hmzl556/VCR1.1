@@ -8,6 +8,7 @@
 #include "cat1_udp_config.h"
 #include "co_printf.h"
 #include "br_timer.h"
+#include "cat1_time_sync.h"
 
 #include <stddef.h>
 #include <stdlib.h>

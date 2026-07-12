@@ -10,6 +10,6 @@
 .\objects\pm_state.o: ..\..\cs\inc\gap.h
 .\objects\pm_state.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
 .\objects\pm_state.o: ..\..\cs\inc\gatt.h
-.\objects\pm_state.o: ..\cat1\rc_cat1_bridge.h
-.\objects\pm_state.o: ..\cat1\rc_protocol.h
-.\objects\pm_state.o: ..\cat1\OTA\udp_ota.h
+.\objects\pm_state.o: ..\cat1\cat1\rc_cat1_bridge.h
+.\objects\pm_state.o: ..\cat1\cat1\rc_protocol.h
+.\objects\pm_state.o: ..\cat1\cat1\OTA\udp_ota.h

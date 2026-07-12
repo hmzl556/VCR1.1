@@ -36,5 +36,5 @@
 .\objects\pm_sleep.o: ..\..\cs\inc\gatt.h
 .\objects\pm_sleep.o: ..\inc\ble_adv.h
 .\objects\pm_sleep.o: ..\inc\userhard.h
-.\objects\pm_sleep.o: ..\cat1\cat1_skt_udp.h
+.\objects\pm_sleep.o: ..\cat1\cat1\cat1_skt_udp.h
 .\objects\pm_sleep.o: ..\src\app_audio_pcm.h

@@ -84,20 +84,4 @@ void cat1_skt_udp_setup_reset(void);
 /** OTA 等 downlink 片超时时打印 UART/+ECSONMI 诊断（定因 rx_drop / 拼行 / 无数据） */
 void cat1_skt_udp_log_recv_diag(uint16_t req_seq);
 
-/*===========================================================================
- * 休眠态 CAT1 管理
- *===========================================================================*/
-
-/**
- * @brief  休眠前准备：发送 AT+QSCLK=1 让模组进入 DRX 睡眠
- * @note   阻塞调用，等待 OK 或超时 3s。模组在 DRX 睡眠期间仍可接收寻呼和数据。
- */
-void cat1_sleep_prepare(void);
-
-/**
- * @brief  休眠唤醒后恢复：发送 AT+QSCLK=0 让模组退出睡眠
- * @note   阻塞调用，先发 AT 唤醒模组 UART，再发 AT+QSCLK=0。
- */
-void cat1_sleep_wakeup(void);
-
 #endif /* BSP_CAT1_SKT_UDP_H */

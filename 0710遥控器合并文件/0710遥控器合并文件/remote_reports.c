@@ -6,6 +6,7 @@
 #include "aes_transport.h"
 #include "ble_rc_svc.h"
 #include "rc_protocol.h"
+#include "cat1_time_sync.h"
 #include "udp_ota.h"
 #include "br1601x.h"
 #include "co_printf.h"
@@ -14,8 +15,12 @@
 
 #include <string.h>
 
-#ifndef REMOTE_REPORT_FIXED_TIME_BCD
-#define REMOTE_REPORT_FIXED_TIME_BCD  { 0x26u, 0x06u, 0x09u, 0x10u, 0x08u, 0x00u }
+#ifndef REMOTE_REPORT_FIXED_TIME_BCD // 2000 0101 000000
+#define REMOTE_REPORT_FIXED_TIME_BCD  { 0x00u, 0x01u, 0x01u, 0x00u, 0x00u, 0x00u }
+#endif
+
+#ifndef REMOTE_REPORT_TIME_TZ_OFFSET_HOURS // UDP 上报时间相对 CCLK 的小时偏移（东八区 +8）
+#define REMOTE_REPORT_TIME_TZ_OFFSET_HOURS  8
 #endif
 
 #ifndef REMOTE_REPORT_QUEUE_DEPTH // 发送队列深度，避免队列溢出
@@ -69,16 +74,13 @@ static int rc_ascii_digits_to_bcd(const uint8_t *ascii, uint8_t ascii_len, uint8
 }
 
 /**
- * @brief  将 RC-READ 的 YYYYMMDDhhmmss ASCII（14 字符）转为 Tag0x01 的 6 字节 BCD（YYMMDDhhmmss）
+ * @brief  帧头/Tag0x10 用 CCLK 墙钟 BCD（+东八区偏移）；未对时则回退占位时间
  */
-static int rc_read_active_time_to_bcd6(const uint8_t *rc_read, uint8_t out[6])
+static void remote_fill_report_time_bcd6(uint8_t out[6])
 {
-    if (rc_read == NULL || out == NULL)
-    {
-        return -1;
+    if (cat1_time_get_bcd6_offset(out, REMOTE_REPORT_TIME_TZ_OFFSET_HOURS) != 0) {
+        memcpy(out, s_default_time_bcd, 6u);
     }
-    return rc_ascii_digits_to_bcd(rc_read + RC_READ_OFF_DEVICE_ACTIVE_TIME + 2u,
-                                  12u, out, 6u);
 }
 
 /**
@@ -201,7 +203,7 @@ static int remote_build_tag01_value(uint8_t *value, uint16_t *value_len)
 }
 
 /**
- * @brief  组装 Tag0x10 按键 Value（操作时间取自 RC-READ DeviceActiveTime）
+ * @brief  组装 Tag0x10 按键 Value（操作时间取自 CCLK 同步墙钟）
  * @return 0 成功；-1 失败
  */
 static int remote_build_tag10_value(uint8_t *value, uint16_t *value_len, uint8_t key_code)
@@ -213,10 +215,7 @@ static int remote_build_tag10_value(uint8_t *value, uint16_t *value_len, uint8_t
     {
         return -1;
     }
-    if (rc_read_active_time_to_bcd6(ble_rc_svc_get_read(), active) != 0)
-    {
-        memcpy(active, s_default_time_bcd, 6u);
-    }
+    remote_fill_report_time_bcd6(active);
     /* Value 固定 9B（DataID0+时间6B + DataID1+键码1B） */
     if (remote_value_append(value, &len, 9u, 0x00u, active, 6u) != 0)
     {
@@ -405,7 +404,7 @@ static int remote_frame_build(const uint8_t *plain, uint16_t plain_len,
         *p++ = 0x68u;
         *p++ = 0x68u;
         *p++ = 0x10u;
-        memcpy(p, s_default_time_bcd, 6u);
+        remote_fill_report_time_bcd6(p);
         p += 6u;
         mid = s_next_mid;
         s_next_mid = (s_next_mid == 0xFFFFu) ? 0u : (uint16_t)(s_next_mid + 1u);
@@ -427,7 +426,7 @@ static int remote_frame_build(const uint8_t *plain, uint16_t plain_len,
     *p++ = 0x68u;
     *p++ = 0x68u;
     *p++ = 0x10u;
-    memcpy(p, s_default_time_bcd, 6u);
+    remote_fill_report_time_bcd6(p);
     p += 6u;
     mid = s_next_mid;
     s_next_mid = (s_next_mid == 0xFFFFu) ? 0u : (uint16_t)(s_next_mid + 1u);

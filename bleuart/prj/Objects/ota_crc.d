@@ -1,6 +1,6 @@
-.\objects\ota_crc.o: ..\cat1\OTA\ota_crc.c
+.\objects\ota_crc.o: ..\cat1\cat1\OTA\ota_crc.c
 .\objects\ota_crc.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
-.\objects\ota_crc.o: ..\cat1\OTA\ota_crc.h
+.\objects\ota_crc.o: ..\cat1\cat1\OTA\ota_crc.h
 .\objects\ota_crc.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\ota_crc.o: ..\..\bsp\driver\inc\qflash.h
 .\objects\ota_crc.o: ..\..\bsp\core\inc\br1601x.h

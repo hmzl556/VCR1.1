@@ -255,7 +255,7 @@ uint8_t pm_sleep_enter(void)
     bleAdvStat = 0U;
 
     /* 2.1 Put CAT1 into DRX sleep before disabling UART（QSCLK=1） */
-    cat1_sleep_prepare();
+    //cat1_sleep_prepare();
     PM_LOG("Sleep step2: CAT1 sleep prepared");
 
     /* 3. Shutdown non-essential peripherals */
@@ -304,7 +304,7 @@ uint8_t pm_sleep_enter(void)
     pm_peripherals_sleep_restore();
 
     /* 8.1 Wake CAT1 from DRX sleep（QSCLK=0） */
-    cat1_sleep_wakeup();
+    //cat1_sleep_wakeup();
 
     PM_LOG("Sleep exit: wake reason=%u, returning to main loop", (unsigned)wake_reason);
     return wake_reason;

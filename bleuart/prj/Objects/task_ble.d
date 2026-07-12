@@ -47,11 +47,11 @@
 .\objects\task_ble.o: ..\freertos\include\deprecated_definitions.h
 .\objects\task_ble.o: ..\freertos\portable\RVDS\ARM_CM0\portmacro.h
 .\objects\task_ble.o: ..\freertos\include\mpu_wrappers.h
-.\objects\task_ble.o: ..\cat1\rc_cat1_bridge.h
-.\objects\task_ble.o: ..\cat1\rc_protocol.h
+.\objects\task_ble.o: ..\cat1\cat1\rc_cat1_bridge.h
+.\objects\task_ble.o: ..\cat1\cat1\rc_protocol.h
 .\objects\task_ble.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\task_ble.o: ..\pmu\inc\pm_state.h
 .\objects\task_ble.o: ..\pmu\inc\pm_config.h
-.\objects\task_ble.o: ..\cat1\OTA\udp_ota.h
+.\objects\task_ble.o: ..\cat1\cat1\OTA\udp_ota.h
 .\objects\task_ble.o: ..\freertos\include\task.h
 .\objects\task_ble.o: ..\freertos\include\list.h

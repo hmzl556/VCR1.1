@@ -46,10 +46,10 @@
 .\objects\main.o: ..\..\cs\inc\ble_diss.h
 .\objects\main.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdlib.h
 .\objects\main.o: ..\..\cs\inc\ble_prf.h
-.\objects\main.o: ..\cat1\ble_rc_svc.h
-.\objects\main.o: ..\cat1\rc_protocol.h
-.\objects\main.o: ..\cat1\rc_key_input.h
-.\objects\main.o: ..\cat1\rc_cat1_bridge.h
+.\objects\main.o: ..\cat1\cat1\ble_rc_svc.h
+.\objects\main.o: ..\cat1\cat1\rc_protocol.h
+.\objects\main.o: ..\cat1\cat1\rc_key_input.h
+.\objects\main.o: ..\cat1\cat1\rc_cat1_bridge.h
 .\objects\main.o: ..\inc\app_rtos.h
 .\objects\main.o: ..\freertos\include\FreeRTOS.h
 .\objects\main.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h

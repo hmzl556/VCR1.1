@@ -36,7 +36,7 @@ void task_ble_entry(void *pvParameters)
 		if (udp_ota_session_busy() != 0u) {
 			unsigned ota_iter;
 
-			/* 已连接时禁止 ble_stack_init_only，避免重建栈导致 HID 断链 */
+		/* 已连接时禁止 ble_stack_init_only，避免重建栈导致 HID 断链 */
 			if (bleAdvStat != 0xa6U) {
 				if (ble_gap_get_peer() == NULL) {
 					bleAdvStat = ble_stack_init_only();
@@ -46,7 +46,7 @@ void task_ble_entry(void *pvParameters)
 				}
 			}
 
-			/* OTA burst 内穿插 BLE 调度与按键，避免 Cat.1 阻塞导致 HID 无响应 */
+		/* OTA burst 内穿插 BLE 调度与按键，避免 Cat.1 阻塞导致 HID 无响应 */
 			for (ota_iter = 0u; ota_iter < 24u; ota_iter++) {
 				cs_schedule();
 				ble_gap_process_disconnect_pending();
@@ -86,7 +86,6 @@ void task_ble_entry(void *pvParameters)
 			 * 若原先是 PAIRING（默认值）但实际有绑定，修正为 RECONNECTING。
 			 */
 			pm_state_sync_after_ble_init();
-			//co_printf("BLE stack ready, advertising started.\r\n");
 		}
 
 		// 处理 BLE 相关的事件和状态

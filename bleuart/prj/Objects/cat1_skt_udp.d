@@ -1,5 +1,5 @@
-.\objects\cat1_skt_udp.o: ..\cat1\cat1_skt_udp.c
-.\objects\cat1_skt_udp.o: ..\cat1\cat1_skt_udp.h
+.\objects\cat1_skt_udp.o: ..\cat1\cat1\cat1_skt_udp.c
+.\objects\cat1_skt_udp.o: ..\cat1\cat1\cat1_skt_udp.h
 .\objects\cat1_skt_udp.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\cat1_skt_udp.o: ..\..\bsp\core\inc\core_cm0.h
 .\objects\cat1_skt_udp.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
@@ -27,10 +27,11 @@
 .\objects\cat1_skt_udp.o: ..\..\bsp\driver\inc\keyscan.h
 .\objects\cat1_skt_udp.o: ..\..\bsp\driver\inc\qflash.h
 .\objects\cat1_skt_udp.o: ..\..\bsp\driver\inc\misc.h
-.\objects\cat1_skt_udp.o: ..\cat1\cat1_usart2.h
-.\objects\cat1_skt_udp.o: ..\cat1\cat1_udp_config.h
+.\objects\cat1_skt_udp.o: ..\cat1\cat1\cat1_usart2.h
+.\objects\cat1_skt_udp.o: ..\cat1\cat1\cat1_udp_config.h
 .\objects\cat1_skt_udp.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\cat1_skt_udp.o: ..\..\cs\inc\br_timer.h
+.\objects\cat1_skt_udp.o: ..\cat1\cat1\cat1_time_sync.h
 .\objects\cat1_skt_udp.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
 .\objects\cat1_skt_udp.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdlib.h
 .\objects\cat1_skt_udp.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h

@@ -1,0 +1,960 @@
+
+
+
+ARM Macro Assembler    Page 1 
+
+
+    1 00000000         ; ******************************************************
+                       **********************
+    2 00000000         ; Copyright (c) 2023, Barrot Technology Co.,Ltd.
+    3 00000000         ;
+    4 00000000         ; All rights reserved.
+    5 00000000         ; ******************************************************
+                       **********************
+    6 00000000         ;
+    7 00000000         ; Redistribution and use in source and binary forms, wit
+                       h or without
+    8 00000000         ; modification, are permitted provided that the followin
+                       g conditions are met:
+    9 00000000         ;
+   10 00000000         ; - Redistributions of source code must retain the above
+                        copyright notice,
+   11 00000000         ; this list of conditions and the disclaimer below.
+   12 00000000         ;
+   13 00000000         ; Barrot's name may not be used to endorse or promote pr
+                       oducts derived from
+   14 00000000         ; this software without specific prior written permissio
+                       n.
+   15 00000000         ;
+   16 00000000         ; DISCLAIMER: THIS SOFTWARE IS PROVIDED BY BARROT'S "AS 
+                       IS" AND ANY EXPRESS OR
+   17 00000000         ; IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+                        IMPLIED WARRANTIES OF
+   18 00000000         ; MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND 
+                       NON-INFRINGEMENT ARE
+   19 00000000         ; DISCLAIMED. IN NO EVENT SHALL BARROT'S BE LIABLE FOR A
+                       NY DIRECT, INDIRECT,
+   20 00000000         ; INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAG
+                       ES (INCLUDING, BUT NOT
+   21 00000000         ; LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICE
+                       S; LOSS OF USE, DATA,
+   22 00000000         ; OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED A
+                       ND ON ANY THEORY OF
+   23 00000000         ; LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR T
+                       ORT (INCLUDING
+   24 00000000         ; NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
+                        USE OF THIS SOFTWARE,
+   25 00000000         ; EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+   26 00000000         ; ******************************************************
+                       **********************
+   27 00000000         
+   28 00000000         ; Amount of memory (in bytes) allocated for Stack
+   29 00000000         ; Tailor this value to your application needs
+   30 00000000         ; <h> Stack Configuration
+   31 00000000         ;   <o> Stack Size (in Bytes) <0x0-0xFFFFFFFF:8>
+   32 00000000         ; </h>
+   33 00000000         
+   34 00000000 00000400 
+                       Stack_Size
+                               EQU              0x00000400
+   35 00000000         
+   36 00000000                 AREA             STACK, NOINIT, READWRITE, ALIGN
+=3
+   37 00000000         Stack_Mem
+                               SPACE            Stack_Size
+   38 00000400         __initial_sp
+
+
+
+ARM Macro Assembler    Page 2 
+
+
+   39 00000400         
+   40 00000400         ; <h> Heap Configuration
+   41 00000400         ; <o>  Heap Size (in Bytes) <0x0-0xFFFFFFFF:8>
+   42 00000400         ; </h>
+   43 00000400         
+   44 00000400 00001C00 
+                       Heap_Size
+                               EQU              0x00001C00
+   45 00000400         
+   46 00000400                 AREA             HEAP, NOINIT, READWRITE, ALIGN=
+3
+   47 00000000         __heap_base
+   48 00000000         Heap_Mem
+                               SPACE            Heap_Size
+   49 00001C00         __heap_limit
+   50 00001C00         
+   51 00001C00                 PRESERVE8
+   52 00001C00                 THUMB
+   53 00001C00         
+   54 00001C00         
+   55 00001C00         ; Vector Table Mapped to Address 0 at Reset
+   56 00001C00                 AREA             RESET, DATA, READONLY
+   57 00000000                 IMPORT           vPortSVCHandler
+   58 00000000                 IMPORT           xPortPendSVHandler
+   59 00000000                 EXPORT           __Vectors
+   60 00000000                 EXPORT           __Vectors_End
+   61 00000000                 EXPORT           __Vectors_Size
+   62 00000000         
+   63 00000000 00000000 
+                       __Vectors
+                               DCD              __initial_sp ; Top of Stack
+   64 00000004 00000000        DCD              Reset_Handler ; Reset Handler
+   65 00000008 00000000        DCD              NMI_Handler ; NMI Handler
+   66 0000000C 00000000        DCD              HardFault_Handler ; Hard Fault 
+                                                            Handler
+   67 00000010 00000000        DCD              0           ; Reserved
+   68 00000014 00000000        DCD              0           ; Reserved
+   69 00000018 00000000        DCD              0           ; Reserved
+   70 0000001C 00000000        DCD              0           ; Reserved
+   71 00000020 00000000        DCD              0           ; Reserved
+   72 00000024 00000000        DCD              0           ; Reserved
+   73 00000028 00000000        DCD              0           ; Reserved
+   74 0000002C 00000000        DCD              vPortSVCHandler 
+                                                            ; SVCall Handler
+   75 00000030 00000000        DCD              0           ; Reserved
+   76 00000034 00000000        DCD              0           ; Reserved
+   77 00000038 00000000        DCD              xPortPendSVHandler 
+                                                            ; PendSV Handler
+   78 0000003C 00000000        DCD              SysTick_Handler 
+                                                            ; SysTick Handler
+   79 00000040         
+   80 00000040         ; External Interrupts
+   81 00000040 00000000        DCD              WWDG_IRQHandler 
+                                                            ; Window Watchdog
+   82 00000044 00000000        DCD              BLE_SW_IRQHandler 
+                                                            ; BLE_SW interrupt
+   83 00000048 00000000        DCD              RTC_IRQHandler ; RTC interrupt(
+                                                            through EXTI line 1
+                                                            7/19/20 interrupt)
+
+
+
+ARM Macro Assembler    Page 3 
+
+
+   84 0000004C 00000000        DCD              BLE_HSLOT_IRQHandler 
+                                                            ; BLE_HSLOT
+   85 00000050 00000000        DCD              FLASH_IRQHandler ; Flash
+   86 00000054 00000000        DCD              RCC_IRQHandler ; RCC
+   87 00000058 00000000        DCD              EXTI0_1_IRQHandler 
+                                                            ; EXTI Line 0.1
+   88 0000005C 00000000        DCD              EXTI2_3_IRQHandler 
+                                                            ; EXTI Line 2.3
+   89 00000060 00000000        DCD              EXTI4_12_IRQHandler 
+                                                            ; EXTI Line 4..12
+   90 00000064 00000000        DCD              BLE_FINETGT_IRQHandler 
+                                                            ; BLE_FINETGT
+   91 00000068 00000000        DCD              BLE_FIFO_IRQHandler ; BLE_FIFO
+   92 0000006C 00000000        DCD              DMA_Channel1_2_3_4_IRQHandler ;
+                                                             DMA Channel 1,2,3,
+                                                            4
+   93 00000070 00000000        DCD              DMA_Channel5_IRQHandler ; DMA C
+                                                            hannel 5,6,7,8
+   94 00000074 00000000        DCD              TIM1_BRK_UP_TRG_COM_IRQHandler 
+                                                            ; TIM1 Break/Update
+                                                            /Trigger and Commut
+                                                            ation
+   95 00000078 00000000        DCD              TIM1_CC_IRQHandler ; TIM1 Captu
+                                                            re Compare
+   96 0000007C 00000000        DCD              RESERVED_IRQHandler ; 
+   97 00000080 00000000        DCD              TIM3_IRQHandler ; TIM3
+   98 00000084 00000000        DCD              BLE_ERROR_IRQHandler 
+                                                            ; BLE_ERROR
+   99 00000088 00000000        DCD              BLE_CRYPT_IRQHandler ; BLE_CYPT
+                                                            _IRQHandler
+  100 0000008C 00000000        DCD              BLE_TIMESTAMP_TGT1_IRQHandler ;
+                                                             BLE_TIMESTAMP_TGT1
+                                                            
+  101 00000090 00000000        DCD              TIM6_IRQHandler ; TIM6
+  102 00000094 00000000        DCD              ADC_IRQHandler ; ADC
+  103 00000098 00000000        DCD              SPI2_IRQHandler ; SPI2
+  104 0000009C 00000000        DCD              I2C1_IRQHandler ; I2C1
+  105 000000A0 00000000        DCD              BLE_TIMESTAMP_TGT2_IRQHandler ;
+                                                             BLE_TIMESTAMP_TGT1
+                                                            2
+  106 000000A4 00000000        DCD              SPI1_IRQHandler ; SPI1
+  107 000000A8 00000000        DCD              BLE_SLP_IRQHandler ; BLE_SLP
+  108 000000AC 00000000        DCD              KEYSCAN_IRQHandler ; KEYSCAN
+  109 000000B0 00000000        DCD              USART1_IRQHandler ; USART1
+  110 000000B4 00000000        DCD              LPUART1_IRQHandler ; LPUART1
+  111 000000B8 00000000        DCD              USART2_IRQHandler ; USART2
+  112 000000BC 00000000        DCD              IRC_IRQHandler ; IRC
+  113 000000C0         __Vectors_End
+  114 000000C0         
+  115 000000C0 000000C0 
+                       __Vectors_Size
+                               EQU              __Vectors_End - __Vectors
+  116 000000C0         
+  117 000000C0                 AREA             |.text|, CODE, READONLY
+  118 00000000         
+  119 00000000         ; Reset handler
+  120 00000000         Reset_Handler
+                               PROC
+  121 00000000                 EXPORT           Reset_Handler             [WEAK
+
+
+
+ARM Macro Assembler    Page 4 
+
+
+]
+  122 00000000                 IMPORT           __main
+  123 00000000                 IMPORT           SystemInit
+  124 00000000 4804            LDR              R0, =SystemInit
+  125 00000002 4780            BLX              R0
+  126 00000004 4804            LDR              R0, =__main
+  127 00000006 4700            BX               R0
+  128 00000008                 ENDP
+  129 00000008         
+  130 00000008         ; Dummy Exception Handlers (infinite loops which can be 
+                       modified)
+  131 00000008         
+  132 00000008         NMI_Handler
+                               PROC
+  133 00000008                 EXPORT           NMI_Handler                [WEA
+K]
+  134 00000008 E7FE            B                .
+  135 0000000A                 ENDP
+  137 0000000A         HardFault_Handler
+                               PROC
+  138 0000000A                 EXPORT           HardFault_Handler          [WEA
+K]
+  139 0000000A E7FE            B                .
+  140 0000000C                 ENDP
+  141 0000000C         
+  142 0000000C         SVC_Handler
+                               PROC
+  143 0000000C                 EXPORT           SVC_Handler               [WEAK
+]
+  144 0000000C E7FE            B                .
+  145 0000000E                 ENDP
+  146 0000000E         
+  147 0000000E         PendSV_Handler
+                               PROC
+  148 0000000E                 EXPORT           PendSV_Handler             [WEA
+K]
+  149 0000000E E7FE            B                .
+  150 00000010                 ENDP
+  151 00000010         SysTick_Handler
+                               PROC
+  152 00000010                 EXPORT           SysTick_Handler            [WEA
+K]
+  153 00000010 E7FE            B                .
+  154 00000012                 ENDP
+  155 00000012         
+  156 00000012         Default_Handler
+                               PROC
+  157 00000012         
+  158 00000012                 EXPORT           WWDG_IRQHandler            [WEA
+K]
+  159 00000012                 EXPORT           BLE_SW_IRQHandler          [WEA
+K]
+  160 00000012                 EXPORT           RTC_IRQHandler             [WEA
+K]
+  161 00000012                 EXPORT           BLE_HSLOT_IRQHandler       [WEA
+K]
+  162 00000012                 EXPORT           FLASH_IRQHandler           [WEA
+K]
+  163 00000012                 EXPORT           RCC_IRQHandler             [WEA
+
+
+
+ARM Macro Assembler    Page 5 
+
+
+K]
+  164 00000012                 EXPORT           EXTI0_1_IRQHandler         [WEA
+K]
+  165 00000012                 EXPORT           EXTI2_3_IRQHandler         [WEA
+K]
+  166 00000012                 EXPORT           EXTI4_12_IRQHandler        [WEA
+K]
+  167 00000012                 EXPORT           BLE_FINETGT_IRQHandler     [WEA
+K]
+  168 00000012                 EXPORT           BLE_FIFO_IRQHandler        [WEA
+K]
+  169 00000012                 EXPORT           DMA_Channel1_2_3_4_IRQHandler  
+[WEAK]
+  170 00000012                 EXPORT           DMA_Channel5_IRQHandler [WEAK]
+  171 00000012                 EXPORT           TIM1_BRK_UP_TRG_COM_IRQHandler 
+[WEAK]
+  172 00000012                 EXPORT           TIM1_CC_IRQHandler         [WEA
+K]
+  173 00000012                 EXPORT           RESERVED_IRQHandler        [WEA
+K]
+  174 00000012                 EXPORT           TIM3_IRQHandler            [WEA
+K]
+  175 00000012                 EXPORT           BLE_ERROR_IRQHandler       [WEA
+K]
+  176 00000012                 EXPORT           BLE_CRYPT_IRQHandler       [WEA
+K]
+  177 00000012                 EXPORT           BLE_TIMESTAMP_TGT1_IRQHandler  
+[WEAK]
+  178 00000012                 EXPORT           TIM6_IRQHandler            [WEA
+K]
+  179 00000012                 EXPORT           ADC_IRQHandler             [WEA
+K]
+  180 00000012                 EXPORT           SPI2_IRQHandler            [WEA
+K]
+  181 00000012                 EXPORT           I2C1_IRQHandler            [WEA
+K]
+  182 00000012                 EXPORT           BLE_TIMESTAMP_TGT2_IRQHandler  
+[WEAK]
+  183 00000012                 EXPORT           SPI1_IRQHandler            [WEA
+K]
+  184 00000012                 EXPORT           BLE_SLP_IRQHandler         [WEA
+K]
+  185 00000012                 EXPORT           KEYSCAN_IRQHandler         [WEA
+K]
+  186 00000012                 EXPORT           USART1_IRQHandler          [WEA
+K]
+  187 00000012                 EXPORT           LPUART1_IRQHandler         [WEA
+K]
+  188 00000012                 EXPORT           USART2_IRQHandler          [WEA
+K]
+  189 00000012                 EXPORT           IRC_IRQHandler             [WEA
+K]
+  190 00000012         
+  191 00000012         WWDG_IRQHandler
+  192 00000012         BLE_SW_IRQHandler
+  193 00000012         RTC_IRQHandler
+  194 00000012         BLE_HSLOT_IRQHandler
+  195 00000012         FLASH_IRQHandler
+  196 00000012         RCC_IRQHandler
+
+
+
+ARM Macro Assembler    Page 6 
+
+
+  197 00000012         EXTI0_1_IRQHandler
+  198 00000012         EXTI2_3_IRQHandler
+  199 00000012         EXTI4_12_IRQHandler
+  200 00000012         BLE_FINETGT_IRQHandler
+  201 00000012         BLE_FIFO_IRQHandler
+  202 00000012         DMA_Channel1_2_3_4_IRQHandler
+  203 00000012         DMA_Channel5_IRQHandler
+  204 00000012         TIM1_BRK_UP_TRG_COM_IRQHandler
+  205 00000012         TIM1_CC_IRQHandler
+  206 00000012         RESERVED_IRQHandler
+  207 00000012         TIM3_IRQHandler
+  208 00000012         BLE_ERROR_IRQHandler
+  209 00000012         BLE_CRYPT_IRQHandler
+  210 00000012         BLE_TIMESTAMP_TGT1_IRQHandler
+  211 00000012         TIM6_IRQHandler
+  212 00000012         ADC_IRQHandler
+  213 00000012         SPI2_IRQHandler
+  214 00000012         I2C1_IRQHandler
+  215 00000012         BLE_TIMESTAMP_TGT2_IRQHandler
+  216 00000012         SPI1_IRQHandler
+  217 00000012         BLE_SLP_IRQHandler
+  218 00000012         KEYSCAN_IRQHandler
+  219 00000012         USART1_IRQHandler
+  220 00000012         LPUART1_IRQHandler
+  221 00000012         USART2_IRQHandler
+  222 00000012         IRC_IRQHandler
+  223 00000012 E7FE            B                .
+  224 00000014         
+  225 00000014                 ENDP
+  226 00000014         
+  227 00000014                 ALIGN
+  228 00000014         
+  229 00000014         ;*******************************************************
+                       ************************
+  230 00000014         ; User Stack and Heap initialization
+  231 00000014         ;*******************************************************
+                       ************************
+  232 00000014                 IF               :DEF:__MICROLIB
+  233 00000014         
+  234 00000014                 EXPORT           __initial_sp
+  235 00000014                 EXPORT           __heap_base
+  236 00000014                 EXPORT           __heap_limit
+  237 00000014         
+  238 00000014                 ELSE
+  253                          ENDIF
+  254 00000014         
+  255 00000014                 END
+              00000000 
+              00000000 
+Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M0 --apcs=interw
+ork --depend=.\objects\startup_br1601x.d -o.\objects\startup_br1601x.o -ID:\Rua
+nJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include --predefine="__MICRO
+LIB SETA 1" --predefine="__UVISION_VERSION SETA 539" --predefine="ARMCM0 SETA 1
+" --list=.\listings\startup_br1601x.lst ..\..\total-ËæÊ±¸üÐÂ\bleuart\prj\startu
+p_br1601x.s
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+STACK 00000000
+
+Symbol: STACK
+   Definitions
+      At line 36 in file ..\..\total-
+   Uses
+      None
+Comment: STACK unused
+Stack_Mem 00000000
+
+Symbol: Stack_Mem
+   Definitions
+      At line 37 in file ..\..\total-
+   Uses
+      None
+Comment: Stack_Mem unused
+__initial_sp 00000400
+
+Symbol: __initial_sp
+   Definitions
+      At line 38 in file ..\..\total-
+   Uses
+      At line 63 in file ..\..\total-
+      At line 234 in file ..\..\total-
+
+3 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+HEAP 00000000
+
+Symbol: HEAP
+   Definitions
+      At line 46 in file ..\..\total-
+   Uses
+      None
+Comment: HEAP unused
+Heap_Mem 00000000
+
+Symbol: Heap_Mem
+   Definitions
+      At line 48 in file ..\..\total-
+   Uses
+      None
+Comment: Heap_Mem unused
+__heap_base 00000000
+
+Symbol: __heap_base
+   Definitions
+      At line 47 in file ..\..\total-
+   Uses
+      At line 235 in file ..\..\total-
+Comment: __heap_base used once
+__heap_limit 00001C00
+
+Symbol: __heap_limit
+   Definitions
+      At line 49 in file ..\..\total-
+   Uses
+      At line 236 in file ..\..\total-
+Comment: __heap_limit used once
+4 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+RESET 00000000
+
+Symbol: RESET
+   Definitions
+      At line 56 in file ..\..\total-
+   Uses
+      None
+Comment: RESET unused
+__Vectors 00000000
+
+Symbol: __Vectors
+   Definitions
+      At line 63 in file ..\..\total-
+   Uses
+      At line 59 in file ..\..\total-
+      At line 115 in file ..\..\total-
+
+__Vectors_End 000000C0
+
+Symbol: __Vectors_End
+   Definitions
+      At line 113 in file ..\..\total-
+   Uses
+      At line 60 in file ..\..\total-
+      At line 115 in file ..\..\total-
+
+3 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+.text 00000000
+
+Symbol: .text
+   Definitions
+      At line 117 in file ..\..\total-
+   Uses
+      None
+Comment: .text unused
+ADC_IRQHandler 00000012
+
+Symbol: ADC_IRQHandler
+   Definitions
+      At line 212 in file ..\..\total-
+   Uses
+      At line 102 in file ..\..\total-
+      At line 179 in file ..\..\total-
+
+BLE_CRYPT_IRQHandler 00000012
+
+Symbol: BLE_CRYPT_IRQHandler
+   Definitions
+      At line 209 in file ..\..\total-
+   Uses
+      At line 99 in file ..\..\total-
+      At line 176 in file ..\..\total-
+
+BLE_ERROR_IRQHandler 00000012
+
+Symbol: BLE_ERROR_IRQHandler
+   Definitions
+      At line 208 in file ..\..\total-
+   Uses
+      At line 98 in file ..\..\total-
+      At line 175 in file ..\..\total-
+
+BLE_FIFO_IRQHandler 00000012
+
+Symbol: BLE_FIFO_IRQHandler
+   Definitions
+      At line 201 in file ..\..\total-
+   Uses
+      At line 91 in file ..\..\total-
+      At line 168 in file ..\..\total-
+
+BLE_FINETGT_IRQHandler 00000012
+
+Symbol: BLE_FINETGT_IRQHandler
+   Definitions
+      At line 200 in file ..\..\total-
+   Uses
+      At line 90 in file ..\..\total-
+      At line 167 in file ..\..\total-
+
+BLE_HSLOT_IRQHandler 00000012
+
+Symbol: BLE_HSLOT_IRQHandler
+   Definitions
+      At line 194 in file ..\..\total-
+   Uses
+
+
+
+ARM Macro Assembler    Page 2 Alphabetic symbol ordering
+Relocatable symbols
+
+      At line 84 in file ..\..\total-
+      At line 161 in file ..\..\total-
+
+BLE_SLP_IRQHandler 00000012
+
+Symbol: BLE_SLP_IRQHandler
+   Definitions
+      At line 217 in file ..\..\total-
+   Uses
+      At line 107 in file ..\..\total-
+      At line 184 in file ..\..\total-
+
+BLE_SW_IRQHandler 00000012
+
+Symbol: BLE_SW_IRQHandler
+   Definitions
+      At line 192 in file ..\..\total-
+   Uses
+      At line 82 in file ..\..\total-
+      At line 159 in file ..\..\total-
+
+BLE_TIMESTAMP_TGT1_IRQHandler 00000012
+
+Symbol: BLE_TIMESTAMP_TGT1_IRQHandler
+   Definitions
+      At line 210 in file ..\..\total-
+   Uses
+      At line 100 in file ..\..\total-
+      At line 177 in file ..\..\total-
+
+BLE_TIMESTAMP_TGT2_IRQHandler 00000012
+
+Symbol: BLE_TIMESTAMP_TGT2_IRQHandler
+   Definitions
+      At line 215 in file ..\..\total-
+   Uses
+      At line 105 in file ..\..\total-
+      At line 182 in file ..\..\total-
+
+DMA_Channel1_2_3_4_IRQHandler 00000012
+
+Symbol: DMA_Channel1_2_3_4_IRQHandler
+   Definitions
+      At line 202 in file ..\..\total-
+   Uses
+      At line 92 in file ..\..\total-
+      At line 169 in file ..\..\total-
+
+DMA_Channel5_IRQHandler 00000012
+
+Symbol: DMA_Channel5_IRQHandler
+   Definitions
+      At line 203 in file ..\..\total-
+   Uses
+      At line 93 in file ..\..\total-
+      At line 170 in file ..\..\total-
+
+Default_Handler 00000012
+
+
+
+
+ARM Macro Assembler    Page 3 Alphabetic symbol ordering
+Relocatable symbols
+
+Symbol: Default_Handler
+   Definitions
+      At line 156 in file ..\..\total-
+   Uses
+      None
+Comment: Default_Handler unused
+EXTI0_1_IRQHandler 00000012
+
+Symbol: EXTI0_1_IRQHandler
+   Definitions
+      At line 197 in file ..\..\total-
+   Uses
+      At line 87 in file ..\..\total-
+      At line 164 in file ..\..\total-
+
+EXTI2_3_IRQHandler 00000012
+
+Symbol: EXTI2_3_IRQHandler
+   Definitions
+      At line 198 in file ..\..\total-
+   Uses
+      At line 88 in file ..\..\total-
+      At line 165 in file ..\..\total-
+
+EXTI4_12_IRQHandler 00000012
+
+Symbol: EXTI4_12_IRQHandler
+   Definitions
+      At line 199 in file ..\..\total-
+   Uses
+      At line 89 in file ..\..\total-
+      At line 166 in file ..\..\total-
+
+FLASH_IRQHandler 00000012
+
+Symbol: FLASH_IRQHandler
+   Definitions
+      At line 195 in file ..\..\total-
+   Uses
+      At line 85 in file ..\..\total-
+      At line 162 in file ..\..\total-
+
+HardFault_Handler 0000000A
+
+Symbol: HardFault_Handler
+   Definitions
+      At line 137 in file ..\..\total-
+   Uses
+      At line 66 in file ..\..\total-
+      At line 138 in file ..\..\total-
+
+I2C1_IRQHandler 00000012
+
+Symbol: I2C1_IRQHandler
+   Definitions
+      At line 214 in file ..\..\total-
+   Uses
+      At line 104 in file ..\..\total-
+      At line 181 in file ..\..\total-
+
+
+
+ARM Macro Assembler    Page 4 Alphabetic symbol ordering
+Relocatable symbols
+
+
+IRC_IRQHandler 00000012
+
+Symbol: IRC_IRQHandler
+   Definitions
+      At line 222 in file ..\..\total-
+   Uses
+      At line 112 in file ..\..\total-
+      At line 189 in file ..\..\total-
+
+KEYSCAN_IRQHandler 00000012
+
+Symbol: KEYSCAN_IRQHandler
+   Definitions
+      At line 218 in file ..\..\total-
+   Uses
+      At line 108 in file ..\..\total-
+      At line 185 in file ..\..\total-
+
+LPUART1_IRQHandler 00000012
+
+Symbol: LPUART1_IRQHandler
+   Definitions
+      At line 220 in file ..\..\total-
+   Uses
+      At line 110 in file ..\..\total-
+      At line 187 in file ..\..\total-
+
+NMI_Handler 00000008
+
+Symbol: NMI_Handler
+   Definitions
+      At line 132 in file ..\..\total-
+   Uses
+      At line 65 in file ..\..\total-
+      At line 133 in file ..\..\total-
+
+PendSV_Handler 0000000E
+
+Symbol: PendSV_Handler
+   Definitions
+      At line 147 in file ..\..\total-
+   Uses
+      At line 148 in file ..\..\total-
+Comment: PendSV_Handler used once
+RCC_IRQHandler 00000012
+
+Symbol: RCC_IRQHandler
+   Definitions
+      At line 196 in file ..\..\total-
+   Uses
+      At line 86 in file ..\..\total-
+      At line 163 in file ..\..\total-
+
+RESERVED_IRQHandler 00000012
+
+Symbol: RESERVED_IRQHandler
+   Definitions
+      At line 206 in file ..\..\total-
+
+
+
+ARM Macro Assembler    Page 5 Alphabetic symbol ordering
+Relocatable symbols
+
+   Uses
+      At line 96 in file ..\..\total-
+      At line 173 in file ..\..\total-
+
+RTC_IRQHandler 00000012
+
+Symbol: RTC_IRQHandler
+   Definitions
+      At line 193 in file ..\..\total-
+   Uses
+      At line 83 in file ..\..\total-
+      At line 160 in file ..\..\total-
+
+Reset_Handler 00000000
+
+Symbol: Reset_Handler
+   Definitions
+      At line 120 in file ..\..\total-
+   Uses
+      At line 64 in file ..\..\total-
+      At line 121 in file ..\..\total-
+
+SPI1_IRQHandler 00000012
+
+Symbol: SPI1_IRQHandler
+   Definitions
+      At line 216 in file ..\..\total-
+   Uses
+      At line 106 in file ..\..\total-
+      At line 183 in file ..\..\total-
+
+SPI2_IRQHandler 00000012
+
+Symbol: SPI2_IRQHandler
+   Definitions
+      At line 213 in file ..\..\total-
+   Uses
+      At line 103 in file ..\..\total-
+      At line 180 in file ..\..\total-
+
+SVC_Handler 0000000C
+
+Symbol: SVC_Handler
+   Definitions
+      At line 142 in file ..\..\total-
+   Uses
+      At line 143 in file ..\..\total-
+Comment: SVC_Handler used once
+SysTick_Handler 00000010
+
+Symbol: SysTick_Handler
+   Definitions
+      At line 151 in file ..\..\total-
+   Uses
+      At line 78 in file ..\..\total-
+      At line 152 in file ..\..\total-
+
+TIM1_BRK_UP_TRG_COM_IRQHandler 00000012
+
+
+
+
+ARM Macro Assembler    Page 6 Alphabetic symbol ordering
+Relocatable symbols
+
+Symbol: TIM1_BRK_UP_TRG_COM_IRQHandler
+   Definitions
+      At line 204 in file ..\..\total-
+   Uses
+      At line 94 in file ..\..\total-
+      At line 171 in file ..\..\total-
+
+TIM1_CC_IRQHandler 00000012
+
+Symbol: TIM1_CC_IRQHandler
+   Definitions
+      At line 205 in file ..\..\total-
+   Uses
+      At line 95 in file ..\..\total-
+      At line 172 in file ..\..\total-
+
+TIM3_IRQHandler 00000012
+
+Symbol: TIM3_IRQHandler
+   Definitions
+      At line 207 in file ..\..\total-
+   Uses
+      At line 97 in file ..\..\total-
+      At line 174 in file ..\..\total-
+
+TIM6_IRQHandler 00000012
+
+Symbol: TIM6_IRQHandler
+   Definitions
+      At line 211 in file ..\..\total-
+   Uses
+      At line 101 in file ..\..\total-
+      At line 178 in file ..\..\total-
+
+USART1_IRQHandler 00000012
+
+Symbol: USART1_IRQHandler
+   Definitions
+      At line 219 in file ..\..\total-
+   Uses
+      At line 109 in file ..\..\total-
+      At line 186 in file ..\..\total-
+
+USART2_IRQHandler 00000012
+
+Symbol: USART2_IRQHandler
+   Definitions
+      At line 221 in file ..\..\total-
+   Uses
+      At line 111 in file ..\..\total-
+      At line 188 in file ..\..\total-
+
+WWDG_IRQHandler 00000012
+
+Symbol: WWDG_IRQHandler
+   Definitions
+      At line 191 in file ..\..\total-
+   Uses
+      At line 81 in file ..\..\total-
+
+
+
+ARM Macro Assembler    Page 7 Alphabetic symbol ordering
+Relocatable symbols
+
+      At line 158 in file ..\..\total-
+
+40 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Absolute symbols
+
+Heap_Size 00001C00
+
+Symbol: Heap_Size
+   Definitions
+      At line 44 in file ..\..\total-
+   Uses
+      At line 48 in file ..\..\total-
+Comment: Heap_Size used once
+Stack_Size 00000400
+
+Symbol: Stack_Size
+   Definitions
+      At line 34 in file ..\..\total-
+   Uses
+      At line 37 in file ..\..\total-
+Comment: Stack_Size used once
+__Vectors_Size 000000C0
+
+Symbol: __Vectors_Size
+   Definitions
+      At line 115 in file ..\..\total-
+   Uses
+      At line 61 in file ..\..\total-
+Comment: __Vectors_Size used once
+3 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+External symbols
+
+SystemInit 00000000
+
+Symbol: SystemInit
+   Definitions
+      At line 123 in file ..\..\total-
+   Uses
+      At line 124 in file ..\..\total-
+Comment: SystemInit used once
+__main 00000000
+
+Symbol: __main
+   Definitions
+      At line 122 in file ..\..\total-
+   Uses
+      At line 126 in file ..\..\total-
+Comment: __main used once
+vPortSVCHandler 00000000
+
+Symbol: vPortSVCHandler
+   Definitions
+      At line 57 in file ..\..\total-
+   Uses
+      At line 74 in file ..\..\total-
+Comment: vPortSVCHandler used once
+xPortPendSVHandler 00000000
+
+Symbol: xPortPendSVHandler
+   Definitions
+      At line 58 in file ..\..\total-
+   Uses
+      At line 77 in file ..\..\total-
+Comment: xPortPendSVHandler used once
+4 symbols
+392 symbols in table

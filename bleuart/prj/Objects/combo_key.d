@@ -36,5 +36,5 @@
 .\objects\combo_key.o: ..\pmu\inc\pm_state.h
 .\objects\combo_key.o: ..\pmu\inc\pm_config.h
 .\objects\combo_key.o: ..\..\bsp\common\inc\co_printf.h
-.\objects\combo_key.o: ..\cat1\OTA\udp_ota.h
+.\objects\combo_key.o: ..\cat1\cat1\OTA\udp_ota.h
 .\objects\combo_key.o: ..\inc\userhard.h

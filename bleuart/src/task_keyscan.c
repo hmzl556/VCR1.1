@@ -77,22 +77,22 @@ static void factory_reset_process(uint32_t now_ms, uint16_t key_id,
     {
         case FACTORY_RST_IDLE:
         {
-            bool k6 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY6);
+            bool k8 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY8);
             bool k14 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY14);
-            if (k6 && k14)
+            if (k8 && k14)
             {
                 factory_rst_state = FACTORY_RST_COMBO_DETECT;
                 factory_rst_state_ts_ms = now_ms;
-                co_printf("Factory reset: KEY6+KEY14 combo detected, counting 3s...\r\n");
+                co_printf("Factory reset: KEY8+KEY14 combo detected, counting 3s...\r\n");
             }
             break;
         }
 
         case FACTORY_RST_COMBO_DETECT:
         {
-            bool k6 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY6);
+            bool k8 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY8);
             bool k14 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY14);
-            if (!(k6 && k14))
+            if (!(k8 && k14))
             {
                 factory_rst_state = FACTORY_RST_IDLE;
                 co_printf("Factory reset: combo released before 3s, cancelled.\r\n");
@@ -130,9 +130,9 @@ static void factory_reset_process(uint32_t now_ms, uint16_t key_id,
 
             if (!pending_keys_released)
             {
-                bool k6 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY6);
+                bool k8 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY8);
                 bool k14 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY14);
-                if (!k6 && !k14)
+                if (!k8 && !k14)
                 {
                     pending_keys_released = true;
                     co_printf("Factory reset: both combo keys released, key check active.\r\n");

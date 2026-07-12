@@ -35,4 +35,4 @@
 .\objects\ble_adv.o: ..\..\bsp\driver\inc\keyscan.h
 .\objects\ble_adv.o: ..\..\bsp\driver\inc\qflash.h
 .\objects\ble_adv.o: ..\..\bsp\driver\inc\misc.h
-.\objects\ble_adv.o: ..\cat1\OTA\flash_layout.h
+.\objects\ble_adv.o: ..\cat1\cat1\OTA\flash_layout.h

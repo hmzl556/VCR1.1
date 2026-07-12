@@ -15,6 +15,7 @@
 #include "task.h"
 #include "udp_ota.h"
 #include "ota_frame.h"
+#include "cat1_time_sync.h"
 
 #ifndef CAT1_MODEM_BOOT_DELAY_MS
 #define CAT1_MODEM_BOOT_DELAY_MS  2000u		//启动CAT1之前的上电等待时间
@@ -56,6 +57,9 @@ static uint32_t rc_cat1_now_ms(void)
 void rc_cat1_init(void)
 {
 	co_printf("[RC   ] CAT1 init start\r\n");
+
+	cat1_time_sync_reset();
+	cat1_skt_udp_setup_reset();
 
 	s_udp_ready = 0u;
 	s_cat1_booting = 1u;

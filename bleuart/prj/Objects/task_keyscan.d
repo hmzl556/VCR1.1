@@ -45,11 +45,11 @@
 .\objects\task_keyscan.o: ..\..\cs\inc\gatt.h
 .\objects\task_keyscan.o: ..\inc\ble_gap.h
 .\objects\task_keyscan.o: ..\inc\gmem.h
-.\objects\task_keyscan.o: ..\cat1\rc_key_input.h
+.\objects\task_keyscan.o: ..\cat1\cat1\rc_key_input.h
 .\objects\task_keyscan.o: ..\pmu\inc\pm_state.h
 .\objects\task_keyscan.o: ..\pmu\inc\pm_config.h
 .\objects\task_keyscan.o: ..\inc\combo_key.h
-.\objects\task_keyscan.o: ..\cat1\OTA\udp_ota.h
+.\objects\task_keyscan.o: ..\cat1\cat1\OTA\udp_ota.h
 .\objects\task_keyscan.o: ..\inc\ble_adv.h
 .\objects\task_keyscan.o: ..\..\cs\inc\cs_core.h
 .\objects\task_keyscan.o: ..\inc\userhard.h

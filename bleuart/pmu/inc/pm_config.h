@@ -28,7 +28,7 @@ extern "C" {
  *         【测试模式】改为 10000ms，方便验证状态切换
  */
 //#define PM_WORK_TO_STANDBY_MS         8000U
-#define PM_WORK_TO_STANDBY_MS         60000U   /* 测试用：10秒 */
+#define PM_WORK_TO_STANDBY_MS         4500000U   /* 测试用：10秒 */
 
 /**
  * @brief  最后一次活动 → 休眠态：总空闲超时（120 秒）
@@ -36,7 +36,7 @@ extern "C" {
  *         实际待在待机态的时长 = PM_STANDBY_TO_SLEEP_MS - PM_WORK_TO_STANDBY_MS
  */
 //#define PM_STANDBY_TO_SLEEP_MS       45000U
-#define PM_STANDBY_TO_SLEEP_MS       120000U   /* 测试用：45秒 */
+#define PM_STANDBY_TO_SLEEP_MS       9000000U   /* 测试用：120秒 */
 
 /**
  * @brief  回连态 → 休眠态：持续广播无连接超时（45 秒）
@@ -46,12 +46,12 @@ extern "C" {
  *         【测试模式】改为 45000ms，方便验证状态切换
  */
 //#define PM_RECONNECT_TIMEOUT_MS      45000U
-#define PM_RECONNECT_TIMEOUT_MS      120000U   /* 测试用：45秒 */
+#define PM_RECONNECT_TIMEOUT_MS      9000000U   /* 测试用：45秒 */
 
 /**
  * @brief  配对态 → 休眠态：广播无连接超时（30 秒）
  */
-#define PM_PAIRING_TIMEOUT_MS         120000U
+#define PM_PAIRING_TIMEOUT_MS         9000000U
 
 /*===========================================================================
  * 二、待机态 BLE 连接参数

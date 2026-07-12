@@ -10,8 +10,8 @@
 .\objects\app_rtos.o: ..\freertos\portable\RVDS\ARM_CM0\portmacro.h
 .\objects\app_rtos.o: ..\freertos\include\mpu_wrappers.h
 .\objects\app_rtos.o: ..\inc\app_voice_ctrl.h
-.\objects\app_rtos.o: ..\cat1\rc_cat1_bridge.h
-.\objects\app_rtos.o: ..\cat1\rc_protocol.h
+.\objects\app_rtos.o: ..\cat1\cat1\rc_cat1_bridge.h
+.\objects\app_rtos.o: ..\cat1\cat1\rc_protocol.h
 .\objects\app_rtos.o: ..\..\cs\inc\gap.h
 .\objects\app_rtos.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\app_rtos.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h

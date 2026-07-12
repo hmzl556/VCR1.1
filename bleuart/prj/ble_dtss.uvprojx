@@ -340,7 +340,7 @@
               <MiscControls>--diag_suppress=188 --diag_suppress=177</MiscControls>
               <Define>BR1601A01,USB_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\bsp\common\inc;..\..\bsp\core\inc;..\..\bsp\driver\inc;..\..\audio\audio_encode;..\..\audio\audio_code_sbc;..\..\cs\inc;..\inc;..\src;..\prj;..\..\audio\audio_code_adpcm;..\freertos\include;..\freertos;..\freertos\portable\RVDS\ARM_CM0;..\cat1;..\cat1;..\cat1\tiny-aes;..\pmu\inc;..\cat1\OTA</IncludePath>
+              <IncludePath>..\..\bsp\common\inc;..\..\bsp\core\inc;..\..\bsp\driver\inc;..\..\audio\audio_encode;..\..\audio\audio_code_sbc;..\..\cs\inc;..\inc;..\src;..\prj;..\..\audio\audio_code_adpcm;..\freertos\include;..\freertos;..\freertos\portable\RVDS\ARM_CM0;..\cat1;..\cat1;..\cat1\tiny-aes;..\pmu\inc;..\cat1\OTA;..\cat1\cat1;..\cat1\cat1\OTA;..\cat1\cat1\tiny-aes</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -550,59 +550,64 @@
           <GroupName>cat1</GroupName>
           <Files>
             <File>
-              <FileName>rc_key_input.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\cat1\rc_key_input.c</FilePath>
-            </File>
-            <File>
-              <FileName>aes.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\cat1\tiny-aes\aes.c</FilePath>
-            </File>
-            <File>
               <FileName>aes_transport.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\cat1\aes_transport.c</FilePath>
-            </File>
-            <File>
-              <FileName>cat1_skt_udp.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\cat1\cat1_skt_udp.c</FilePath>
-            </File>
-            <File>
-              <FileName>cat1_usart2.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\cat1\cat1_usart2.c</FilePath>
-            </File>
-            <File>
-              <FileName>remote_reports.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\cat1\remote_reports.c</FilePath>
-            </File>
-            <File>
-              <FileName>rc_cat1_bridge.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\cat1\rc_cat1_bridge.c</FilePath>
-            </File>
-            <File>
-              <FileName>rc_trans_assembly.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\cat1\rc_trans_assembly.c</FilePath>
+              <FilePath>..\cat1\cat1\aes_transport.c</FilePath>
             </File>
             <File>
               <FileName>ble_rc_svc.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\cat1\ble_rc_svc.c</FilePath>
+              <FilePath>..\cat1\cat1\ble_rc_svc.c</FilePath>
             </File>
             <File>
-              <FileName>rc_protocol.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\cat1\rc_protocol.h</FilePath>
+              <FileName>cat1_skt_udp.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\cat1_skt_udp.c</FilePath>
+            </File>
+            <File>
+              <FileName>cat1_time_sync.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\cat1_time_sync.c</FilePath>
+            </File>
+            <File>
+              <FileName>cat1_usart2.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\cat1_usart2.c</FilePath>
+            </File>
+            <File>
+              <FileName>rc_cat1_bridge.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\rc_cat1_bridge.c</FilePath>
+            </File>
+            <File>
+              <FileName>rc_key_input.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\rc_key_input.c</FilePath>
+            </File>
+            <File>
+              <FileName>rc_trans_assembly.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\rc_trans_assembly.c</FilePath>
+            </File>
+            <File>
+              <FileName>remote_reports.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\remote_reports.c</FilePath>
+            </File>
+            <File>
+              <FileName>aes.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\tiny-aes\aes.c</FilePath>
             </File>
             <File>
               <FileName>cat1_udp_config.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\cat1\cat1_udp_config.h</FilePath>
+              <FilePath>..\cat1\cat1\cat1_udp_config.h</FilePath>
+            </File>
+            <File>
+              <FileName>rc_protocol.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\cat1\cat1\rc_protocol.h</FilePath>
             </File>
           </Files>
         </Group>
@@ -772,22 +777,22 @@
             <File>
               <FileName>ota_crc.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\cat1\OTA\ota_crc.c</FilePath>
+              <FilePath>..\cat1\cat1\OTA\ota_crc.c</FilePath>
             </File>
             <File>
               <FileName>ota_frame.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\cat1\OTA\ota_frame.c</FilePath>
+              <FilePath>..\cat1\cat1\OTA\ota_frame.c</FilePath>
             </File>
             <File>
               <FileName>udp_bootload.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\cat1\OTA\udp_bootload.c</FilePath>
+              <FilePath>..\cat1\cat1\OTA\udp_bootload.c</FilePath>
             </File>
             <File>
               <FileName>udp_ota.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\cat1\OTA\udp_ota.c</FilePath>
+              <FilePath>..\cat1\cat1\OTA\udp_ota.c</FilePath>
             </File>
           </Files>
         </Group>
