@@ -1,9 +1,9 @@
 .\objects\ble_rc_svc.o: ..\cat1\cat1\ble_rc_svc.c
-.\objects\ble_rc_svc.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\ble_rc_svc.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
 .\objects\ble_rc_svc.o: ..\cat1\cat1\ble_rc_svc.h
 .\objects\ble_rc_svc.o: ..\..\cs\inc\gap.h
-.\objects\ble_rc_svc.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
-.\objects\ble_rc_svc.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\ble_rc_svc.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\ble_rc_svc.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\ble_rc_svc.o: ..\cat1\cat1\rc_protocol.h
 .\objects\ble_rc_svc.o: ..\inc\ble_gap.h
 .\objects\ble_rc_svc.o: ..\..\cs\inc\gatt.h
@@ -12,4 +12,4 @@
 .\objects\ble_rc_svc.o: ..\cat1\cat1\rc_cat1_bridge.h
 .\objects\ble_rc_svc.o: ..\cat1\cat1\remote_reports.h
 .\objects\ble_rc_svc.o: ..\cat1\cat1\cat1_udp_config.h
-.\objects\ble_rc_svc.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\ble_rc_svc.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stddef.h

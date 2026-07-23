@@ -15,6 +15,7 @@
 #include "task_ble.h"
 #include "ble_hid_kbd.h"
 #include "ble_diss.h"
+#include "ble_bas.h"
 #include "ble_rc_svc.h"
 #include "rc_key_input.h"
 #include "rc_cat1_bridge.h"
@@ -22,6 +23,7 @@
 #include "app_rtos.h"
 #include "pm_state.h"       /* 电源管理状态机 — 休眠/待机态控制 */
 #include "combo_key.h"      /* 组合键管理器（配对/解配）           */
+#include "iwdg.h"           /* IWDG 独立看门狗                     */
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -59,14 +61,6 @@ int ble_stack_init(void)
 
 	local_bd_init_from_chip();	// 从芯片读取本地蓝牙地址并初始化相关变量
 	cs_init(local_bd);			// 初始化核心模块，传入本地蓝牙地址以完成相关设置
-		/*
-	 * 深度睡眠唤醒后 Flash 需要额外建立时间才能稳定读取。
-	 * host_init() 会通过 BtInitStack 读取 NVDS 配置项，
-	 * 此处增加延时确保 Flash 模拟电路完全稳定。
-	 * delay_n_10us() 是纯指令循环，不依赖任何外设/调度器，
-	 * 100 个单位 = 1ms，相比整体启动时间 (~2500ms) 可忽略。
-	 */
-	delay_n_10us(100U);			/* 100 × 10μs = 1ms Flash 稳定延时 */
 	host_init();				// 初始化主机相关模块，准备好 BLE 栈的运行环境
 
 	NVIC_EnableIRQ(KEYSCAN_IRQn);	/* 恢复按键中断 */
@@ -105,6 +99,7 @@ uint8_t ble_stack_init_only(void)
 	hid_kbd_init();				// 初始化 HID 键盘服务
 	ble_dtss_init();			// 初始化 DTSS 服务
 	ble_rc_svc_init();			// 初始化 RC 服务
+	ble_bas_init();				// 初始化 BAS 电池服务
 
 	ble_gap_init();				// GAP 初始化 + peer_recover 绑定恢复
 	ble_adv_init();				// 初始化 BLE 广播（不调用 start，避免干扰 OTA）
@@ -129,40 +124,34 @@ int main(void)
 	delay_n_10us(50U * 100U);	// 上电后延时 50ms，等待电源稳定
 	initialGmem();				// 初始化全局内存与变量
 	initialGpio();				// 初始化 GPIO，主要是 LED
-	delay_n_10us(1000U * 100U);	// 延时 1s 让LTE上电稳定
+	delay_n_10us(1000U * 100U); // 上电后延时 1000ms，同步时间需要CAT1稳定下来
 	co_log_init();				// 初始化日志模块，后续可使用 co_printf 输出日志
-	ble_keyscan_init();			// 初始化按键扫描模块
-
-	// 注意：BLE 栈初始化较慢，必须在启动 FreeRTOS 之前完成
-	co_printf("\r\n\r\nInitialization complete, starting FreeRTOS...\r\n");
-	
-	// 输出固件的软件版本号
-	co_printf("[BOOT ] SW version: %s\r\n", RC_READ_VAL_DEVICE_SW_VERSION);
-
-	// 输出 C 语言堆内存大小，供调试参考
-	co_printf("C heap %u bytes\r\n", (unsigned)((char *)&__heap_limit - (char *)&__heap_base));
-
-	rc_cat1_init();				// 初始化 Cat.1 模块
-
-	app_rtos_init();			// 初始化 RTOS 相关资源，如信号量、消息队列等
 
 	/*
-	 * 初始化电源管理状态机（PMU）
-	 * - 根据绑定记录数量自动决定初始状态：有绑定→回连态，无绑定→配对态
-	 * - 必须在 app_rtos_init() 之后（后续休眠态可能使用 RTOS 资源）
-	 * - 必须在 BLE 任务启动之前，确保任务内首次 pm_state_process() 调用安全
+	 * 初始化 IWDG 独立看门狗：LSI 32KHz / 256 = 125Hz, 1250 ticks = 10 秒超时。
+	 * 休眠期间 LSI 停止，IWDG 随之停止，不会误触发。
 	 */
+	RCC->CTRLSTS |= RCC_CTRLSTS_RMRSTF;        /* 清除残留复位标志          */
+	IWDG_WriteConfig(IWDG_WRITE_ENABLE);
+	IWDG_SetPrescalerDiv(IWDG_PRESCALER_DIV256);
+	IWDG_CntReload(1250U);                     /* 10 秒超时                 */
+	IWDG_ReloadKey();
+	IWDG_Enable();
+
+	co_printf("\r\n\r\nInitialization complete, starting FreeRTOS...\r\n");
+	co_printf("[BR REMOTE] SW version: %s\r\n", RC_READ_VAL_DEVICE_SW_VERSION);
+	co_printf("C heap %u bytes\r\n", (unsigned)((char *)&__heap_limit - (char *)&__heap_base));
+
+	ble_keyscan_init();			// 初始化按键扫描模块
+	rc_cat1_init();				// 初始化 Cat.1 模块
+	app_rtos_init();			// 初始化 RTOS
 
 	pm_state_init();			// 初始化电源管理状态机
-	co_printf("[BOOT ] pm done\r\n");
-	
 	combo_key_init();			// 初始化组合键管理器
-	co_printf("[BOOT ] combo done\r\n");
 
 	(void)xTaskCreateStatic(task_ble_entry, "ble", 512, NULL, 3, s_ble_stack, &s_ble_tcb);
+	vTaskStartScheduler();		// 启动 FreeRTOS 调度器
 
-	vTaskStartScheduler();		// 启动 FreeRTOS 调度器，开始执行任务
-	
-	for (;;) {					// 理论上不应该执行到这里
+	for (;;) {
 	}
 }

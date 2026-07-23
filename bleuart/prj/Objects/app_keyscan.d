@@ -1,13 +1,13 @@
 .\objects\app_keyscan.o: ..\src\app_keyscan.c
-.\objects\app_keyscan.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\app_keyscan.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
 .\objects\app_keyscan.o: ..\inc\app_keyscan.h
 .\objects\app_keyscan.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\app_keyscan.o: ..\..\bsp\core\inc\core_cm0.h
-.\objects\app_keyscan.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\app_keyscan.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\app_keyscan.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\app_keyscan.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\app_keyscan.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\app_keyscan.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\app_keyscan.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\app_keyscan.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\app_keyscan.o: ..\..\bsp\driver\inc\adc.h
 .\objects\app_keyscan.o: ..\..\bsp\core\inc\br1601x.h

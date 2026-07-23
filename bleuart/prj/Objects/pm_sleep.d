@@ -1,10 +1,10 @@
 .\objects\pm_sleep.o: ..\pmu\src\pm_sleep.c
 .\objects\pm_sleep.o: ..\pmu\inc\pm_config.h
-.\objects\pm_sleep.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\pm_sleep.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\pm_sleep.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\pm_sleep.o: ..\pmu\inc\pm_sleep.h
-.\objects\pm_sleep.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
-.\objects\pm_sleep.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\pm_sleep.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\pm_sleep.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
 .\objects\pm_sleep.o: ..\..\bsp\driver\inc\pwr.h
 .\objects\pm_sleep.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\pm_sleep.o: ..\..\bsp\core\inc\core_cm0.h
@@ -37,4 +37,6 @@
 .\objects\pm_sleep.o: ..\inc\ble_adv.h
 .\objects\pm_sleep.o: ..\inc\userhard.h
 .\objects\pm_sleep.o: ..\cat1\cat1\cat1_skt_udp.h
+.\objects\pm_sleep.o: ..\cat1\cat1\cat1_usart2.h
+.\objects\pm_sleep.o: ..\cat1\cat1\cat1_udp_config.h
 .\objects\pm_sleep.o: ..\src\app_audio_pcm.h

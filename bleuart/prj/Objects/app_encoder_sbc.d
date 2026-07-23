@@ -1,14 +1,14 @@
 .\objects\app_encoder_sbc.o: ..\src\app_encoder_sbc.c
 .\objects\app_encoder_sbc.o: ..\src\app_encoder_sbc.h
-.\objects\app_encoder_sbc.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\app_encoder_sbc.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\app_encoder_sbc.o: ..\inc\sys/types.h
-.\objects\app_encoder_sbc.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\app_encoder_sbc.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stddef.h
 .\objects\app_encoder_sbc.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\app_encoder_sbc.o: ..\..\bsp\core\inc\core_cm0.h
 .\objects\app_encoder_sbc.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\app_encoder_sbc.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\app_encoder_sbc.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\app_encoder_sbc.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\app_encoder_sbc.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\app_encoder_sbc.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\app_encoder_sbc.o: ..\..\bsp\driver\inc\adc.h
 .\objects\app_encoder_sbc.o: ..\..\bsp\core\inc\br1601x.h
@@ -31,7 +31,7 @@
 .\objects\app_encoder_sbc.o: ..\..\bsp\driver\inc\misc.h
 .\objects\app_encoder_sbc.o: ..\src\sbc.h
 .\objects\app_encoder_sbc.o: ..\..\bsp\common\inc\co_printf.h
-.\objects\app_encoder_sbc.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\app_encoder_sbc.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
 .\objects\app_encoder_sbc.o: ..\src\blecomm.h
 .\objects\app_encoder_sbc.o: ..\inc\gmem.h
 .\objects\app_encoder_sbc.o: ..\..\cs\inc\gap.h

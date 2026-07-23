@@ -2,11 +2,11 @@
 .\objects\cat1_skt_udp.o: ..\cat1\cat1\cat1_skt_udp.h
 .\objects\cat1_skt_udp.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\cat1_skt_udp.o: ..\..\bsp\core\inc\core_cm0.h
-.\objects\cat1_skt_udp.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\cat1_skt_udp.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\cat1_skt_udp.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\cat1_skt_udp.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\cat1_skt_udp.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\cat1_skt_udp.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\cat1_skt_udp.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\cat1_skt_udp.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\cat1_skt_udp.o: ..\..\bsp\driver\inc\adc.h
 .\objects\cat1_skt_udp.o: ..\..\bsp\core\inc\br1601x.h
@@ -32,7 +32,7 @@
 .\objects\cat1_skt_udp.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\cat1_skt_udp.o: ..\..\cs\inc\br_timer.h
 .\objects\cat1_skt_udp.o: ..\cat1\cat1\cat1_time_sync.h
-.\objects\cat1_skt_udp.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
-.\objects\cat1_skt_udp.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdlib.h
-.\objects\cat1_skt_udp.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
-.\objects\cat1_skt_udp.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdio.h
+.\objects\cat1_skt_udp.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\cat1_skt_udp.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdlib.h
+.\objects\cat1_skt_udp.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
+.\objects\cat1_skt_udp.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdio.h

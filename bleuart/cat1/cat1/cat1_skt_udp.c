@@ -15,7 +15,9 @@
 #include <string.h>
 #include <stdio.h>
 
-#define CAT1_TOTAL_WAIT_MS  2000u
+#ifndef CAT1_AT_TOTAL_WAIT_MS
+#define CAT1_AT_TOTAL_WAIT_MS  4000u
+#endif
 
 typedef enum {
 	AT_PHASE_IDLE = 0,
@@ -37,6 +39,7 @@ typedef enum {
 	SETUP_PHASE_CCLK,
 	SETUP_PHASE_CGATT_PENDING,
 	SETUP_PHASE_CGATT,
+	SETUP_PHASE_CGATT_RETRY_WAIT, /* CGATT=0，间隔后再查 */
 	SETUP_PHASE_CGPADDR_PENDING,
 	SETUP_PHASE_CGPADDR,
 	SETUP_PHASE_CLOSE_PENDING,
@@ -54,7 +57,6 @@ static char     s_modem_line[CAT1_AT_LINE_MAX];
 static char     s_ecsonmi_line[CAT1_ECSONMI_LINE_MAX];
 static char     s_modem_rsp[CAT1_MODEM_RSP_CAP];
 static unsigned s_urc_line_len;
-static uint8_t  s_modem_rsp_accum;
 static uint8_t  s_ota_uplink_wait;
 static uint8_t  s_recv_allow = 1u;
 static uint8_t *s_recv_target;
@@ -63,12 +65,13 @@ static uint16_t s_recv_pdu_len;
 static uint8_t  s_recv_pending;
 
 static uint8_t  s_ecsonmi_pending;
+static uint8_t  s_ecsonmi_extra;   /* pending 已占用时再来的 URC 计数 */
 static uint16_t s_ecsonmi_len;
 static uint32_t s_ecsonmi_at_ms;
 static uint8_t  s_idle_ecsorf_active;
 static uint8_t  s_ecsorf_empty_retry;
+static uint8_t  s_ecsorf_mismatch_retry; /* mismatch 后再读次数（与 empty 分计） */
 static uint8_t  s_ecsorf_wait_retry;
-static uint8_t  s_ecsorf_first_delay_logged;
 static uint8_t  s_ecsorf_line_overflow_logged;
 static uint8_t  s_ecsorf_last_mismatch;
 static uint32_t s_ecsorf_retry_at_ms;
@@ -84,13 +87,22 @@ static char             *s_at_rsp;
 static unsigned          s_at_rsp_cap;
 static unsigned          s_at_rsp_len;
 static uint8_t           s_at_got_ok;
+static uint8_t           s_ecsost_uplink_ok;   /* ECSOST 已 OK（ECSORF 重试会清 s_at_got_ok） */
+static uint8_t           s_uplink_ok_event;    /* 供 bridge 立刻打 send OK */
+static uint8_t           s_downlink_fail_event;/* 上行已 OK 但 ECSORF 放弃 */
+static uint8_t           s_downlink_idle_event;/* 上行已 OK 且下行窗口空等无 URC/PDU */
+static uint8_t           s_socket_gone_event;  /* CME 406 等：本地 sock 已失效 */
 static unsigned          s_at_line_len;
-static cat1_modem_result_t s_at_last_done;
 
 static setup_phase_t s_setup_phase;
+static uint32_t      s_cgatt_wait_start_ms; /* 首次 CGATT=0 时刻；0=未进入等待 */
+static uint32_t      s_cgatt_next_ms;       /* 下次允许发 CGATT? 的时刻 */
 
 static void cat1_ecso_issue_ecsorf(void);
 static void cat1_ecso_try_start_ecsorf_read(void);
+static void cat1_ecsonmi_pending_clear(void);
+static void cat1_socket_mark_gone(const char *reason);
+static int cat1_parse_cme_err(const char *line);
 
 static uint32_t cat1_ms_elapsed(uint32_t since_ms)
 {
@@ -100,6 +112,41 @@ static uint32_t cat1_ms_elapsed(uint32_t since_ms)
 		return now_ms - since_ms;
 	}
 	return (0xFFFFFFFFu - since_ms) + now_ms + 1u;
+}
+
+static void cat1_ecsonmi_pending_clear(void)
+{
+	s_ecsonmi_pending = 0u;
+	s_ecsonmi_extra = 0u;
+	s_ecsonmi_len = 0u;
+	s_ecsonmi_at_ms = 0u;
+}
+
+/** NT26 方案 B：406=不能找到套接字；本地句柄失效并通知 bridge 重建 */
+static void cat1_socket_mark_gone(const char *reason)
+{
+	co_printf("[CAT1 UDP] socket gone: %s (was sock=%u)\r\n",
+	          (reason != NULL) ? reason : "?", (unsigned)s_sock_id);
+	s_sock_id = 255u;
+	cat1_ecsonmi_pending_clear();
+	s_socket_gone_event = 1u;
+}
+
+static int cat1_parse_cme_err(const char *line)
+{
+	const char *p;
+
+	if (line == NULL || strncmp(line, "+CME ERROR:", 11) != 0) {
+		return -1;
+	}
+	p = line + 11;
+	while (*p == ' ' || *p == '\t') {
+		p++;
+	}
+	if (*p < '0' || *p > '9') {
+		return -1;
+	}
+	return atoi(p);
 }
 
 static void bin_to_hex_upper(const uint8_t *in, uint16_t inlen, char *hex, unsigned hex_cap)
@@ -215,7 +262,7 @@ static void cat1_ecsorf_log_parse_fail(const char *line, const char *reason,
 		head[i] = (char)((c >= 0x20 && c < 0x7f) ? c : '.');
 	}
 	head[n] = '\0';
-	co_printf("[CAT1 UDP] ECSORF parse fail: %s line_len=%u data_len=%u hex_len=%u cap=%u head=%s\r\n",
+	CAT1_UDP_LOG("[CAT1 UDP] ECSORF parse fail: %s line_len=%u data_len=%u hex_len=%u cap=%u head=%s\r\n",
 	          reason, line_len, data_len, hex_len, (unsigned)s_recv_target_cap, head);
 }
 
@@ -238,15 +285,54 @@ static int cat1_ecsorf_try_parse_data_line(const char *line)
 	hex_open = cat1_find_nth_quote(parse_line, 3);
 	hex_close = cat1_find_nth_quote(parse_line, 4);
 	if (hex_open == NULL || hex_close == NULL || hex_close <= hex_open) {
+		/*
+		 * 脏行少引号（UART 丢 1B 常见）：先按 "6868"+ECSONMI 长度抢救；
+		 * 失败则标 mismatch，OK 后走 mismatch 重试（勿当 empty OK 刷 5 次）。
+		 */
+		if (s_ecsonmi_len >= 5u
+		    && (unsigned)s_ecsonmi_len <= (unsigned)s_recv_target_cap) {
+			const char *p6868 = strstr(parse_line, "6868");
+
+			if (p6868 != NULL) {
+				unsigned need = (unsigned)s_ecsonmi_len * 2u;
+				unsigned avail = (unsigned)strlen(p6868);
+
+				if (avail >= need
+				    && hex_to_bin(p6868, need, s_recv_target, s_recv_target_cap,
+				                  &s_recv_pdu_len) == 0
+				    && s_recv_target != NULL
+				    && s_recv_pdu_len == (uint16_t)s_ecsonmi_len) {
+					CAT1_UDP_LOG("[CAT1 UDP] ECSORF recover 6868 %uB (no_data_quotes)\r\n",
+					          (unsigned)s_ecsonmi_len);
+					s_recv_pending = 1u;
+					if (s_ecsonmi_extra > 0u) {
+						s_ecsonmi_extra--;
+						s_ecsonmi_pending = 1u;
+						s_ecsonmi_at_ms = sdk_timer_get_current_ms();
+					} else {
+						s_ecsonmi_pending = 0u;
+						s_ecsonmi_len = 0u;
+						s_ecsonmi_at_ms = 0u;
+					}
+					s_ecsorf_empty_retry = 0u;
+					s_ecsorf_mismatch_retry = 0u;
+					s_ecsorf_wait_retry = 0u;
+					s_ecsorf_last_mismatch = 0u;
+					return 1;
+				}
+			}
+		}
 		if (parse_line[0] == '+' || (parse_line[0] >= '0' && parse_line[0] <= '9')) {
 			cat1_ecsorf_log_parse_fail(parse_line, "no_data_quotes", 0u, 0u);
+			s_ecsorf_last_mismatch = 1u;
 		}
-		return 0;
+		return -1;
 	}
 
 	after_ip = cat1_find_nth_quote(parse_line, 2);
 	if (after_ip == NULL) {
 		cat1_ecsorf_log_parse_fail(parse_line, "no_ip_quote", 0u, 0u);
+		s_ecsorf_last_mismatch = 1u;
 		return -1;
 	}
 	len_start = after_ip + 1u;
@@ -258,6 +344,7 @@ static int cat1_ecsorf_try_parse_data_line(const char *line)
 	}
 	if (*len_start != ',') {
 		cat1_ecsorf_log_parse_fail(parse_line, "bad_len_field", 0u, 0u);
+		s_ecsorf_last_mismatch = 1u;
 		return -1;
 	}
 	len_start++;
@@ -268,23 +355,53 @@ static int cat1_ecsorf_try_parse_data_line(const char *line)
 
 	hex = hex_open + 1u;
 	hex_len = (unsigned)(hex_close - hex);
+	/* 脏行偶发奇数 hex：去掉末尾半个 nibble 再对齐 */
+	if ((hex_len & 1u) != 0u && hex_len >= 3u) {
+		hex_len -= 1u;
+	}
 	if (hex_len != data_len * 2u) {
 		/*
-		 * 模组偶发 hex 串比声明长度少 1~2 个 nibble（UART 与 BLE 并发时常见）。
-		 * 若 hex 为偶数且不超过声明长度，按 hex 实长解码。
+		 * 模组偶发声明长度与 hex 不一致（UART 并发串线）：
+		 * 1) hex 与 ECSONMI 声明等长，或以 6868 开头且对齐 → 信任 hex；
+		 * 2) 脏行中搜索 "6868 并按 ecsonmi_len 完整截取；
+		 * 3) 其余（含 hex 少 1B）一律 mismatch → 重读，勿把半包当 recv OK。
 		 */
 		if ((hex_len & 1u) == 0u && hex_len >= 2u) {
 			unsigned hex_bytes = hex_len / 2u;
 
-			if (hex_bytes <= (unsigned)s_recv_target_cap && hex_bytes <= data_len
-			    && hex_bytes + 1u >= data_len) {
-				co_printf("[CAT1 UDP] ECSORF hex short %u/%u, use %u bytes\r\n",
-				          hex_len, data_len * 2u, hex_bytes);
+			if (hex_bytes <= (unsigned)s_recv_target_cap && hex_bytes >= 5u
+			    && s_ecsonmi_len != 0u && hex_bytes == (unsigned)s_ecsonmi_len) {
+				CAT1_UDP_LOG("[CAT1 UDP] ECSORF len trust hex %uB (declared=%u)\r\n",
+				          hex_bytes, data_len);
 				data_len = hex_bytes;
 			} else {
-				cat1_ecsorf_log_parse_fail(parse_line, "len_mismatch", data_len, hex_len);
-				s_ecsorf_last_mismatch = 1u;
-				return -1;
+				const char *p6868 = strstr(hex, "6868");
+
+				if (p6868 != NULL && s_ecsonmi_len >= 5u
+				    && (unsigned)s_ecsonmi_len <= (unsigned)s_recv_target_cap) {
+					unsigned need = (unsigned)s_ecsonmi_len * 2u;
+					unsigned avail = hex_len - (unsigned)(p6868 - hex);
+
+					if (avail >= need) {
+						hex = p6868;
+						hex_len = need;
+						data_len = (unsigned)s_ecsonmi_len;
+						CAT1_UDP_LOG("[CAT1 UDP] ECSORF recover 6868 %uB from dirty line\r\n",
+						          data_len);
+					} else {
+						CAT1_UDP_LOG("[CAT1 UDP] ECSORF hex short %u/%u, reject\r\n",
+						          hex_len, data_len * 2u);
+						cat1_ecsorf_log_parse_fail(parse_line, "len_mismatch", data_len, hex_len);
+						s_ecsorf_last_mismatch = 1u;
+						return -1;
+					}
+				} else {
+					CAT1_UDP_LOG("[CAT1 UDP] ECSORF hex short %u/%u, reject\r\n",
+					          hex_len, data_len * 2u);
+					cat1_ecsorf_log_parse_fail(parse_line, "len_mismatch", data_len, hex_len);
+					s_ecsorf_last_mismatch = 1u;
+					return -1;
+				}
 			}
 		} else {
 			cat1_ecsorf_log_parse_fail(parse_line, "len_mismatch", data_len, hex_len);
@@ -298,7 +415,7 @@ static int cat1_ecsorf_try_parse_data_line(const char *line)
 		return -1;
 	}
 	if (s_recv_pending != 0u) {
-		co_printf("[CAT1 UDP] ECSORF pending, drop new line\r\n");
+		CAT1_UDP_LOG("[CAT1 UDP] ECSORF pending, drop new line\r\n");
 		return 0;
 	}
 	if (s_recv_allow == 0u) {
@@ -313,12 +430,19 @@ static int cat1_ecsorf_try_parse_data_line(const char *line)
 	}
 
 	s_recv_pending = 1u;
-	s_ecsonmi_pending = 0u;
-	s_ecsonmi_len = 0u;
-	s_ecsonmi_at_ms = 0u;
+	if (s_ecsonmi_extra > 0u) {
+		s_ecsonmi_extra--;
+		s_ecsonmi_pending = 1u;
+		s_ecsonmi_at_ms = sdk_timer_get_current_ms();
+		/* s_ecsonmi_len 保留最近一次 URC 声明长度 */
+	} else {
+		s_ecsonmi_pending = 0u;
+		s_ecsonmi_len = 0u;
+		s_ecsonmi_at_ms = 0u;
+	}
 	s_ecsorf_empty_retry = 0u;
+	s_ecsorf_mismatch_retry = 0u;
 	s_ecsorf_wait_retry = 0u;
-	s_ecsorf_first_delay_logged = 0u;
 	s_ecsorf_last_mismatch = 0u;
 	return 1;
 }
@@ -329,17 +453,25 @@ static void cat1_on_ecsonmi(uint16_t len)
 		return;
 	}
 	if (s_ecsonmi_pending != 0u) {
-		co_printf("[CAT1 UDP] ECSONMI pending, drop new URC\r\n");
+		if (s_ecsonmi_extra < 8u) {
+			s_ecsonmi_extra++;
+			s_ecsonmi_len = len;
+			s_ecsonmi_at_ms = sdk_timer_get_current_ms();
+			CAT1_UDP_LOG("[CAT1 UDP] ECSONMI queued extra=%u len=%u\r\n",
+			          (unsigned)s_ecsonmi_extra, (unsigned)len);
+		} else {
+			CAT1_UDP_LOG("[CAT1 UDP] ECSONMI pending, drop new URC\r\n");
+		}
 		return;
 	}
 	s_ecsonmi_pending = 1u;
 	s_ecsonmi_len = len;
 	s_ecsonmi_at_ms = sdk_timer_get_current_ms();
 	s_ecsorf_empty_retry = 0u;
+	s_ecsorf_mismatch_retry = 0u;
 	s_ecsorf_wait_retry = 0u;
-	s_ecsorf_first_delay_logged = 0u;
 	s_ecsorf_last_mismatch = 0u;
-	co_printf("[CAT1 UDP] ECSONMI recv sock=%u len=%u\r\n",
+	CAT1_UDP_LOG("[CAT1 UDP] ECSONMI recv sock=%u len=%u\r\n",
 	          (unsigned)s_sock_id, (unsigned)len);
 }
 
@@ -367,7 +499,7 @@ static int cat1_ecso_try_parse_ecsonmi_line(const char *line)
 	p++;
 	len = (unsigned)atoi(p);
 	if (sock != (unsigned)s_sock_id && s_sock_id != 255u) {
-		co_printf("[CAT1 UDP] ECSONMI sock=%u expect=%u\r\n",
+		CAT1_UDP_LOG("[CAT1 UDP] ECSONMI sock=%u expect=%u\r\n",
 		          sock, (unsigned)s_sock_id);
 		return 0;
 	}
@@ -375,26 +507,51 @@ static int cat1_ecso_try_parse_ecsonmi_line(const char *line)
 	return 1;
 }
 
-static void cat1_skt_udp_feed_char(char c)
+/**
+ * @brief  仅拼 +ECSONMI URC；匹配失败时把已吃字节交回命令行（见 s_urc_spill）
+ * @return 1=本字节归 URC；0=归命令应答（可能先附带 spill）
+ */
+static char     s_urc_spill[12];
+static uint8_t  s_urc_spill_len;
+
+static uint8_t cat1_skt_udp_feed_char(char c)
 {
-	if (s_modem_rsp_accum != 0u) {
-		return;
-	}
+	static const char s_ecsonmi_pref[] = "+ECSONMI:";
 
 	if (c == '\r') {
-		return;
+		return (uint8_t)(s_urc_line_len > 0u ? 1u : 0u);
 	}
 	if (c == '\n') {
 		if (s_urc_line_len > 0u) {
 			s_ecsonmi_line[s_urc_line_len] = '\0';
-			(void)cat1_ecso_try_parse_ecsonmi_line(s_ecsonmi_line);
+			if (strncmp(s_ecsonmi_line, s_ecsonmi_pref, 9u) == 0) {
+				(void)cat1_ecso_try_parse_ecsonmi_line(s_ecsonmi_line);
+				s_urc_line_len = 0u;
+				return 1u;
+			}
+			/* 非 ECSONMI 的 + 行：交回命令解析（+CME ERROR 等） */
+			if (s_urc_line_len < sizeof(s_urc_spill)) {
+				memcpy(s_urc_spill, s_ecsonmi_line, s_urc_line_len);
+				s_urc_spill_len = (uint8_t)s_urc_line_len;
+			}
+			s_urc_line_len = 0u;
+			return 0u;
 		}
-		s_urc_line_len = 0u;
-		return;
+		return 0u;
 	}
 
 	if (s_urc_line_len == 0u && c != '+') {
-		return;
+		return 0u;
+	}
+
+	/* 前缀必须逐步匹配 +ECSONMI:，否则吐回已缓存字节 */
+	if (s_urc_line_len < 9u && c != s_ecsonmi_pref[s_urc_line_len]) {
+		if (s_urc_line_len > 0u && s_urc_line_len < sizeof(s_urc_spill)) {
+			memcpy(s_urc_spill, s_ecsonmi_line, s_urc_line_len);
+			s_urc_spill_len = (uint8_t)s_urc_line_len;
+		}
+		s_urc_line_len = 0u;
+		return 0u; /* 当前字节由命令行接收 */
 	}
 
 	if (s_urc_line_len + 1u < sizeof(s_ecsonmi_line)) {
@@ -403,21 +560,70 @@ static void cat1_skt_udp_feed_char(char c)
 		co_printf("[CAT1 UDP] ECSONMI line overflow, drop\r\n");
 		s_urc_line_len = 0u;
 	}
+	return 1u;
 }
 
 static void cat1_modem_finish(cat1_modem_result_t result)
 {
+	(void)result;
 	s_at_active = 0u;
 	s_at_phase = AT_PHASE_IDLE;
-	s_modem_rsp_accum = 0u;
 	s_idle_ecsorf_active = 0u;
 	s_ecsorf_wait_retry = 0u;
-	s_at_last_done = result;
+	s_urc_spill_len = 0u;
+}
+
+static void cat1_modem_note_ecsost_ok(void)
+{
+	s_ecsost_uplink_ok = 1u;
+	/* 业务 wait_after_ok>0：上报成功事件；OTA wait=0 由 bridge 在 complete 打日志 */
+	if (s_at_wait_after_ok_ms != 0u) {
+		s_uplink_ok_event = 1u;
+	}
+}
+
+uint8_t cat1_skt_udp_take_uplink_ok_event(void)
+{
+	uint8_t ev = s_uplink_ok_event;
+	s_uplink_ok_event = 0u;
+	return ev;
+}
+
+uint8_t cat1_skt_udp_take_downlink_fail_event(void)
+{
+	uint8_t ev = s_downlink_fail_event;
+	s_downlink_fail_event = 0u;
+	return ev;
+}
+
+uint8_t cat1_skt_udp_take_downlink_idle_event(void)
+{
+	uint8_t ev = s_downlink_idle_event;
+	s_downlink_idle_event = 0u;
+	return ev;
+}
+
+uint8_t cat1_skt_udp_take_socket_gone_event(void)
+{
+	uint8_t ev = s_socket_gone_event;
+	s_socket_gone_event = 0u;
+	return ev;
+}
+
+static cat1_modem_result_t cat1_ecsorf_finish_give_up(void)
+{
+	cat1_ecsonmi_pending_clear();
+	if (s_ecsost_uplink_ok != 0u) {
+		s_downlink_fail_event = 1u;
+		cat1_modem_finish(CAT1_MODEM_OK);
+		return CAT1_MODEM_OK;
+	}
+	cat1_modem_finish(CAT1_MODEM_FAIL);
+	return CAT1_MODEM_FAIL;
 }
 
 static void cat1_ecsorf_schedule_empty_retry(void)
 {
-	s_modem_rsp_accum = 0u;
 	s_at_got_ok = 0u;
 	s_at_line_len = 0u;
 	s_at_phase = AT_PHASE_WAIT_DOWNLINK;
@@ -431,14 +637,30 @@ static cat1_modem_result_t cat1_ecsorf_handle_empty_ok(void)
 		cat1_modem_finish(CAT1_MODEM_OK);
 		return CAT1_MODEM_OK;
 	}
+	/* mismatch：最多再试 MISMATCH_RETRY_MAX 次；其后 empty 直接放弃 */
 	if (s_ecsorf_last_mismatch != 0u) {
-		co_printf("[CAT1 UDP] ECSORF mismatch, retry read (ecsonmi=%u)\r\n",
-		          (unsigned)s_ecsonmi_len);
 		s_ecsorf_last_mismatch = 0u;
+		if (s_ecsorf_mismatch_retry < CAT1_ECSORF_MISMATCH_RETRY_MAX) {
+			s_ecsorf_mismatch_retry++;
+			CAT1_UDP_LOG("[CAT1 UDP] ECSORF mismatch, retry %u/%u (ecsonmi=%u)\r\n",
+			          (unsigned)s_ecsorf_mismatch_retry,
+			          (unsigned)CAT1_ECSORF_MISMATCH_RETRY_MAX,
+			          (unsigned)s_ecsonmi_len);
+			cat1_ecsorf_schedule_empty_retry();
+			return CAT1_MODEM_BUSY;
+		}
+		co_printf("[CAT1 UDP] ECSORF mismatch, give up (ecsonmi=%u)\r\n",
+		          (unsigned)s_ecsonmi_len);
+		return cat1_ecsorf_finish_give_up();
+	}
+	if (s_ecsorf_mismatch_retry > 0u) {
+		co_printf("[CAT1 UDP] ECSORF empty after mismatch retry, give up (ecsonmi=%u)\r\n",
+		          (unsigned)s_ecsonmi_len);
+		return cat1_ecsorf_finish_give_up();
 	}
 	if (s_ecsorf_empty_retry < CAT1_ECSORF_EMPTY_RETRY_MAX) {
 		s_ecsorf_empty_retry++;
-		co_printf("[CAT1 UDP] ECSORF empty OK, retry %u/%u (ecsonmi=%u)\r\n",
+		CAT1_UDP_LOG("[CAT1 UDP] ECSORF empty OK, retry %u/%u (ecsonmi=%u)\r\n",
 		          (unsigned)s_ecsorf_empty_retry,
 		          (unsigned)CAT1_ECSORF_EMPTY_RETRY_MAX,
 		          (unsigned)s_ecsonmi_len);
@@ -447,12 +669,7 @@ static cat1_modem_result_t cat1_ecsorf_handle_empty_ok(void)
 	}
 	co_printf("[CAT1 UDP] ECSORF no data after %u retries, ecsonmi_len=%u\r\n",
 	          (unsigned)CAT1_ECSORF_EMPTY_RETRY_MAX, (unsigned)s_ecsonmi_len);
-	s_ecsonmi_pending = 0u;
-	s_ecsonmi_len = 0u;
-	s_ecsonmi_at_ms = 0u;
-	s_ecsorf_first_delay_logged = 0u;
-	cat1_modem_finish(CAT1_MODEM_FAIL);
-	return CAT1_MODEM_FAIL;
+	return cat1_ecsorf_finish_give_up();
 }
 
 static uint8_t cat1_ecsorf_delay_elapsed(void)
@@ -460,7 +677,7 @@ static uint8_t cat1_ecsorf_delay_elapsed(void)
 	uint32_t need_ms;
 	uint32_t since_ms;
 
-	if (s_ecsorf_empty_retry > 0u) {
+	if (s_ecsorf_empty_retry > 0u || s_ecsorf_mismatch_retry > 0u) {
 		if (s_ecsorf_wait_retry == 0u) {
 			return 1u;
 		}
@@ -478,17 +695,12 @@ static void cat1_ecsorf_arm_delay(void)
 	if (s_ecsorf_wait_retry != 0u) {
 		return;
 	}
+	/* 首次读 FIRST_DELAY=0：不等待；仅空 OK 重试需要延时 */
 	if (s_ecsorf_empty_retry == 0u) {
-		if (s_ecsorf_first_delay_logged == 0u) {
-			co_printf("[CAT1 UDP] ECSORF wait first %u ms (ecsonmi=%u)\r\n",
-			          (unsigned)CAT1_ECSORF_FIRST_DELAY_MS, (unsigned)s_ecsonmi_len);
-			s_ecsorf_first_delay_logged = 1u;
-		}
-	} else {
-		s_ecsorf_retry_at_ms = sdk_timer_get_current_ms();
+		return;
 	}
+	s_ecsorf_retry_at_ms = sdk_timer_get_current_ms();
 	s_ecsorf_wait_retry = 1u;
-	s_modem_rsp_accum = 0u;
 	s_at_got_ok = 0u;
 	s_at_line_len = 0u;
 	if (s_at_phase == AT_PHASE_WAIT_ECSORF) {
@@ -519,15 +731,19 @@ static void cat1_modem_begin_wait(char *rsp, unsigned cap, uint8_t allow_error,
 	s_at_allow_error = allow_error;
 	s_at_wait_after_ok_ms = wait_after_ok_ms;
 	s_at_total_wait_ms = (wait_after_ok_ms == 0u) ? CAT1_OTA_AT_TOTAL_WAIT_MS
-	                                               : CAT1_TOTAL_WAIT_MS;
+	                                               : CAT1_AT_TOTAL_WAIT_MS;
 	s_ota_uplink_wait = (uint8_t)(wait_after_ok_ms == 0u && s_wait_downlink_chunk != 0u
 	                              && rsp == NULL);
 	s_at_rsp = rsp;
 	s_at_rsp_cap = cap;
 	s_at_rsp_len = 0u;
 	s_at_got_ok = 0u;
+	s_ecsost_uplink_ok = 0u;
+	s_uplink_ok_event = 0u;
+	s_downlink_fail_event = 0u;
+	s_downlink_idle_event = 0u;
 	s_at_line_len = 0u;
-	s_modem_rsp_accum = (rsp != NULL && cap > 0u) ? 1u : 0u;
+	s_urc_spill_len = 0u;
 
 	if (rsp != NULL && cap > 0u) {
 		rsp[0] = '\0';
@@ -546,7 +762,6 @@ static void cat1_ecso_issue_ecsorf(void)
 	s_at_rsp_cap = (unsigned)sizeof(s_modem_rsp);
 	s_at_rsp_len = 0u;
 	s_modem_rsp[0] = '\0';
-	s_modem_rsp_accum = 1u;
 	s_ecsorf_line_overflow_logged = 0u;
 }
 
@@ -566,7 +781,7 @@ static void cat1_ecso_try_start_ecsorf_read(void)
 		s_idle_ecsorf_active = 1u;
 		s_at_active = 1u;
 		s_at_start_ms = sdk_timer_get_current_ms();
-		s_at_total_wait_ms = CAT1_TOTAL_WAIT_MS;
+		s_at_total_wait_ms = CAT1_AT_TOTAL_WAIT_MS;
 		s_at_allow_error = 0u;
 		s_at_wait_after_ok_ms = 0u;
 		s_ota_uplink_wait = 0u;
@@ -593,7 +808,18 @@ void cat1_skt_udp_finish_active_ok(void)
 
 static cat1_modem_result_t cat1_modem_process_byte(uint8_t b)
 {
-	cat1_skt_udp_feed_char((char)b);
+	uint8_t urc_taken = cat1_skt_udp_feed_char((char)b);
+	uint8_t i;
+
+	/* 误判 URC 后吐回的前缀，并入命令应答行 */
+	if (s_urc_spill_len > 0u) {
+		for (i = 0u; i < s_urc_spill_len; i++) {
+			if (s_at_line_len + 1u < CAT1_AT_LINE_MAX) {
+				s_modem_line[s_at_line_len++] = s_urc_spill[i];
+			}
+		}
+		s_urc_spill_len = 0u;
+	}
 
 	if (s_at_rsp != NULL && s_at_rsp_cap > 0u && s_at_rsp_len + 1u < s_at_rsp_cap) {
 		s_at_rsp[s_at_rsp_len++] = (char)b;
@@ -601,6 +827,19 @@ static cat1_modem_result_t cat1_modem_process_byte(uint8_t b)
 	}
 
 	if (b == '\n') {
+		if (urc_taken != 0u) {
+			s_at_line_len = 0u;
+			if (s_ecsonmi_pending != 0u
+			    && (s_at_phase == AT_PHASE_WAIT_DOWNLINK || s_ota_uplink_wait != 0u)) {
+				cat1_ecso_try_start_ecsorf_read();
+			}
+			cat1_ecsorf_try_retry_after_delay();
+			if (s_at_got_ok != 0u && s_recv_pending != 0u && s_at_phase != AT_PHASE_WAIT_ECSORF) {
+				cat1_modem_finish(CAT1_MODEM_OK);
+				return CAT1_MODEM_OK;
+			}
+			return CAT1_MODEM_BUSY;
+		}
 		s_modem_line[s_at_line_len] = '\0';
 		if (s_at_phase == AT_PHASE_WAIT_ECSORF && s_at_line_len > 0u
 		    && strncmp(s_modem_line, "OK", 2) != 0
@@ -614,6 +853,9 @@ static cat1_modem_result_t cat1_modem_process_byte(uint8_t b)
 			s_at_ok_at_ms = sdk_timer_get_current_ms();
 			if (s_at_phase == AT_PHASE_WAIT_ECSORF) {
 				return cat1_ecsorf_handle_empty_ok();
+			}
+			if (s_at_phase == AT_PHASE_WAIT_OK) {
+				cat1_modem_note_ecsost_ok();
 			}
 			if (s_at_wait_after_ok_ms == 0u && s_ota_uplink_wait != 0u) {
 				if (s_recv_pending != 0u) {
@@ -635,21 +877,43 @@ static cat1_modem_result_t cat1_modem_process_byte(uint8_t b)
 				cat1_modem_finish(CAT1_MODEM_OK);
 				return CAT1_MODEM_OK;
 			}
+			if (s_at_phase == AT_PHASE_WAIT_ECSORF || s_idle_ecsorf_active != 0u) {
+				co_printf("[CAT1 UDP] AT ERROR (ECSORF), give up pending\r\n");
+				return cat1_ecsorf_finish_give_up();
+			}
+			if (s_at_got_ok == 0u) {
+				cat1_ecsonmi_pending_clear();
+			}
 			co_printf("[CAT1 UDP] AT ERROR\r\n");
 			cat1_modem_finish(CAT1_MODEM_FAIL);
 			return CAT1_MODEM_FAIL;
 		} else if (s_at_line_len >= 11u
 				   && strncmp(s_modem_line, "+CME ERROR:", 11) == 0) {
+			int cme_err;
+
 			if (s_at_allow_error != 0u) {
 				cat1_modem_finish(CAT1_MODEM_OK);
 				return CAT1_MODEM_OK;
 			}
+			cme_err = cat1_parse_cme_err(s_modem_line);
 			co_printf("[CAT1 UDP] %s\r\n", s_modem_line);
+			/* 406=不能找到套接字：失效本地句柄，禁止 ECSORF 死循环 */
+			if (cme_err == 406) {
+				cat1_socket_mark_gone("CME 406");
+				cat1_modem_finish(CAT1_MODEM_FAIL);
+				return CAT1_MODEM_FAIL;
+			}
+			if (s_at_phase == AT_PHASE_WAIT_ECSORF || s_idle_ecsorf_active != 0u) {
+				return cat1_ecsorf_finish_give_up();
+			}
+			if (s_at_got_ok == 0u) {
+				cat1_ecsonmi_pending_clear();
+			}
 			cat1_modem_finish(CAT1_MODEM_FAIL);
 			return CAT1_MODEM_FAIL;
 		}
 		s_at_line_len = 0u;
-	} else if (b != '\r') {
+	} else if (b != '\r' && urc_taken == 0u) {
 		if (s_at_line_len + 1u < CAT1_AT_LINE_MAX) {
 			s_modem_line[s_at_line_len++] = (char)b;
 		} else if (s_at_phase == AT_PHASE_WAIT_ECSORF
@@ -658,6 +922,9 @@ static cat1_modem_result_t cat1_modem_process_byte(uint8_t b)
 			co_printf("[CAT1 UDP] ECSORF line overflow cap=%u\r\n",
 			          (unsigned)CAT1_AT_LINE_MAX);
 		}
+	} else if (urc_taken != 0u && s_urc_line_len == 1u) {
+		/* 命令应答行被 URC 打断：丢弃半行，避免 ECSORF 脏数据 */
+		s_at_line_len = 0u;
 	}
 
 	if (s_ecsonmi_pending != 0u
@@ -695,11 +962,15 @@ static cat1_modem_result_t cat1_modem_check_timeout(void)
 			cat1_modem_finish(CAT1_MODEM_FAIL);
 			return CAT1_MODEM_FAIL;
 		}
-		if (s_at_got_ok == 0u) {
+		if (s_ecsost_uplink_ok == 0u && s_at_got_ok == 0u) {
 			co_printf("[CAT1 UDP] AT timeout phase=%u\r\n", (unsigned)s_at_phase);
+			/* 未拿到 OK 时不要用残留 ECSONMI 去 ECSORF，否则易刷 CME 406 */
+			cat1_ecsonmi_pending_clear();
+			cat1_modem_finish(CAT1_MODEM_FAIL);
+			return CAT1_MODEM_FAIL;
 		}
-		cat1_modem_finish(s_at_got_ok != 0u ? CAT1_MODEM_OK : CAT1_MODEM_FAIL);
-		return s_at_last_done;
+		cat1_modem_finish(CAT1_MODEM_OK);
+		return CAT1_MODEM_OK;
 	}
 
 	if (s_ecsonmi_pending != 0u
@@ -707,7 +978,7 @@ static cat1_modem_result_t cat1_modem_check_timeout(void)
 		cat1_ecso_try_start_ecsorf_read();
 	}
 
-	if (s_at_got_ok != 0u) {
+	if (s_ecsost_uplink_ok != 0u || s_at_got_ok != 0u) {
 		if (s_recv_pending != 0u) {
 			cat1_modem_finish(CAT1_MODEM_OK);
 			return CAT1_MODEM_OK;
@@ -719,6 +990,13 @@ static cat1_modem_result_t cat1_modem_check_timeout(void)
 		}
 		if (s_at_wait_after_ok_ms != 0u && s_at_ok_at_ms != 0u
 			&& cat1_ms_elapsed(s_at_ok_at_ms) >= s_at_wait_after_ok_ms) {
+			/* 窗口到点仍在读 / 已有 URC：不打断，改由总超时或 ECSORF 收尾 */
+			if (s_at_phase == AT_PHASE_WAIT_ECSORF || s_ecsonmi_pending != 0u) {
+				return CAT1_MODEM_BUSY;
+			}
+			if (s_ecsost_uplink_ok != 0u) {
+				s_downlink_idle_event = 1u;
+			}
 			cat1_modem_finish(CAT1_MODEM_OK);
 			return CAT1_MODEM_OK;
 		}
@@ -768,6 +1046,10 @@ void cat1_skt_udp_pump_urc(void)
 	while (USART2_CAT1_RxPop(&b) != 0U) {
 		cat1_skt_udp_feed_char((char)b);
 	}
+	/* 空闲且仍有 +ECSONMI：立刻起 ECSORF，不等下一笔业务发送 */
+	if (s_ecsonmi_pending != 0u && s_at_active == 0u) {
+		cat1_ecso_try_start_ecsorf_read();
+	}
 }
 
 void cat1_skt_udp_drain_urc(void)
@@ -783,6 +1065,9 @@ uint8_t cat1_skt_udp_recv_pending(void)
 void cat1_skt_udp_force_fail_active(void)
 {
 	if (s_at_active != 0u) {
+		s_uplink_ok_event = 0u;
+		s_downlink_fail_event = 0u;
+		s_downlink_idle_event = 0u;
 		cat1_modem_finish(CAT1_MODEM_FAIL);
 	}
 }
@@ -817,7 +1102,13 @@ int cat1_skt_udp_poll_recv(uint8_t *pdu, uint16_t pdu_cap, uint16_t *pdu_len)
 			return 0;
 		}
 		if (mr == CAT1_MODEM_FAIL) {
-			s_ecsonmi_pending = 0u;
+			if (s_sock_id != 255u && s_ecsonmi_extra > 0u) {
+				s_ecsonmi_extra--;
+				s_ecsonmi_pending = 1u;
+				s_ecsonmi_at_ms = sdk_timer_get_current_ms();
+			} else {
+				cat1_ecsonmi_pending_clear();
+			}
 			return -1;
 		}
 	}
@@ -1081,9 +1372,20 @@ int cat1_skt_udp_setup_step(void)
 				return CAT1_SETUP_BUSY;
 			}
 			if (s_setup_phase == SETUP_PHASE_CGATT) {
-				co_printf("[CAT1 UDP] CGATT? fail\r\n");
-				s_setup_phase = SETUP_PHASE_FAIL;
-				return CAT1_SETUP_FAIL;
+				co_printf("[CAT1 UDP] CGATT? fail, retry wait\r\n");
+				if (s_cgatt_wait_start_ms == 0u) {
+					s_cgatt_wait_start_ms = sdk_timer_get_current_ms();
+				}
+				if (cat1_ms_elapsed(s_cgatt_wait_start_ms) >= CAT1_CGATT_WAIT_TOTAL_MS) {
+					co_printf("[CAT1 UDP] CGATT? fail timeout %u ms\r\n",
+					          (unsigned)CAT1_CGATT_WAIT_TOTAL_MS);
+					s_cgatt_wait_start_ms = 0u;
+					s_setup_phase = SETUP_PHASE_FAIL;
+					return CAT1_SETUP_FAIL;
+				}
+				s_cgatt_next_ms = sdk_timer_get_current_ms();
+				s_setup_phase = SETUP_PHASE_CGATT_RETRY_WAIT;
+				return CAT1_SETUP_BUSY;
 			}
 			if (s_setup_phase == SETUP_PHASE_CREATE) {
 				co_printf("[CAT1 UDP] ECSOCR fail\r\n");
@@ -1105,12 +1407,27 @@ int cat1_skt_udp_setup_step(void)
 				cat1_setup_on_diag_done(s_setup_phase, 1u);
 			} else if (s_setup_phase == SETUP_PHASE_CGATT) {
 				cat1_setup_log_rsp("AT+CGATT?");
-				if (cat1_setup_cgatt_attached() != 0) {
-					co_printf("[CAT1 UDP] CGATT not attached\r\n");
-					s_setup_phase = SETUP_PHASE_FAIL;
-					return CAT1_SETUP_FAIL;
+				if (cat1_setup_cgatt_attached() == 0) {
+					s_cgatt_wait_start_ms = 0u;
+					s_setup_phase = SETUP_PHASE_CGPADDR_PENDING;
+				} else {
+					if (s_cgatt_wait_start_ms == 0u) {
+						s_cgatt_wait_start_ms = sdk_timer_get_current_ms();
+					}
+					if (cat1_ms_elapsed(s_cgatt_wait_start_ms) >= CAT1_CGATT_WAIT_TOTAL_MS) {
+						co_printf("[CAT1 UDP] CGATT not attached (timeout %u ms)\r\n",
+						          (unsigned)CAT1_CGATT_WAIT_TOTAL_MS);
+						s_cgatt_wait_start_ms = 0u;
+						s_setup_phase = SETUP_PHASE_FAIL;
+						return CAT1_SETUP_FAIL;
+					}
+					co_printf("[CAT1 UDP] CGATT=0, retry in %u ms (waited %u/%u)\r\n",
+					          (unsigned)CAT1_CGATT_POLL_INTERVAL_MS,
+					          (unsigned)cat1_ms_elapsed(s_cgatt_wait_start_ms),
+					          (unsigned)CAT1_CGATT_WAIT_TOTAL_MS);
+					s_cgatt_next_ms = sdk_timer_get_current_ms();
+					s_setup_phase = SETUP_PHASE_CGATT_RETRY_WAIT;
 				}
-				s_setup_phase = SETUP_PHASE_CGPADDR_PENDING;
 			} else if (s_setup_phase == SETUP_PHASE_CREATE) {
 				if (cat1_setup_parse_ecsocr_id() != 0) {
 					s_setup_phase = SETUP_PHASE_FAIL;
@@ -1150,6 +1467,20 @@ int cat1_skt_udp_setup_step(void)
 		return cat1_setup_issue_cclk();
 	}
 	if (s_setup_phase == SETUP_PHASE_CGATT_PENDING) {
+		return cat1_setup_issue_cgatt();
+	}
+	if (s_setup_phase == SETUP_PHASE_CGATT_RETRY_WAIT) {
+		if (s_cgatt_wait_start_ms != 0u
+		    && cat1_ms_elapsed(s_cgatt_wait_start_ms) >= CAT1_CGATT_WAIT_TOTAL_MS) {
+			co_printf("[CAT1 UDP] CGATT not attached (timeout %u ms)\r\n",
+			          (unsigned)CAT1_CGATT_WAIT_TOTAL_MS);
+			s_cgatt_wait_start_ms = 0u;
+			s_setup_phase = SETUP_PHASE_FAIL;
+			return CAT1_SETUP_FAIL;
+		}
+		if (cat1_ms_elapsed(s_cgatt_next_ms) < CAT1_CGATT_POLL_INTERVAL_MS) {
+			return CAT1_SETUP_BUSY;
+		}
 		return cat1_setup_issue_cgatt();
 	}
 	if (s_setup_phase == SETUP_PHASE_CGPADDR_PENDING) {
@@ -1201,7 +1532,7 @@ cat1_modem_result_t cat1_skt_udp_send_begin_wait_ex(const uint8_t *payload, uint
 		return CAT1_MODEM_BUSY;
 	}
 
-	co_printf("[CAT1 UDP] ECSOST enter len=%u port=%u\r\n",
+	CAT1_UDP_LOG("[CAT1 UDP] ECSOST enter len=%u port=%u\r\n",
 	          (unsigned)len, (unsigned)remote_port);
 
 	prefix_len = (unsigned)snprintf(line, sizeof(s_modem_line),
@@ -1225,33 +1556,31 @@ cat1_modem_result_t cat1_skt_udp_send_begin_wait_ex(const uint8_t *payload, uint
 	prefix_len += (unsigned)len * 2u;
 	line[prefix_len] = '\0';
 
-	if (wait_after_ok_ms == 0u) {
-		cat1_skt_udp_pump_urc();
-	} else {
-		cat1_rx_discard_all();
-	}
+	/* 业务/OTA 统一：pump 保住 +ECSONMI，非 URC 残字节由 feed_char 丢弃；勿 RxFlush */
+	cat1_skt_udp_pump_urc();
 	if (usart2_at_send_pump(line, (unsigned)sizeof(s_modem_line),
-	                        (wait_after_ok_ms == 0u) ? cat1_skt_udp_pump_urc : NULL) != 0) {
+	                        cat1_skt_udp_pump_urc) != 0) {
 		co_printf("[CAT1 UDP] ECSOST TX timeout\r\n");
 		return CAT1_MODEM_FAIL;
 	}
-	if (wait_after_ok_ms == 0u) {
-		cat1_skt_udp_pump_urc();
-	}
+	cat1_skt_udp_pump_urc();
 	s_wait_downlink_chunk = wait_downlink_chunk;
-	s_ecsonmi_pending = 0u;
+	/* 保留 s_ecsonmi_pending：迟到 Tag11 在 WAIT_DOWNLINK 仍可读 */
 	cat1_modem_begin_wait(NULL, 0u, 0u, wait_after_ok_ms);
 	return CAT1_MODEM_BUSY;
 }
 
 void cat1_skt_udp_setup_reset(void)
 {
-	cat1_time_sync_reset();
+	/* 不清时间锚点：墙钟与 socket 无关；仅 rc_cat1_init 清零，AT+CCLK 成功才更新 */
 	if (cat1_modem_is_busy() == 0u) {
 		s_setup_phase = SETUP_PHASE_IDLE;
 		s_sock_id = 255u;
-		s_ecsonmi_pending = 0u;
+		cat1_ecsonmi_pending_clear();
 		s_idle_ecsorf_active = 0u;
+		s_cgatt_wait_start_ms = 0u;
+		s_cgatt_next_ms = 0u;
+		s_socket_gone_event = 0u;
 	}
 }
 
@@ -1274,6 +1603,7 @@ void cat1_skt_udp_log_recv_diag(uint16_t req_seq)
 	}
 	head[n] = '\0';
 
+	USART2_CAT1_RxSync();
 	rx_head = USART2_CAT1_RX_HEAD;
 	rx_tail = USART2_CAT1_RX_TAIL;
 	if (rx_head >= rx_tail) {

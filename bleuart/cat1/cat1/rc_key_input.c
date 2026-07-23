@@ -1,14 +1,15 @@
 #include "rc_key_input.h"
 #include "ble_rc_svc.h"
 #include "remote_reports.h"
+#include "cat1_udp_config.h"
 #include "udp_ota.h"
 #include "co_printf.h"
 #include "FreeRTOS.h"
 #include "task.h"
 
 static volatile uint8_t s_pending_tag10;
-static uint8_t s_pending_tag10_code;
-static uint8_t s_tag10_qfull_logged;
+static uint8_t s_pending_tag10_code;		//处理warning时不要删
+static uint8_t s_tag10_qfull_logged;		//处理warning时不要删
 
 /**
  * @brief  硬件 key_id → Tag0x10 DataID1 协议键值（《4.3 遥控器按键采集》1~18）
@@ -54,6 +55,7 @@ void rc_key_input_init(void)
 
 void rc_key_input_poll_tag10(void)
 {
+#if RC_TAG10_SELF_REPORT_ENABLE
     uint8_t code;
     uint8_t pending;
 
@@ -70,13 +72,16 @@ void rc_key_input_poll_tag10(void)
     if (udp_ota_session_busy() != 0u) {
         return;
     }
+    if (remote_tag10_enqueue_is_paused() != 0u) {
+        return;
+    }
     if (!remote_is_key_capture_enabled()) {
         return;
     }
     {
         int rc = remote_queue_tag10_key(code);
 
-        if (rc == -2) {
+        if (rc == REMOTE_QUEUE_FULL) {
             if (s_tag10_qfull_logged == 0u) {
                 co_printf("[RC   ] Tag10 push fail, key=%u q=%u\r\n",
                           (unsigned)code, (unsigned)remote_report_queue_count());
@@ -94,6 +99,7 @@ void rc_key_input_poll_tag10(void)
     }
     s_tag10_qfull_logged = 0u;
     co_printf("[RC   ] Tag10 queue OK, key = %u\r\n", (unsigned)code);
+#endif /* RC_TAG10_SELF_REPORT_ENABLE */
 }
 
 void rc_key_input_event(uint8_t key_type, uint8_t action, uint16_t notify_value,
@@ -104,8 +110,12 @@ void rc_key_input_event(uint8_t key_type, uint8_t action, uint16_t notify_value,
     /* BLE RC-KEY-NOTIFY 仍使用 HID usage，与 Tag10 协议键值分离 */
     ble_rc_svc_key_notify(NULL, key_type, action, notify_value);
 
+#if RC_TAG10_SELF_REPORT_ENABLE
     /* RC-KEY notify 仍发送；Tag10 数据采集在 OTA 会话期间关闭 */
     if (udp_ota_session_busy() != 0u) {
+        return;
+    }
+    if (remote_tag10_enqueue_is_paused() != 0u) {
         return;
     }
     if (!remote_is_key_capture_enabled()) {
@@ -122,4 +132,5 @@ void rc_key_input_event(uint8_t key_type, uint8_t action, uint16_t notify_value,
     s_pending_tag10 = 1u;
     taskEXIT_CRITICAL();
     s_tag10_qfull_logged = 0u;
+#endif /* RC_TAG10_SELF_REPORT_ENABLE */
 }

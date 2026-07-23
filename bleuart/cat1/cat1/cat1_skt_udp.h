@@ -33,6 +33,31 @@ uint8_t cat1_modem_is_busy(void);
 void cat1_skt_udp_finish_active_ok(void);
 
 /**
+ * @brief  消费「ECSOST 已 OK」事件（业务上行成功，立刻打 send OK）
+ * @return 1 有事件；0 无
+ */
+uint8_t cat1_skt_udp_take_uplink_ok_event(void);
+
+/**
+ * @brief  消费「上行已 OK、下行 ECSORF 放弃」事件（打 recv fail，勿打 send fail）
+ * @return 1 有事件；0 无
+ */
+uint8_t cat1_skt_udp_take_downlink_fail_event(void);
+
+/**
+ * @brief  消费「上行已 OK、下行窗口空等无 URC/PDU」事件（打 idle timeout）
+ * @return 1 有事件；0 无
+ */
+uint8_t cat1_skt_udp_take_downlink_idle_event(void);
+
+/**
+ * @brief  消费「套接字已失效」事件（如 CME 406 找不到套接字）
+ * @note   bridge 应立即 UDP 软重建；本地 sock_id 已置 255 且已清 ECSONMI pending
+ * @return 1 有事件；0 无
+ */
+uint8_t cat1_skt_udp_take_socket_gone_event(void);
+
+/**
  * @brief 分步建立 UDP Socket（诊断 AT → CGATT/CGPADDR → ECSOCL→ECSOCR→ECSONMI）。
  * @return CAT1_SETUP_BUSY / CAT1_SETUP_OK / CAT1_SETUP_FAIL
  */

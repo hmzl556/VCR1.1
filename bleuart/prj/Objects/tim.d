@@ -2,11 +2,11 @@
 .\objects\tim.o: ..\..\bsp\driver\inc\tim.h
 .\objects\tim.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\tim.o: ..\..\bsp\core\inc\core_cm0.h
-.\objects\tim.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\tim.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\tim.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\tim.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\tim.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\tim.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\tim.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\tim.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\tim.o: ..\..\bsp\driver\inc\adc.h
 .\objects\tim.o: ..\..\bsp\core\inc\br1601x.h

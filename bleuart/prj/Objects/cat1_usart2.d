@@ -2,11 +2,11 @@
 .\objects\cat1_usart2.o: ..\cat1\cat1\cat1_usart2.h
 .\objects\cat1_usart2.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\cat1_usart2.o: ..\..\bsp\core\inc\core_cm0.h
-.\objects\cat1_usart2.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\cat1_usart2.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\cat1_usart2.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\cat1_usart2.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\cat1_usart2.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\cat1_usart2.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\cat1_usart2.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\cat1_usart2.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\cat1_usart2.o: ..\..\bsp\driver\inc\adc.h
 .\objects\cat1_usart2.o: ..\..\bsp\core\inc\br1601x.h
@@ -29,4 +29,4 @@
 .\objects\cat1_usart2.o: ..\..\bsp\driver\inc\misc.h
 .\objects\cat1_usart2.o: ..\cat1\cat1\cat1_udp_config.h
 .\objects\cat1_usart2.o: ..\..\bsp\common\inc\co_printf.h
-.\objects\cat1_usart2.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\cat1_usart2.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h

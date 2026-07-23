@@ -1,9 +1,9 @@
 .\objects\ble_adv.o: ..\src\ble_adv.c
-.\objects\ble_adv.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdio.h
-.\objects\ble_adv.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\ble_adv.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdio.h
+.\objects\ble_adv.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
 .\objects\ble_adv.o: ..\..\cs\inc\gap.h
-.\objects\ble_adv.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
-.\objects\ble_adv.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\ble_adv.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\ble_adv.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\ble_adv.o: ..\..\cs\inc\gatt.h
 .\objects\ble_adv.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\ble_adv.o: ..\inc\ble_adv.h

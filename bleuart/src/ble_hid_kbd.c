@@ -5,6 +5,8 @@
 #include "ble_hid_kbd.h"
 #include "co_printf.h"
 #include "pm_state.h"       /* 电源管理 — 对端数据活动通知 */
+#include "br_timer.h"    /* sdk_timer_get_current_ms */
+
 
 // HID Report Map（从参考工程原封不动复制，当前阶段不要改动）。
 // 该描述符包含：
@@ -553,6 +555,10 @@ void hid_kbd_send_report(peer_t peer, uint8_t rpt_id, uint8_t rpt_type, const ui
         memcpy(g_hid_report_in_buf, data, len);
         gatt_rst_t ret = gatts_chr_val_notif(peer, g_hid_report_in_chr, g_hid_report_in_buf, len);
         co_printf("[HID  ] HID Report IN notify ret=%d\n", ret);
+        {
+            extern volatile uint32_t g_last_ble_ms;
+            g_last_ble_ms = sdk_timer_get_current_ms();
+        }
         return;
     }
 
@@ -840,7 +846,7 @@ void hid_kbd_force_cccd_enable(peer_t peer)
     g_kbd_ntf_enabled_report_consumer = true;
     g_hid_report_consumer_peer = peer;
 
-    co_printf("HID CCCD force-enabled for bonded peer %08X", (uint32_t)peer);
+    co_printf("HID CCCD force-enabled for bonded peer %08X\r\n", (uint32_t)peer);
 }
 
 bool hid_kbd_is_any_cccd_enabled(void)

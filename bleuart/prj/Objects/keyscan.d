@@ -2,11 +2,11 @@
 .\objects\keyscan.o: ..\..\bsp\driver\inc\keyscan.h
 .\objects\keyscan.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\keyscan.o: ..\..\bsp\core\inc\core_cm0.h
-.\objects\keyscan.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\keyscan.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\keyscan.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\keyscan.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\keyscan.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\keyscan.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\keyscan.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\keyscan.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\keyscan.o: ..\..\bsp\driver\inc\adc.h
 .\objects\keyscan.o: ..\..\bsp\core\inc\br1601x.h

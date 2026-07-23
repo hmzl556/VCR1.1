@@ -30,6 +30,8 @@ extern volatile uint16_t key_receive;
 void task_keyscan_process(void);
 /** 在 task_voice_process_once 之后调用，发送 KEY_15 语音 defer 的 RC-KEY notify */
 void task_keyscan_flush_deferred_voice_rc(void);
+/** CAT1 AT 结束后补发延后的 HID（与 AT 错峰） */
+void task_keyscan_flush_deferred_hid(void);
 void task_keyscan_reset_on_ble_disconnect(void);
 
 #endif /* _TASK_KEYSCAN_H_ */

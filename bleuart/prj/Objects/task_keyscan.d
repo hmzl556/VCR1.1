@@ -1,11 +1,11 @@
 .\objects\task_keyscan.o: ..\src\task_keyscan.c
-.\objects\task_keyscan.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
-.\objects\task_keyscan.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\task_keyscan.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\task_keyscan.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\task_keyscan.o: ..\inc\task_keyscan.h
 .\objects\task_keyscan.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\task_keyscan.o: ..\inc\app_voice_ctrl.h
 .\objects\task_keyscan.o: ..\freertos\include\FreeRTOS.h
-.\objects\task_keyscan.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\task_keyscan.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stddef.h
 .\objects\task_keyscan.o: ..\freertos\FreeRTOSConfig.h
 .\objects\task_keyscan.o: ..\freertos\include\projdefs.h
 .\objects\task_keyscan.o: ..\freertos\include\portable.h
@@ -41,7 +41,7 @@
 .\objects\task_keyscan.o: ..\inc\ble_hid_kbd.h
 .\objects\task_keyscan.o: ..\..\cs\inc\hogp.h
 .\objects\task_keyscan.o: ..\..\cs\inc\gap.h
-.\objects\task_keyscan.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\task_keyscan.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
 .\objects\task_keyscan.o: ..\..\cs\inc\gatt.h
 .\objects\task_keyscan.o: ..\inc\ble_gap.h
 .\objects\task_keyscan.o: ..\inc\gmem.h
@@ -53,3 +53,4 @@
 .\objects\task_keyscan.o: ..\inc\ble_adv.h
 .\objects\task_keyscan.o: ..\..\cs\inc\cs_core.h
 .\objects\task_keyscan.o: ..\inc\userhard.h
+.\objects\task_keyscan.o: ..\cat1\cat1\cat1_skt_udp.h

@@ -32,6 +32,7 @@ typedef struct
     uint8_t buf[CAT1_UDP_MAX_UDP_PDU];
     uint16_t len;
     uint8_t rc_trans_notify;
+    uint8_t is_tag10;   /* 1=Tag0x10，RC-TRANS 入队时可丢弃腾位 */
     uint32_t pack_index;
 } remote_frame_t;
 
@@ -41,10 +42,17 @@ static uint8_t s_q_tail;
 static uint8_t s_q_count;
 static uint16_t s_next_mid = 1u;
 static uint8_t s_key_capture_enable = REMOTE_KEY_CAPTURE_DEFAULT;
-/** BLE/RC 会话本地开启采集后，忽略云端 Tag11 0x01=2 关闭指令 */
-static uint8_t s_key_capture_hold;
+/** UDP 软重建等期间禁止 Tag10 入队 */
+static uint8_t s_tag10_enqueue_paused;
 static const uint8_t s_default_time_bcd[6] = REMOTE_REPORT_FIXED_TIME_BCD;
 static uint8_t s_tlv_frame[CAT1_UDP_MAX_UDP_PDU];
+
+static int remote_frame_build(const uint8_t *plain, uint16_t plain_len,
+                              uint8_t *out, size_t buflen, uint16_t *outlen);
+static void remote_frame_stamp_mid(uint8_t *frame, uint16_t len);
+static int remote_queue_push(const uint8_t *frame, uint16_t len,
+                             uint8_t rc_trans_notify, uint32_t pack_index,
+                             uint8_t is_tag10);
 
 uint8_t remote_report_queue_count(void);
 
@@ -241,15 +249,17 @@ static int remote_queue_tag_tlv(uint8_t tag, const uint8_t *value, uint16_t valu
 {
     uint8_t plain[RC_UDP_AES_PLAIN_DATA_MAX];
     uint16_t plain_len;
+    uint16_t frame_len;
+    uint8_t is_tag10;
 
     if (value == NULL || value_len == 0u)
     {
-        return -1;
+        return REMOTE_QUEUE_ERR;
     }
     plain_len = (uint16_t)(value_len + 5u);
     if (plain_len > RC_UDP_AES_PLAIN_DATA_MAX)
     {
-        return -1;
+        return REMOTE_QUEUE_ERR;
     }
     plain[0] = (uint8_t)((plain_len >> 8) & 0xFFu);
     plain[1] = (uint8_t)(plain_len & 0xFFu);
@@ -257,7 +267,13 @@ static int remote_queue_tag_tlv(uint8_t tag, const uint8_t *value, uint16_t valu
     plain[3] = (uint8_t)((value_len >> 8) & 0xFFu);
     plain[4] = (uint8_t)(value_len & 0xFFu);
     memcpy(plain + 5u, value, value_len);
-    return remote_queue_tlv_blob(plain, plain_len, RC_PACK_INDEX_NONE);
+    if (remote_frame_build(plain, plain_len, s_tlv_frame, sizeof(s_tlv_frame),
+                           &frame_len) != 0)
+    {
+        return REMOTE_QUEUE_ERR;
+    }
+    is_tag10 = (tag == 0x10u) ? 1u : 0u;
+    return remote_queue_push(s_tlv_frame, frame_len, 0u, RC_PACK_INDEX_NONE, is_tag10);
 }
 
 /**
@@ -305,7 +321,7 @@ int remote_queue_tag01_status(void)
 /**
  * @brief  RC 本地直报 Tag0x10 按键并入 UDP 发送队列
  * @param  key_code  HID usage 低字节，0 无效
- * @return 0 成功；-1 失败；-2 队列满
+ * @return REMOTE_QUEUE_OK 成功；REMOTE_QUEUE_ERR 组帧失败；REMOTE_QUEUE_FULL 队列满
  */
 int remote_queue_tag10_key(uint8_t key_code)
 {
@@ -314,18 +330,27 @@ int remote_queue_tag10_key(uint8_t key_code)
     int build_rc;
     int push_rc;
 
+    if (s_tag10_enqueue_paused != 0u)
+    {
+        return REMOTE_QUEUE_ERR;
+    }
+
     build_rc = remote_build_tag10_value(value, &value_len, key_code);
     if (build_rc != 0)
     {
         co_printf("[RC   ] Tag10 build fail, key=%u\r\n", (unsigned)key_code);
-        return -1;
+        return REMOTE_QUEUE_ERR;
     }
     push_rc = remote_queue_tag_tlv(0x10u, value, value_len);
-    if (push_rc != 0)
+    if (push_rc == REMOTE_QUEUE_FULL)
     {
-        return -2;
+        return REMOTE_QUEUE_FULL;
     }
-    return 0;
+    if (push_rc != REMOTE_QUEUE_OK)
+    {
+        return REMOTE_QUEUE_ERR;
+    }
+    return REMOTE_QUEUE_OK;
 }
 
 #define REMOTE_FRAME_FIXED_TAIL  21u   // 0x6868 头至 data field 前 19B + 校验 1B + 0x16 1B 中的「头+尾固定」
@@ -361,8 +386,37 @@ static int remote_extract_plain_data_field(const uint8_t *frame, uint16_t frame_
 }
 
 /**
+ * @brief  真正出队发送时写入 mid 并重算校验（须在临界区内调用）
+ * @note   组帧/入队时 mid 占位为 0；丢弃未发出的帧不占号
+ */
+static void remote_frame_stamp_mid(uint8_t *frame, uint16_t len)
+{
+    uint16_t mid;
+    uint16_t i;
+    uint16_t body_end;
+    uint8_t checksum;
+
+    if (frame == NULL || len < REMOTE_FRAME_FIXED_TAIL)
+    {
+        return;
+    }
+    mid = s_next_mid;
+    s_next_mid = (s_next_mid == 0xFFFFu) ? 0u : (uint16_t)(s_next_mid + 1u);
+    frame[9] = (uint8_t)((mid >> 8) & 0xFFu);
+    frame[10] = (uint8_t)(mid & 0xFFu);
+    body_end = (uint16_t)(len - 2u);
+    checksum = 0u;
+    for (i = 2u; i < body_end; i++)
+    {
+        checksum = (uint8_t)(checksum + frame[i]);
+    }
+    frame[body_end] = checksum;
+}
+
+/**
  * @brief  将 RC-TRANS Payload（明文 data field）套入 0x6868 外层帧
  * @note   plain 含 TLV数据长度 2B，由 STB 提供；本函数不再计算或改写
+ * @note   mid 占位 0，真正自增见 remote_frame_stamp_mid（出队发送时）
  * @return 0 成功；-1 失败
  */
 static int remote_frame_build(const uint8_t *plain, uint16_t plain_len,
@@ -371,7 +425,6 @@ static int remote_frame_build(const uint8_t *plain, uint16_t plain_len,
     uint16_t wire_len;
     uint8_t *p;
     uint8_t checksum;
-    uint16_t mid;
     uint16_t i;
     if (out == NULL || outlen == NULL || plain == NULL)
     {
@@ -406,10 +459,8 @@ static int remote_frame_build(const uint8_t *plain, uint16_t plain_len,
         *p++ = 0x10u;
         remote_fill_report_time_bcd6(p);
         p += 6u;
-        mid = s_next_mid;
-        s_next_mid = (s_next_mid == 0xFFFFu) ? 0u : (uint16_t)(s_next_mid + 1u);
-        *p++ = (uint8_t)((mid >> 8) & 0xFFu);
-        *p++ = (uint8_t)(mid & 0xFFu);
+        *p++ = 0u; /* mid 占位，入队成功后再 stamp */
+        *p++ = 0u;
         fill_default_mac(p);
         p += 6u;
         *p++ = (uint8_t)((wire_len >> 8) & 0xFFu);
@@ -428,10 +479,8 @@ static int remote_frame_build(const uint8_t *plain, uint16_t plain_len,
     *p++ = 0x10u;
     remote_fill_report_time_bcd6(p);
     p += 6u;
-    mid = s_next_mid;
-    s_next_mid = (s_next_mid == 0xFFFFu) ? 0u : (uint16_t)(s_next_mid + 1u);
-    *p++ = (uint8_t)((mid >> 8) & 0xFFu);
-    *p++ = (uint8_t)(mid & 0xFFu);
+    *p++ = 0u;
+    *p++ = 0u;
     fill_default_mac(p);
     p += 6u;
     *p++ = (uint8_t)((wire_len >> 8) & 0xFFu);
@@ -451,57 +500,150 @@ static int remote_frame_build(const uint8_t *plain, uint16_t plain_len,
 }
 
 /**
+ * @brief  丢弃队列中尚未发出的 Tag0x10（调用方须已进入临界区）
+ * @return 丢弃帧数
+ */
+static uint8_t remote_queue_drop_tag10_locked(void)
+{
+    remote_frame_t kept[REMOTE_REPORT_QUEUE_DEPTH];
+    uint8_t kept_n = 0u;
+    uint8_t drop_n = 0u;
+    uint8_t i;
+
+    for (i = 0u; i < s_q_count; i++)
+    {
+        uint8_t idx = (uint8_t)((s_q_head + i) % REMOTE_REPORT_QUEUE_DEPTH);
+
+        if (s_queue[idx].is_tag10 != 0u)
+        {
+            if (drop_n < 255u)
+            {
+                drop_n++;
+            }
+        }
+        else if (kept_n < REMOTE_REPORT_QUEUE_DEPTH)
+        {
+            kept[kept_n++] = s_queue[idx];
+        }
+    }
+    for (i = 0u; i < kept_n; i++)
+    {
+        s_queue[i] = kept[i];
+    }
+    s_q_head = 0u;
+    s_q_tail = kept_n;
+    s_q_count = kept_n;
+    return drop_n;
+}
+
+/**
  * @brief  将完整 0x6868 帧写入环形发送队列
- * @return 0 成功；-1 队列满或参数非法
+ * @return REMOTE_QUEUE_OK 成功；REMOTE_QUEUE_ERR 参数非法；REMOTE_QUEUE_FULL 队列满
  */
 static int remote_queue_push(const uint8_t *frame, uint16_t len,
-                             uint8_t rc_trans_notify, uint32_t pack_index)
+                             uint8_t rc_trans_notify, uint32_t pack_index,
+                             uint8_t is_tag10)
 {
-    int rc = -1;
+    int rc = REMOTE_QUEUE_FULL;
+    uint8_t overwritten = 0u;
 
     if (frame == NULL || len == 0u || len > CAT1_UDP_MAX_UDP_PDU)
     {
-        return -1;
+        return REMOTE_QUEUE_ERR;
     }
 
     taskENTER_CRITICAL();
+    if (is_tag10 != 0u && s_q_count >= REMOTE_REPORT_QUEUE_DEPTH)
+    {
+        /* 满时丢旧 Tag10，保留本帧（最新按键），避免 push fail 堆积 */
+        overwritten = remote_queue_drop_tag10_locked();
+    }
     if (s_q_count < REMOTE_REPORT_QUEUE_DEPTH)
     {
         memcpy(s_queue[s_q_tail].buf, frame, len);
         s_queue[s_q_tail].len = len;
         s_queue[s_q_tail].rc_trans_notify = rc_trans_notify;
+        s_queue[s_q_tail].is_tag10 = is_tag10;
         s_queue[s_q_tail].pack_index = pack_index;
         s_q_tail = (uint8_t)((s_q_tail + 1u) % REMOTE_REPORT_QUEUE_DEPTH);
         s_q_count++;
-        rc = 0;
+        rc = REMOTE_QUEUE_OK;
     }
     taskEXIT_CRITICAL();
+
+    if (overwritten > 0u && rc == REMOTE_QUEUE_OK)
+    {
+        co_printf("[RC   ] Tag10 overwrite drop=%u q=%u\r\n",
+                  (unsigned)overwritten, (unsigned)s_q_count);
+    }
+    return rc;
+}
+
+/**
+ * @brief  RC-TRANS 优先入队：满时在同一临界区内丢 Tag10 再入队，避免夹缝再次被填满
+ * @return REMOTE_QUEUE_OK / ERR / FULL
+ */
+static int remote_queue_push_rc_trans(const uint8_t *frame, uint16_t len,
+                                     uint32_t pack_index)
+{
+    int rc = REMOTE_QUEUE_FULL;
+    uint8_t dropped = 0u;
+
+    if (frame == NULL || len == 0u || len > CAT1_UDP_MAX_UDP_PDU)
+    {
+        return REMOTE_QUEUE_ERR;
+    }
+
+    taskENTER_CRITICAL();
+    if (s_q_count >= REMOTE_REPORT_QUEUE_DEPTH)
+    {
+        dropped = remote_queue_drop_tag10_locked();
+    }
+    if (s_q_count < REMOTE_REPORT_QUEUE_DEPTH)
+    {
+        memcpy(s_queue[s_q_tail].buf, frame, len);
+        s_queue[s_q_tail].len = len;
+        s_queue[s_q_tail].rc_trans_notify = 1u;
+        s_queue[s_q_tail].is_tag10 = 0u;
+        s_queue[s_q_tail].pack_index = pack_index;
+        s_q_tail = (uint8_t)((s_q_tail + 1u) % REMOTE_REPORT_QUEUE_DEPTH);
+        s_q_count++;
+        rc = REMOTE_QUEUE_OK;
+    }
+    taskEXIT_CRITICAL();
+
+    if (dropped > 0u)
+    {
+        co_printf("[RC   ] drop %u Tag10 for RC-TRANS pack=0x%08X\r\n",
+                  (unsigned)dropped, (unsigned)pack_index);
+    }
     return rc;
 }
 
 /**
  * @brief  将 RC-TRANS Payload（明文 data field）封装为 0x6868 帧并入队
- * @param  plain      TLV数据长度[2 BE] + Tag[1] + ValueLen[2 BE] + Value[n]
- * @param  plain_len  Payload 总长度（由 STB 提供，含 TLV数据长度 2B）
- * @return 0 成功；-1 失败
+ * @note   RC-TRANS（有 pack_index）优先：队列满时先丢 Tag0x10 再入队
+ * @return REMOTE_QUEUE_OK 成功；REMOTE_QUEUE_ERR 参数/组帧失败；REMOTE_QUEUE_FULL 队列满
  */
 int remote_queue_tlv_blob(const uint8_t *plain, uint16_t plain_len,
                           uint32_t rc_trans_pack_index)
 {
     uint16_t frame_len;
-    uint8_t notify;
 
     if (plain == NULL || plain_len < 5u || plain_len > RC_UDP_AES_PLAIN_DATA_MAX)
     {
-        return -1;
+        return REMOTE_QUEUE_ERR;
     }
     if (remote_frame_build(plain, plain_len, s_tlv_frame, sizeof(s_tlv_frame),
                            &frame_len) != 0)
     {
-        return -1;
+        return REMOTE_QUEUE_ERR;
     }
-    notify = (rc_trans_pack_index != RC_PACK_INDEX_NONE) ? 1u : 0u;
-    return remote_queue_push(s_tlv_frame, frame_len, notify, rc_trans_pack_index);
+    if (rc_trans_pack_index != RC_PACK_INDEX_NONE)
+    {
+        return remote_queue_push_rc_trans(s_tlv_frame, frame_len, rc_trans_pack_index);
+    }
+    return remote_queue_push(s_tlv_frame, frame_len, 0u, RC_PACK_INDEX_NONE, 0u);
 }
 
 /**
@@ -514,7 +656,7 @@ void remote_reports_init(void)
     s_q_count = 0u;
     s_next_mid = 1u;
     s_key_capture_enable = REMOTE_KEY_CAPTURE_DEFAULT;
-    s_key_capture_hold = 0u;
+    s_tag10_enqueue_paused = 0u;
     (void)rc_udp_aes_init();
     co_printf("[RC   ] Tag10 key capture default=%s (Tag11 0x01=1 to enable)\r\n",
               (s_key_capture_enable == 1u) ? "ON" : "OFF");
@@ -526,12 +668,53 @@ void remote_reports_init(void)
  */
 int remote_is_key_capture_enabled(void)
 {
+#if RC_TAG10_SELF_REPORT_ENABLE
     int enabled;
 
     taskENTER_CRITICAL();
     enabled = (s_key_capture_enable == 1u) ? 1 : 0;
     taskEXIT_CRITICAL();
     return enabled;
+#else
+    (void)s_key_capture_enable; /* 编译关闭，永远禁止 */
+    return 0;
+#endif
+}
+
+void remote_tag10_enqueue_set_paused(uint8_t paused)
+{
+    uint8_t prev;
+    uint8_t now = (paused != 0u) ? 1u : 0u;
+
+    taskENTER_CRITICAL();
+    prev = s_tag10_enqueue_paused;
+    s_tag10_enqueue_paused = now;
+    taskEXIT_CRITICAL();
+
+    if (prev != now) {
+        co_printf("[RC   ] Tag10 enqueue %s\r\n",
+                  (now != 0u) ? "PAUSED" : "RESUME");
+    }
+}
+
+uint8_t remote_tag10_enqueue_is_paused(void)
+{
+    uint8_t paused;
+
+    taskENTER_CRITICAL();
+    paused = s_tag10_enqueue_paused;
+    taskEXIT_CRITICAL();
+    return paused;
+}
+
+uint8_t remote_report_drop_all_tag10(void)
+{
+    uint8_t dropped;
+
+    taskENTER_CRITICAL();
+    dropped = remote_queue_drop_tag10_locked();
+    taskEXIT_CRITICAL();
+    return dropped;
 }
 
 void remote_set_key_capture_enable(uint8_t enable)
@@ -542,14 +725,6 @@ void remote_set_key_capture_enable(uint8_t enable)
     }
     taskENTER_CRITICAL();
     s_key_capture_enable = enable;
-    if (enable == 1u)
-    {
-        s_key_capture_hold = 1u;
-    }
-    else
-    {
-        s_key_capture_hold = 0u;
-    }
     taskEXIT_CRITICAL();
     co_printf("[RC   ] Tag10 key capture %s (Tag11 0x01=%u)\r\n",
               (enable == 1u) ? "ON" : "OFF", (unsigned)enable);
@@ -557,11 +732,7 @@ void remote_set_key_capture_enable(uint8_t enable)
 
 void remote_key_capture_on_ble_disconnect(void)
 {
-    taskENTER_CRITICAL();
-    s_key_capture_hold = 0u;
-    s_key_capture_enable = REMOTE_KEY_CAPTURE_DEFAULT;
-    taskEXIT_CRITICAL();
-    co_printf("[RC   ] Tag10 key capture reset on BLE disconnect\r\n");
+    /* 按键采集由 Tag11 / Flash 持久化管理，BLE 断连不再强制关 */
 }
 
 /**
@@ -578,8 +749,53 @@ uint8_t remote_report_queue_count(void)
     return count;
 }
 
+uint8_t remote_report_abort_rc_trans(uint32_t *packs_out, uint8_t packs_cap)
+{
+    remote_frame_t kept[REMOTE_REPORT_QUEUE_DEPTH];
+    uint8_t kept_n = 0u;
+    uint8_t abort_n = 0u;
+    uint8_t i;
+
+    taskENTER_CRITICAL();
+    for (i = 0u; i < s_q_count; i++)
+    {
+        uint8_t idx = (uint8_t)((s_q_head + i) % REMOTE_REPORT_QUEUE_DEPTH);
+
+        if (s_queue[idx].rc_trans_notify != 0u)
+        {
+            if (packs_out != NULL && abort_n < packs_cap)
+            {
+                packs_out[abort_n] = s_queue[idx].pack_index;
+            }
+            if (abort_n < 255u)
+            {
+                abort_n++;
+            }
+        }
+        else if (kept_n < REMOTE_REPORT_QUEUE_DEPTH)
+        {
+            kept[kept_n++] = s_queue[idx];
+        }
+    }
+    for (i = 0u; i < kept_n; i++)
+    {
+        s_queue[i] = kept[i];
+    }
+    s_q_head = 0u;
+    s_q_tail = kept_n;
+    s_q_count = kept_n;
+    taskEXIT_CRITICAL();
+
+    if (packs_out == NULL)
+    {
+        return abort_n;
+    }
+    return (abort_n < packs_cap) ? abort_n : packs_cap;
+}
+
 /**
  * @brief  从发送队列取出一帧待 UDP 发送的 0x6868 报文
+ * @note   出队时写入 mid 并自增；被丢弃的排队帧不占号
  * @return 0 成功；1 队列空；-1 失败
  */
 int remote_report_poll(uint8_t *out, size_t buflen, uint16_t *outlen,
@@ -605,6 +821,7 @@ int remote_report_poll(uint8_t *out, size_t buflen, uint16_t *outlen,
     {
         memcpy(out, s_queue[s_q_head].buf, s_queue[s_q_head].len);
         *outlen = s_queue[s_q_head].len;
+        remote_frame_stamp_mid(out, *outlen);
         if (out_rc_trans_notify != NULL)
         {
             *out_rc_trans_notify = s_queue[s_q_head].rc_trans_notify;
@@ -695,25 +912,18 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
                 {
                     return -1;
                 }
+#if RC_TAG10_SELF_REPORT_ENABLE
                 {
                     uint8_t cap_val = value_bytes[pos];
-                    uint8_t hold;
 
                     pos += 1u;
                     got_key_capture = 1u;
-                    if (cap_val == 2u)
-                    {
-                        taskENTER_CRITICAL();
-                        hold = s_key_capture_hold;
-                        taskEXIT_CRITICAL();
-                        if (hold != 0u)
-                        {
-                            co_printf("[RC   ] Tag11 key capture 0x01=2 ignored (RC/BLE hold)\r\n");
-                            break;
-                        }
-                    }
                     remote_set_key_capture_enable(cap_val);
                 }
+#else
+                pos += 1u;
+                /* Tag10 上报链路已编译关闭，忽略服务器 Tag11 DataID 0x01 */
+#endif
                 break;
             case 0x02u:
                 if (remain < 2u)
@@ -816,6 +1026,25 @@ static int remote_parse_frame_for_tag11(const uint8_t *frame, uint16_t frame_len
 }
 
 /**
+ * @brief  Tag11 解析成功后，用帧头服务器时间作 CCLK 备选锚点
+ */
+static void remote_try_time_anchor_from_tag11_frame(const uint8_t *frame, uint16_t frame_len)
+{
+    int rc;
+
+    if (frame == NULL || frame_len < 9u)
+    {
+        return;
+    }
+    /* 0x6868 帧：frame[3..8] = YYMMDDhhmmss BCD（服务器当地时间） */
+    rc = cat1_time_sync_from_bcd6_fallback(frame + 3u, REMOTE_REPORT_TIME_TZ_OFFSET_HOURS);
+    if (rc == 0)
+    {
+        co_printf("[RC   ] time anchor from Tag11\r\n");
+    }
+}
+
+/**
  * @brief  处理云端 UDP 下行 0x6868 帧，解析 Tag0x11 并更新 CloudUploadPolicy
  * @param  cloud_policy  入参为当前策略；出参写入 interval(4B) + count(2B)
  * @return 0 成功；-1 失败
@@ -833,6 +1062,7 @@ int remote_handle_downlink_frame(const uint8_t *frame, uint16_t frame_len, uint8
     {
         return -1;
     }
+    remote_try_time_anchor_from_tag11_frame(frame, frame_len);
     memcpy(cloud_policy, policy, 6u);
     return 0;
 }

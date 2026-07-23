@@ -1,0 +1,11 @@
+.\objects\ble_bas.o: ..\src\ble_bas.c
+.\objects\ble_bas.o: ..\inc\ble_bas.h
+.\objects\ble_bas.o: ..\inc\bat_adc.h
+.\objects\ble_bas.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\ble_bas.o: ..\inc\ble_gap.h
+.\objects\ble_bas.o: ..\..\cs\inc\gap.h
+.\objects\ble_bas.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\ble_bas.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
+.\objects\ble_bas.o: ..\..\cs\inc\gatt.h
+.\objects\ble_bas.o: ..\inc\gmem.h
+.\objects\ble_bas.o: ..\..\bsp\common\inc\co_printf.h

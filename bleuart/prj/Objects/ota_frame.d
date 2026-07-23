@@ -1,7 +1,7 @@
 .\objects\ota_frame.o: ..\cat1\cat1\OTA\ota_frame.c
-.\objects\ota_frame.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\ota_frame.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
 .\objects\ota_frame.o: ..\cat1\cat1\OTA\ota_frame.h
-.\objects\ota_frame.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\ota_frame.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\ota_frame.o: ..\cat1\cat1\OTA\ota_crc.h
 .\objects\ota_frame.o: ..\cat1\cat1\OTA\flash_layout.h
 .\objects\ota_frame.o: ..\..\bsp\core\inc\br1601x.h
@@ -9,7 +9,7 @@
 .\objects\ota_frame.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\ota_frame.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\ota_frame.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\ota_frame.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\ota_frame.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\ota_frame.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\ota_frame.o: ..\..\bsp\driver\inc\adc.h
 .\objects\ota_frame.o: ..\..\bsp\core\inc\br1601x.h

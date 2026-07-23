@@ -3,11 +3,11 @@
 .\objects\task_voice.o: ..\src\app_audio_pcm.h
 .\objects\task_voice.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\task_voice.o: ..\..\bsp\core\inc\core_cm0.h
-.\objects\task_voice.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\task_voice.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\task_voice.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\task_voice.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\task_voice.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\task_voice.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\task_voice.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\task_voice.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\task_voice.o: ..\..\bsp\driver\inc\adc.h
 .\objects\task_voice.o: ..\..\bsp\core\inc\br1601x.h
@@ -30,7 +30,7 @@
 .\objects\task_voice.o: ..\..\bsp\driver\inc\misc.h
 .\objects\task_voice.o: ..\inc\app_voice_ctrl.h
 .\objects\task_voice.o: ..\freertos\include\FreeRTOS.h
-.\objects\task_voice.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\task_voice.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stddef.h
 .\objects\task_voice.o: ..\freertos\FreeRTOSConfig.h
 .\objects\task_voice.o: ..\freertos\include\projdefs.h
 .\objects\task_voice.o: ..\freertos\include\portable.h

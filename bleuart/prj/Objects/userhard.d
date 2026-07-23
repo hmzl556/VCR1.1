@@ -1,12 +1,12 @@
 .\objects\userhard.o: ..\src\userhard.c
 .\objects\userhard.o: ..\inc\cfg_user.h
-.\objects\userhard.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\userhard.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\userhard.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\userhard.o: ..\..\bsp\core\inc\core_cm0.h
 .\objects\userhard.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\userhard.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\userhard.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\userhard.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\userhard.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\userhard.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\userhard.o: ..\..\bsp\driver\inc\adc.h
 .\objects\userhard.o: ..\..\bsp\core\inc\br1601x.h

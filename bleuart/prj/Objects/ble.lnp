@@ -26,6 +26,8 @@
 ".\objects\ble_dtss.o"
 ".\objects\ble_hid_kbd.o"
 ".\objects\ble_diss.o"
+".\objects\ble_bas.o"
+".\objects\bat_adc.o"
 ".\objects\combo_key.o"
 ".\objects\aes_transport.o"
 ".\objects\ble_rc_svc.o"

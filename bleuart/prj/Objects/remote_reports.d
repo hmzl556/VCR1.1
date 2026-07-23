@@ -1,12 +1,13 @@
 .\objects\remote_reports.o: ..\cat1\cat1\remote_reports.c
 .\objects\remote_reports.o: ..\cat1\cat1\remote_reports.h
 .\objects\remote_reports.o: ..\cat1\cat1\cat1_udp_config.h
+.\objects\remote_reports.o: ..\..\bsp\common\inc\co_printf.h
+.\objects\remote_reports.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\remote_reports.o: ..\cat1\cat1\rc_protocol.h
-.\objects\remote_reports.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\remote_reports.o: ..\..\cs\inc\gap.h
-.\objects\remote_reports.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
-.\objects\remote_reports.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
-.\objects\remote_reports.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\remote_reports.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\remote_reports.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
+.\objects\remote_reports.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stddef.h
 .\objects\remote_reports.o: ..\cat1\cat1\aes_transport.h
 .\objects\remote_reports.o: ..\cat1\cat1\ble_rc_svc.h
 .\objects\remote_reports.o: ..\cat1\cat1\cat1_time_sync.h
@@ -36,7 +37,6 @@
 .\objects\remote_reports.o: ..\..\bsp\driver\inc\keyscan.h
 .\objects\remote_reports.o: ..\..\bsp\driver\inc\qflash.h
 .\objects\remote_reports.o: ..\..\bsp\driver\inc\misc.h
-.\objects\remote_reports.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\remote_reports.o: ..\freertos\include\FreeRTOS.h
 .\objects\remote_reports.o: ..\freertos\FreeRTOSConfig.h
 .\objects\remote_reports.o: ..\freertos\include\projdefs.h

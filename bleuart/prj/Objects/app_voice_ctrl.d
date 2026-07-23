@@ -1,8 +1,8 @@
 .\objects\app_voice_ctrl.o: ..\src\app_voice_ctrl.c
 .\objects\app_voice_ctrl.o: ..\inc\app_voice_ctrl.h
-.\objects\app_voice_ctrl.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\app_voice_ctrl.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\app_voice_ctrl.o: ..\freertos\include\FreeRTOS.h
-.\objects\app_voice_ctrl.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\app_voice_ctrl.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stddef.h
 .\objects\app_voice_ctrl.o: ..\freertos\FreeRTOSConfig.h
 .\objects\app_voice_ctrl.o: ..\freertos\include\projdefs.h
 .\objects\app_voice_ctrl.o: ..\freertos\include\portable.h
@@ -15,7 +15,7 @@
 .\objects\app_voice_ctrl.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\app_voice_ctrl.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\app_voice_ctrl.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\app_voice_ctrl.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\app_voice_ctrl.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\app_voice_ctrl.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\app_voice_ctrl.o: ..\..\bsp\driver\inc\adc.h
 .\objects\app_voice_ctrl.o: ..\..\bsp\core\inc\br1601x.h

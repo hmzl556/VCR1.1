@@ -1,11 +1,11 @@
 .\objects\system_br1601x.o: system_br1601x.c
 .\objects\system_br1601x.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\system_br1601x.o: ..\..\bsp\core\inc\core_cm0.h
-.\objects\system_br1601x.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\system_br1601x.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\system_br1601x.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\system_br1601x.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\system_br1601x.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\system_br1601x.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\system_br1601x.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\system_br1601x.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\system_br1601x.o: ..\..\bsp\driver\inc\adc.h
 .\objects\system_br1601x.o: ..\..\bsp\core\inc\br1601x.h

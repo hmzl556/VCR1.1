@@ -5,12 +5,16 @@
 #include "ble_adv.h"
 #include "ble_gap.h"
 #include "task_keyscan.h"
+#include "app_keyscan.h"    /* app_keyscan_read_key_id — WDT 测试 */
 #include "task_voice.h"
 #include "app_rtos.h"
 #include "rc_cat1_bridge.h"
+#include "cat1_skt_udp.h"
 #include "co_printf.h"
 #include "pm_state.h"       /* 电源管理状态机 — 空闲超时检查 */
+#include "iwdg.h"            /* IWDG 独立看门狗 — 喂狗            */
 #include "udp_ota.h"
+#include "ble_bas.h"
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -59,6 +63,7 @@ void task_ble_entry(void *pvParameters)
 
 			cat1_ble_process_pending();
 			udp_ota_boot_indicate_poll();
+			IWDG_ReloadKey();
 			setSdkTimer(8U);
 			taskYIELD();
 			continue;
@@ -102,8 +107,19 @@ void task_ble_entry(void *pvParameters)
 		/* KEY_15 语音 GATT 与 RC-KEY notify 错开，避免同周期多次 FSM_Write */
 		task_keyscan_flush_deferred_voice_rc();
 
-		// Cat.1 轮询放后：UDP AT 可能阻塞数秒，不应挡住按键/LED
-		rc_cat1_poll();
+		// BLE/CAT1 串行化：
+		// - AT 进行中必须继续 rc_cat1_poll（消费 USART RX / 推进 ECSORF）
+		// - 空闲时仍要求距上次 HID/BLE 活动 ≥50ms，再开 CAT1 新业务
+		cs_schedule();
+		{
+			extern volatile uint32_t g_last_ble_ms;
+			if (cat1_modem_is_busy() != 0u
+			    || (app_now_ms() - g_last_ble_ms) >= 50U) {
+				rc_cat1_poll();
+			}
+			/* AT 刚结束则立刻补发延后 HID */
+			task_keyscan_flush_deferred_hid();
+		}
 
 		udp_ota_boot_indicate_poll();
 
@@ -113,7 +129,11 @@ void task_ble_entry(void *pvParameters)
 		// 更新 BLE GAP 层的 LED 指示状态，提供用户可见的连接状态反馈
 		ble_gap_led_indicate();
 
-		// 让出 CPU，允许其他任务执行，确保系统的响应性和多任务协作
+		/* BAS：CCC 已订阅时每 60s Notify 一次电池电量 */
+		ble_bas_poll();
+
+		// IWDG 喂狗
+		IWDG_ReloadKey();
 		taskYIELD();
 	}
 }

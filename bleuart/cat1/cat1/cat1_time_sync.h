@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-/** 清除对时锚点（valid=0） */
+/** 清除对时锚点（valid=0）；仅全量初始化调用，UDP rebuild/setup 重试不得调用 */
 void cat1_time_sync_reset(void);
 
 /**
@@ -12,6 +12,15 @@ void cat1_time_sync_reset(void);
  * @return 0 成功；-1 失败
  */
 int cat1_time_sync_from_cclk_rsp(const char *rsp);
+
+/**
+ * @brief  CCLK 未成功时，用 Tag11 等下行帧头 YYMMDDhhmmss BCD 作备选锚点
+ * @param  bcd              6 字节 BCD 时间
+ * @param  local_tz_hours   入参 BCD 相对 CCLK 基准的时区（东八区填 8）；会换算后再锚定，
+ *                          使后续 get_bcd6_offset(+8) 与 CCLK 路径一致
+ * @return 0 首次锚定；1 已有 CCLK 锚点跳过；2 刷新备选锚点；-1 失败
+ */
+int cat1_time_sync_from_bcd6_fallback(const uint8_t bcd[6], int8_t local_tz_hours);
 
 /**
  * @brief  获取当前墙钟 YYMMDDhhmmss BCD（6 字节）

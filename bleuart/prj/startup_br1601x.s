@@ -136,6 +136,34 @@ NMI_Handler     PROC
 HardFault_Handler\
                 PROC
                 EXPORT  HardFault_Handler          [WEAK]
+                ; 1. 写崩溃信息到 SRAM 保留区 (0x2000BBE0)
+                LDR     R0, =0x2000BBE0
+                LDR     R1, =0xDEADBEEF
+                STR     R1, [R0, #0]       ; CRASH_ADDR[0] = magic
+                MOVS    R1, #4
+                STR     R1, [R0, #4]       ; CRASH_ADDR[1] = reason=4
+                MRS     R2, MSP
+                LDR     R3, [R2, #24]
+                STR     R3, [R0, #8]       ; CRASH_ADDR[2] = faulting PC
+                ; 2. 使能 GPIOB 时钟 (RCC->APB2PCLKEN |= BIT(3))
+                LDR     R0, =0x40021018    ; RCC->APB2PCLKEN
+                LDR     R1, [R0]
+                MOVS    R2, #8             ; RCC_APB2_PERIPH_GPIOB
+                ORRS    R1, R1, R2
+                STR     R1, [R0]
+                ; 3. 亮 LED1 (GPIOB->PBSC = BIT(3))
+                LDR     R0, =0x40010C18    ; GPIOB->PBSC
+                MOVS    R1, #8             ; GPIO_PIN_3
+                STR     R1, [R0]
+                ; 4. 延时 ~100ms
+                LDR     R3, =2500000
+delay_loop      SUBS    R3, R3, #1
+                BNE     delay_loop
+                ; 5. 系统复位
+                LDR     R0, =0xE000ED0C    ; SCB->AIRCR
+                LDR     R1, =0x05FA0004    ; VECTKEY | SYSRESETREQ
+                STR     R1, [R0]
+                DSB
                 B       .
                 ENDP
 					

@@ -306,20 +306,26 @@ int rc_trans_on_write(peer_t peer, const uint8_t *val, uint16_t len)
 
     rc_trans_log_rx(val, len);
 
-    if (s_assembled_ready)
-    {
-        co_printf("[RC   ] TRANS reject: assembled_ready pack=0x%08X\r\n",
-                  (unsigned)s_asm_pack_index);
-        rc_trans_fail(peer, RC_RESULT_BUSY_REJECT, s_asm_pack_index);
-        return -1;
-    }
-
     cur = ble_rc_svc_get_status();
-    if (cur->state == RC_STATE_BUSY)
+
+    /*
+     * 在途上传（assembled_ready / BUSY）时拒收新包：只回 Result，不改 State。
+     * 若此处 rc_trans_fail→ERROR，会提前解锁并打乱仍在 UDP 队列中的原包。
+     */
+    if (s_assembled_ready || cur->state == RC_STATE_BUSY)
     {
-        co_printf("[RC   ] TRANS reject: state BUSY cur_pack=0x%08X\r\n",
-                  (unsigned)cur->pack_index);
-        rc_trans_fail(peer, RC_RESULT_BUSY_REJECT, cur->pack_index);
+        rc_status_t rej;
+
+        co_printf("[RC   ] TRANS reject: %s pack=0x%08X (keep BUSY)\r\n",
+                  s_assembled_ready ? "assembled_ready" : "state BUSY",
+                  (unsigned)(s_assembled_ready ? s_asm_pack_index : cur->pack_index));
+        memcpy(&rej, cur, sizeof(rej));
+        rej.result = RC_RESULT_BUSY_REJECT;
+        if (s_assembled_ready)
+        {
+            rej.pack_index = s_asm_pack_index;
+        }
+        ble_rc_svc_status_notify(peer, &rej);
         return -1;
     }
     if (cur->state != RC_STATE_READY && cur->state != RC_STATE_DONE &&

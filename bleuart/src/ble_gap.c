@@ -47,6 +47,7 @@
 #include "ble_hid_kbd.h"
 #include "rc_trans_assembly.h"
 #include "ble_rc_svc.h"
+#include "ble_bas.h"
 #include "rc_cat1_bridge.h"
 #include "pm_state.h"       /* 电源管理状态机 — 连接/断连通知 */
 #include "combo_key.h"      /* 组合键管理器 — 解配进行中判断     */
@@ -393,6 +394,7 @@ void ble_gap_process_disconnect_pending(void)
 	rc_trans_reset();
 	rc_cat1_cancel_pending();
 	ble_rc_svc_on_disconnect();
+	ble_bas_on_disconnect();
 
 	// 解配进行中时跳过广播重启，由 combo_key 状态机处理后续
 	if (combo_key_unpair_in_progress()) {

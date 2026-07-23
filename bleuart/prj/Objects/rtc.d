@@ -2,11 +2,11 @@
 .\objects\rtc.o: ..\..\bsp\driver\inc\rtc.h
 .\objects\rtc.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\rtc.o: ..\..\bsp\core\inc\core_cm0.h
-.\objects\rtc.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\rtc.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\rtc.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\rtc.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\rtc.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\rtc.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\rtc.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\rtc.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\rtc.o: ..\..\bsp\driver\inc\adc.h
 .\objects\rtc.o: ..\..\bsp\core\inc\br1601x.h

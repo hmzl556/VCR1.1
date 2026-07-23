@@ -1,8 +1,8 @@
 .\objects\app_rtos.o: ..\src\app_rtos.c
 .\objects\app_rtos.o: ..\inc\app_rtos.h
 .\objects\app_rtos.o: ..\freertos\include\FreeRTOS.h
-.\objects\app_rtos.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
-.\objects\app_rtos.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\app_rtos.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\app_rtos.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\app_rtos.o: ..\freertos\FreeRTOSConfig.h
 .\objects\app_rtos.o: ..\freertos\include\projdefs.h
 .\objects\app_rtos.o: ..\freertos\include\portable.h
@@ -13,8 +13,8 @@
 .\objects\app_rtos.o: ..\cat1\cat1\rc_cat1_bridge.h
 .\objects\app_rtos.o: ..\cat1\cat1\rc_protocol.h
 .\objects\app_rtos.o: ..\..\cs\inc\gap.h
-.\objects\app_rtos.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
-.\objects\app_rtos.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\app_rtos.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\app_rtos.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
 .\objects\app_rtos.o: ..\freertos\include\queue.h
 .\objects\app_rtos.o: ..\freertos\include\task.h
 .\objects\app_rtos.o: ..\freertos\include\list.h

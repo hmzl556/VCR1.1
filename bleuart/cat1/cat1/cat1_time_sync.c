@@ -8,6 +8,7 @@
 #include <string.h>
 
 static uint8_t  s_valid;
+static uint8_t  s_from_cclk; /* 1=CCLK 锚点，备选源不得覆盖 */
 static uint32_t s_anchor_sec;
 static uint32_t s_anchor_ms;
 
@@ -173,8 +174,20 @@ static int cat1_time_expect_char(const char **p, char ch)
 void cat1_time_sync_reset(void)
 {
 	s_valid = 0u;
+	s_from_cclk = 0u;
 	s_anchor_sec = 0u;
 	s_anchor_ms = 0u;
+}
+
+static int cat1_time_bcd_byte(uint8_t b)
+{
+	uint8_t hi = (uint8_t)(b >> 4);
+	uint8_t lo = (uint8_t)(b & 0x0Fu);
+
+	if (hi > 9u || lo > 9u) {
+		return -1;
+	}
+	return (int)(hi * 10u + lo);
 }
 
 int cat1_time_sync_from_cclk_rsp(const char *rsp)
@@ -237,7 +250,69 @@ int cat1_time_sync_from_cclk_rsp(const char *rsp)
 	s_anchor_sec = sec2000;
 	s_anchor_ms = sdk_timer_get_current_ms();
 	s_valid = 1u;
+	s_from_cclk = 1u;
 	return 0;
+}
+
+int cat1_time_sync_from_bcd6_fallback(const uint8_t bcd[6], int8_t local_tz_hours)
+{
+	int yy;
+	int month;
+	int day;
+	int hour;
+	int min;
+	int sec;
+	uint16_t year;
+	uint32_t sec2000;
+	int32_t tz_sec;
+
+	if (bcd == NULL) {
+		return -1;
+	}
+	if (s_from_cclk != 0u) {
+		return 1;
+	}
+
+	yy = cat1_time_bcd_byte(bcd[0]);
+	month = cat1_time_bcd_byte(bcd[1]);
+	day = cat1_time_bcd_byte(bcd[2]);
+	hour = cat1_time_bcd_byte(bcd[3]);
+	min = cat1_time_bcd_byte(bcd[4]);
+	sec = cat1_time_bcd_byte(bcd[5]);
+	if (yy < 0 || month < 0 || day < 0 || hour < 0 || min < 0 || sec < 0) {
+		return -1;
+	}
+
+	year = (uint16_t)(2000u + (uint16_t)yy);
+	if (cat1_time_ymd_in_range(year, (uint8_t)month, (uint8_t)day,
+	                           (uint8_t)hour, (uint8_t)min, (uint8_t)sec) != 0) {
+		return -1;
+	}
+
+	sec2000 = cat1_time_ymdhms_to_sec2000(year, (uint8_t)month, (uint8_t)day,
+	                                      (uint8_t)hour, (uint8_t)min, (uint8_t)sec);
+	/* Tag11 等帧头为当地时间：换算为与 CCLK 同基准后再锚定 */
+	tz_sec = (int32_t)local_tz_hours * 3600;
+	if (tz_sec > 0) {
+		uint32_t sub = (uint32_t)tz_sec;
+
+		if (sec2000 < sub) {
+			return -1;
+		}
+		sec2000 -= sub;
+	} else if (tz_sec < 0) {
+		sec2000 += (uint32_t)(-tz_sec);
+	}
+
+	s_anchor_sec = sec2000;
+	s_anchor_ms = sdk_timer_get_current_ms();
+	{
+		uint8_t first = (s_valid == 0u);
+
+		s_valid = 1u;
+		s_from_cclk = 0u;
+		return (first != 0u) ? 0 : 2;
+	}
 }
 
 int cat1_time_get_bcd6(uint8_t out[6])

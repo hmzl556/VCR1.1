@@ -1,10 +1,10 @@
 .\objects\rc_cat1_bridge.o: ..\cat1\cat1\rc_cat1_bridge.c
-.\objects\rc_cat1_bridge.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\rc_cat1_bridge.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
 .\objects\rc_cat1_bridge.o: ..\cat1\cat1\rc_cat1_bridge.h
-.\objects\rc_cat1_bridge.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\rc_cat1_bridge.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\rc_cat1_bridge.o: ..\cat1\cat1\rc_protocol.h
 .\objects\rc_cat1_bridge.o: ..\..\cs\inc\gap.h
-.\objects\rc_cat1_bridge.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\rc_cat1_bridge.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\rc_cat1_bridge.o: ..\cat1\cat1\cat1_usart2.h
 .\objects\rc_cat1_bridge.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\rc_cat1_bridge.o: ..\..\bsp\core\inc\core_cm0.h
@@ -32,9 +32,10 @@
 .\objects\rc_cat1_bridge.o: ..\..\bsp\driver\inc\qflash.h
 .\objects\rc_cat1_bridge.o: ..\..\bsp\driver\inc\misc.h
 .\objects\rc_cat1_bridge.o: ..\cat1\cat1\cat1_udp_config.h
+.\objects\rc_cat1_bridge.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\rc_cat1_bridge.o: ..\cat1\cat1\cat1_skt_udp.h
 .\objects\rc_cat1_bridge.o: ..\cat1\cat1\remote_reports.h
-.\objects\rc_cat1_bridge.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\rc_cat1_bridge.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stddef.h
 .\objects\rc_cat1_bridge.o: ..\cat1\cat1\rc_key_input.h
 .\objects\rc_cat1_bridge.o: ..\cat1\cat1\ble_rc_svc.h
 .\objects\rc_cat1_bridge.o: ..\cat1\cat1\rc_trans_assembly.h
@@ -46,7 +47,6 @@
 .\objects\rc_cat1_bridge.o: ..\freertos\include\deprecated_definitions.h
 .\objects\rc_cat1_bridge.o: ..\freertos\portable\RVDS\ARM_CM0\portmacro.h
 .\objects\rc_cat1_bridge.o: ..\freertos\include\mpu_wrappers.h
-.\objects\rc_cat1_bridge.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\rc_cat1_bridge.o: ..\..\cs\inc\br_timer.h
 .\objects\rc_cat1_bridge.o: ..\pmu\inc\pm_state.h
 .\objects\rc_cat1_bridge.o: ..\pmu\inc\pm_config.h
@@ -55,3 +55,4 @@
 .\objects\rc_cat1_bridge.o: ..\cat1\cat1\OTA\udp_ota.h
 .\objects\rc_cat1_bridge.o: ..\cat1\cat1\OTA\ota_frame.h
 .\objects\rc_cat1_bridge.o: ..\cat1\cat1\cat1_time_sync.h
+.\objects\rc_cat1_bridge.o: ..\cat1\cat1\OTA\flash_layout.h

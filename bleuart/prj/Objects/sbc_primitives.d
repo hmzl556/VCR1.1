@@ -1,10 +1,10 @@
 .\objects\sbc_primitives.o: ..\src\sbc_primitives.c
-.\objects\sbc_primitives.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
-.\objects\sbc_primitives.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\limits.h
-.\objects\sbc_primitives.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\sbc_primitives.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\sbc_primitives.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\limits.h
+.\objects\sbc_primitives.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
 .\objects\sbc_primitives.o: ..\src\sbc.h
 .\objects\sbc_primitives.o: ..\inc\sys/types.h
-.\objects\sbc_primitives.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\sbc_primitives.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stddef.h
 .\objects\sbc_primitives.o: ..\src\sbc_math.h
 .\objects\sbc_primitives.o: ..\src\sbc_tables.h
 .\objects\sbc_primitives.o: ..\src\sbc_primitives.h

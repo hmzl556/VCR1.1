@@ -1,6 +1,6 @@
 .\objects\udp_bootload.o: ..\cat1\cat1\OTA\udp_bootload.c
 .\objects\udp_bootload.o: ..\cat1\cat1\OTA\udp_bootload.h
-.\objects\udp_bootload.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\udp_bootload.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\udp_bootload.o: ..\cat1\cat1\OTA\flash_layout.h
 .\objects\udp_bootload.o: ..\..\bsp\driver\inc\qflash.h
 .\objects\udp_bootload.o: ..\..\bsp\core\inc\br1601x.h
@@ -8,7 +8,7 @@
 .\objects\udp_bootload.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\udp_bootload.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\udp_bootload.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\udp_bootload.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\udp_bootload.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\udp_bootload.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\udp_bootload.o: ..\..\bsp\driver\inc\adc.h
 .\objects\udp_bootload.o: ..\..\bsp\core\inc\br1601x.h
@@ -29,4 +29,4 @@
 .\objects\udp_bootload.o: ..\..\bsp\driver\inc\keyscan.h
 .\objects\udp_bootload.o: ..\..\bsp\driver\inc\qflash.h
 .\objects\udp_bootload.o: ..\..\bsp\driver\inc\misc.h
-.\objects\udp_bootload.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\udp_bootload.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h

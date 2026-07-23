@@ -14,8 +14,10 @@
 #include "ble_adv.h"        /* ble_adv_start_wakeup          */
 #include "cs_core.h"
 #include "userhard.h"
+#include "cat1_skt_udp.h"   /* cat1_modem_is_busy：HID/AT 错峰 */
 
 volatile uint16_t key_receive = 0;
+volatile uint32_t g_last_ble_ms = 0U;  /* BLE/CAT1 串行化：BLE 最后活动时间戳 */
 
 typedef enum
 {
@@ -42,6 +44,80 @@ static struct {
 	uint16_t usage;
 	uint16_t key_id;
 } s_key15_rc_defer;
+
+/*
+ * CAT1 AT 忙时延后 HID：ECSORF 收包窗口内发 BLE notify 会拖垮 UART RX 消费。
+ */
+static struct {
+	uint8_t press_pending;
+	uint16_t press_key;
+	uint8_t release_pending;
+	uint8_t release_consumer;
+} s_hid_at_defer;
+
+static void task_keyscan_hid_flush_deferred(void)
+{
+	if (cat1_modem_is_busy() != 0u) {
+		return;
+	}
+	if (s_hid_at_defer.press_pending != 0u) {
+		uint16_t key_id = s_hid_at_defer.press_key;
+
+		s_hid_at_defer.press_pending = 0u;
+		s_hid_at_defer.press_key = 0u;
+		if (ble_gap_get_peer() != NULL && key_id != 0u) {
+			co_printf("\r\nKeyboard press KEY_%d, send via HID (deferred).\r\n",
+			          (unsigned)key_id);
+			hid_kbd_send_key_id_current(key_id);
+		}
+	}
+	if (s_hid_at_defer.release_pending != 0u) {
+		uint8_t is_consumer = s_hid_at_defer.release_consumer;
+
+		s_hid_at_defer.release_pending = 0u;
+		s_hid_at_defer.release_consumer = 0u;
+		if (ble_gap_get_peer() != NULL) {
+			if (is_consumer != 0u) {
+				hid_kbd_send_consumer_release_current();
+			} else {
+				hid_kbd_send_release_current();
+			}
+		}
+	}
+}
+
+static void task_keyscan_hid_send_press(uint16_t key_id)
+{
+	if (ble_gap_get_peer() == NULL || key_id == 0u) {
+		return;
+	}
+	if (cat1_modem_is_busy() != 0u) {
+		s_hid_at_defer.press_pending = 1u;
+		s_hid_at_defer.press_key = key_id;
+		/* 新按下作废尚未发出的释放 */
+		s_hid_at_defer.release_pending = 0u;
+		return;
+	}
+	co_printf("\r\nKeyboard press KEY_%d, send via HID.\r\n", (unsigned)key_id);
+	hid_kbd_send_key_id_current(key_id);
+}
+
+static void task_keyscan_hid_send_release(uint8_t is_consumer)
+{
+	if (ble_gap_get_peer() == NULL) {
+		return;
+	}
+	if (cat1_modem_is_busy() != 0u) {
+		s_hid_at_defer.release_pending = 1u;
+		s_hid_at_defer.release_consumer = is_consumer;
+		return;
+	}
+	if (is_consumer != 0u) {
+		hid_kbd_send_consumer_release_current();
+	} else {
+		hid_kbd_send_release_current();
+	}
+}
 
 static void key15_rc_notify_defer(uint8_t action)
 {
@@ -219,6 +295,10 @@ void task_keyscan_reset_on_ble_disconnect(void)
 	key_active_is_consumer = false;
 	key15_voice_started = false;
 	s_key15_rc_defer.pending = 0u;
+	s_hid_at_defer.press_pending = 0u;
+	s_hid_at_defer.press_key = 0u;
+	s_hid_at_defer.release_pending = 0u;
+	s_hid_at_defer.release_consumer = 0u;
 	key_receive = 0;
 	//CLRLED2;							// 清除 LED2（蓝） 状态为 OFF
 }
@@ -248,6 +328,11 @@ static void task_keyscan_rc_notify(uint8_t action)
 	rc_key_input_event(key_type, action, key_active_usage, key_active);
 }
 
+void task_keyscan_flush_deferred_hid(void)
+{
+	task_keyscan_hid_flush_deferred();
+}
+
 void task_keyscan_flush_deferred_voice_rc(void)
 {
 	if (s_key15_rc_defer.pending == 0u) {
@@ -267,6 +352,10 @@ void task_keyscan_flush_deferred_voice_rc(void)
 void task_keyscan_process(void)
 {
 	uint16_t key_id = 0;
+
+	/* AT 空闲时先吐出延后 HID，避免与下一笔 CAT1 再叠在一起 */
+	task_keyscan_hid_flush_deferred();
+
 	//static uint16_t _ks = 0; _ks++; if ((_ks % 500) == 0) co_printf("K");
 	if (key_receive) {
 		key_id = key_receive;
@@ -364,9 +453,8 @@ void task_keyscan_process(void)
 					SETLED1;
 				}
 
-				if (ble_gap_get_peer() != NULL && key_active != 0) {
-					co_printf("\r\nKeyboard press KEY_%d, send via HID.\r\n", key_active);
-					hid_kbd_send_key_id_current(key_active);
+				if (key_active != 0) {
+					task_keyscan_hid_send_press(key_active);
 					if (udp_ota_session_busy() != 0u) {
 						cs_schedule();
 					}
@@ -415,15 +503,9 @@ void task_keyscan_process(void)
 			}
 
 			if (hw_key == 0 && (now_ms - key_last_event_ms) >= KEY_RELEASE_TIMEOUT_MS) {
-				if (ble_gap_get_peer() != NULL) {
-					if (key_active_is_consumer) {
-						hid_kbd_send_consumer_release_current();
-					} else {
-						hid_kbd_send_release_current();
-					}
-					if (udp_ota_session_busy() != 0u) {
-						cs_schedule();
-					}
+				task_keyscan_hid_send_release(key_active_is_consumer ? 1u : 0u);
+				if (udp_ota_session_busy() != 0u) {
+					cs_schedule();
 				}
 
 				if (key_active == TASK_KEYSCAN_KEY15) {

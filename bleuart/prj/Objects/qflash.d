@@ -2,11 +2,11 @@
 .\objects\qflash.o: ..\..\bsp\driver\inc\qflash.h
 .\objects\qflash.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\qflash.o: ..\..\bsp\core\inc\core_cm0.h
-.\objects\qflash.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\qflash.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\qflash.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\qflash.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\qflash.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\qflash.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\qflash.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\qflash.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\qflash.o: ..\..\bsp\driver\inc\adc.h
 .\objects\qflash.o: ..\..\bsp\core\inc\br1601x.h
@@ -27,4 +27,4 @@
 .\objects\qflash.o: ..\..\bsp\driver\inc\keyscan.h
 .\objects\qflash.o: ..\..\bsp\driver\inc\qflash.h
 .\objects\qflash.o: ..\..\bsp\driver\inc\misc.h
-.\objects\qflash.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\qflash.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h

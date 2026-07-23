@@ -1,9 +1,9 @@
 .\objects\ble_dtss.o: ..\..\cs\src\ble_dtss.c
-.\objects\ble_dtss.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdio.h
-.\objects\ble_dtss.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
-.\objects\ble_dtss.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\ble_dtss.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdio.h
+.\objects\ble_dtss.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
+.\objects\ble_dtss.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\ble_dtss.o: ..\..\cs\inc\gap.h
-.\objects\ble_dtss.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\ble_dtss.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\ble_dtss.o: ..\..\cs\inc\gatt.h
 .\objects\ble_dtss.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\ble_dtss.o: ..\..\cs\inc\ble_dtss.h
@@ -40,7 +40,7 @@
 .\objects\ble_dtss.o: ..\..\bsp\driver\inc\misc.h
 .\objects\ble_dtss.o: ..\inc\app_voice_ctrl.h
 .\objects\ble_dtss.o: ..\freertos\include\FreeRTOS.h
-.\objects\ble_dtss.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\ble_dtss.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stddef.h
 .\objects\ble_dtss.o: ..\freertos\FreeRTOSConfig.h
 .\objects\ble_dtss.o: ..\freertos\include\projdefs.h
 .\objects\ble_dtss.o: ..\freertos\include\portable.h

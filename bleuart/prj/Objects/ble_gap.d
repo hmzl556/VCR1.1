@@ -1,9 +1,9 @@
 .\objects\ble_gap.o: ..\src\ble_gap.c
-.\objects\ble_gap.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdio.h
+.\objects\ble_gap.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdio.h
 .\objects\ble_gap.o: ..\..\cs\inc\gap.h
-.\objects\ble_gap.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
-.\objects\ble_gap.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
-.\objects\ble_gap.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\ble_gap.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\ble_gap.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\ble_gap.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
 .\objects\ble_gap.o: ..\..\cs\inc\gatt.h
 .\objects\ble_gap.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\ble_gap.o: ..\inc\ble_gap.h
@@ -12,7 +12,7 @@
 .\objects\ble_gap.o: ..\inc\gmem.h
 .\objects\ble_gap.o: ..\inc\app_voice_ctrl.h
 .\objects\ble_gap.o: ..\freertos\include\FreeRTOS.h
-.\objects\ble_gap.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\ble_gap.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stddef.h
 .\objects\ble_gap.o: ..\freertos\FreeRTOSConfig.h
 .\objects\ble_gap.o: ..\freertos\include\projdefs.h
 .\objects\ble_gap.o: ..\freertos\include\portable.h
@@ -53,6 +53,7 @@
 .\objects\ble_gap.o: ..\cat1\cat1\rc_trans_assembly.h
 .\objects\ble_gap.o: ..\cat1\cat1\rc_protocol.h
 .\objects\ble_gap.o: ..\cat1\cat1\ble_rc_svc.h
+.\objects\ble_gap.o: ..\inc\ble_bas.h
 .\objects\ble_gap.o: ..\cat1\cat1\rc_cat1_bridge.h
 .\objects\ble_gap.o: ..\pmu\inc\pm_state.h
 .\objects\ble_gap.o: ..\pmu\inc\pm_config.h

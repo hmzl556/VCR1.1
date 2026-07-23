@@ -13,6 +13,7 @@
 // PB2 LTE_EN
 #define LTE_EN_ON()  GPIO_SetBits(GPIOB, GPIO_PIN_2)
 #define LTE_EN_OFF() GPIO_ResetBits(GPIOB, GPIO_PIN_2)
+#define LTE_EN_IS_ON() (GPIO_ReadOutputDataBit(GPIOB, GPIO_PIN_2) != Bit_RESET)
 
 void initialGpio(void);
 void rstApplication(void);

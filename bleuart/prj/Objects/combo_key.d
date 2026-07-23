@@ -1,7 +1,7 @@
 .\objects\combo_key.o: ..\src\combo_key.c
 .\objects\combo_key.o: ..\inc\combo_key.h
-.\objects\combo_key.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
-.\objects\combo_key.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\combo_key.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\combo_key.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\combo_key.o: ..\inc\app_keyscan.h
 .\objects\combo_key.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\combo_key.o: ..\..\bsp\core\inc\core_cm0.h
@@ -31,7 +31,7 @@
 .\objects\combo_key.o: ..\inc\task_keyscan.h
 .\objects\combo_key.o: ..\inc\ble_gap.h
 .\objects\combo_key.o: ..\..\cs\inc\gap.h
-.\objects\combo_key.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\combo_key.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
 .\objects\combo_key.o: ..\inc\ble_adv.h
 .\objects\combo_key.o: ..\pmu\inc\pm_state.h
 .\objects\combo_key.o: ..\pmu\inc\pm_config.h

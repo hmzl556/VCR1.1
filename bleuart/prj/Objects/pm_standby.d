@@ -1,10 +1,10 @@
 .\objects\pm_standby.o: ..\pmu\src\pm_standby.c
 .\objects\pm_standby.o: ..\pmu\inc\pm_config.h
-.\objects\pm_standby.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\pm_standby.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\pm_standby.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\pm_standby.o: ..\..\cs\inc\gap.h
-.\objects\pm_standby.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
-.\objects\pm_standby.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\pm_standby.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\pm_standby.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
 .\objects\pm_standby.o: ..\inc\ble_gap.h
 .\objects\pm_standby.o: ..\inc\userhard.h
 .\objects\pm_standby.o: ..\..\bsp\driver\inc\gpio.h

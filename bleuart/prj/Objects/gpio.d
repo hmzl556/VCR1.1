@@ -2,11 +2,11 @@
 .\objects\gpio.o: ..\..\bsp\driver\inc\gpio.h
 .\objects\gpio.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\gpio.o: ..\..\bsp\core\inc\core_cm0.h
-.\objects\gpio.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\gpio.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\gpio.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\gpio.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\gpio.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\gpio.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\gpio.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\gpio.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\gpio.o: ..\..\bsp\driver\inc\adc.h
 .\objects\gpio.o: ..\..\bsp\core\inc\br1601x.h

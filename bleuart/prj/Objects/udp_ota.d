@@ -1,6 +1,6 @@
 .\objects\udp_ota.o: ..\cat1\cat1\OTA\udp_ota.c
 .\objects\udp_ota.o: ..\cat1\cat1\OTA\udp_ota.h
-.\objects\udp_ota.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\udp_ota.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\udp_ota.o: ..\cat1\cat1\OTA\ota_frame.h
 .\objects\udp_ota.o: ..\cat1\cat1\OTA\ota_crc.h
 .\objects\udp_ota.o: ..\cat1\cat1\OTA\udp_bootload.h
@@ -12,7 +12,7 @@
 .\objects\udp_ota.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\udp_ota.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\udp_ota.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\udp_ota.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\udp_ota.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\udp_ota.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\udp_ota.o: ..\..\bsp\driver\inc\adc.h
 .\objects\udp_ota.o: ..\..\bsp\core\inc\br1601x.h
@@ -35,13 +35,13 @@
 .\objects\udp_ota.o: ..\..\bsp\driver\inc\misc.h
 .\objects\udp_ota.o: ..\cat1\cat1\cat1_skt_udp.h
 .\objects\udp_ota.o: ..\cat1\cat1\cat1_udp_config.h
+.\objects\udp_ota.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\udp_ota.o: ..\cat1\cat1\remote_reports.h
 .\objects\udp_ota.o: ..\cat1\cat1\rc_protocol.h
 .\objects\udp_ota.o: ..\..\cs\inc\gap.h
-.\objects\udp_ota.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
-.\objects\udp_ota.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\udp_ota.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
+.\objects\udp_ota.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stddef.h
 .\objects\udp_ota.o: ..\..\cs\inc\br_timer.h
-.\objects\udp_ota.o: ..\..\bsp\common\inc\co_printf.h
 .\objects\udp_ota.o: ..\inc\ble_adv.h
 .\objects\udp_ota.o: ..\inc\ble_gap.h
 .\objects\udp_ota.o: ..\inc\ble_hid_kbd.h

@@ -2,11 +2,11 @@
 .\objects\i2c.o: ..\..\bsp\driver\inc\i2c.h
 .\objects\i2c.o: ..\..\bsp\core\inc\br1601x.h
 .\objects\i2c.o: ..\..\bsp\core\inc\core_cm0.h
-.\objects\i2c.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\i2c.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\i2c.o: ..\..\bsp\core\inc\core_cmInstr.h
 .\objects\i2c.o: ..\..\bsp\core\inc\core_cmFunc.h
 .\objects\i2c.o: ..\..\bsp\core\inc\system_br1601x.h
-.\objects\i2c.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\i2c.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\i2c.o: ..\..\bsp\core\inc\br1601x_conf.h
 .\objects\i2c.o: ..\..\bsp\driver\inc\adc.h
 .\objects\i2c.o: ..\..\bsp\core\inc\br1601x.h

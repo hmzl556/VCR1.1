@@ -1,7 +1,7 @@
 .\objects\app_port.o: ..\freertos\app_port.c
 .\objects\app_port.o: ..\freertos\include\FreeRTOS.h
-.\objects\app_port.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stddef.h
-.\objects\app_port.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\app_port.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stddef.h
+.\objects\app_port.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
 .\objects\app_port.o: ..\freertos\FreeRTOSConfig.h
 .\objects\app_port.o: ..\freertos\include\projdefs.h
 .\objects\app_port.o: ..\freertos\include\portable.h

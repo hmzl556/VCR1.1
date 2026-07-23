@@ -1,11 +1,11 @@
 .\objects\ble_diss.o: ..\src\ble_diss.c
 .\objects\ble_diss.o: ..\..\cs\inc\ble_diss.h
-.\objects\ble_diss.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdio.h
-.\objects\ble_diss.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdlib.h
-.\objects\ble_diss.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\string.h
+.\objects\ble_diss.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdio.h
+.\objects\ble_diss.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdlib.h
+.\objects\ble_diss.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
 .\objects\ble_diss.o: ..\..\cs\inc\ble_prf.h
 .\objects\ble_diss.o: ..\..\cs\inc\gap.h
-.\objects\ble_diss.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdint.h
-.\objects\ble_diss.o: D:\RuanJian\KEIL5\ARM\ARMCC\Bin\..\include\stdbool.h
+.\objects\ble_diss.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
+.\objects\ble_diss.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
 .\objects\ble_diss.o: ..\..\cs\inc\gatt.h
 .\objects\ble_diss.o: ..\..\bsp\common\inc\co_printf.h

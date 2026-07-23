@@ -33,6 +33,13 @@ extern volatile bool g_pm_sleeping;
  */
 uint8_t pm_sleep_enter(void);
 
+/**
+ * @brief  Enter Sleep mode without touching BLE (for IWDG wake → direct sleep)
+ * @note   Skips ble_adv_stop() / BLE restart logic. Only shuts down peripherals
+ *         and enters sleep. Used when BLE stack is not initialized.
+ */
+uint8_t pm_sleep_enter_no_ble(void);
+
 #ifdef __cplusplus
 }
 #endif
