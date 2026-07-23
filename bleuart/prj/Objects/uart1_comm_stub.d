@@ -1,9 +1,0 @@
-.\objects\uart1_comm_stub.o: ..\src\uart1_comm_stub.c
-.\objects\uart1_comm_stub.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdint.h
-.\objects\uart1_comm_stub.o: ..\inc\gmem.h
-.\objects\uart1_comm_stub.o: ..\inc\cfg_app.h
-.\objects\uart1_comm_stub.o: ..\..\cs\inc\gap.h
-.\objects\uart1_comm_stub.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\stdbool.h
-.\objects\uart1_comm_stub.o: D:\MDK5.36\ARM\ARMCC\Bin\..\include\string.h
-.\objects\uart1_comm_stub.o: ..\..\cs\inc\gatt.h
-.\objects\uart1_comm_stub.o: ..\src\uart1.h

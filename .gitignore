@@ -1,0 +1,28 @@
+# Keil 编译输出目录（Objects/Listings 整个文件夹直接忽略）
+bleuart/prj/Objects/
+bleuart/prj/Listings/
+Project/MDK5/Build/
+
+# 固件镜像文件
+*.axf
+*.elf
+*.bin
+*.hex
+*.srec
+
+# 编译中间文件
+*.o
+*.d
+*.crf
+*.dep
+*.map
+*.htm
+
+# Keil 界面临时缓存文件
+*.uvguix.*
+*.bak
+*.rpt
+
+# 系统缓存
+.DS_Store
+Thumbs.db
