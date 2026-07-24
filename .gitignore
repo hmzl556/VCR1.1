@@ -1,0 +1,18 @@
+# Keil编译输出文件夹
+Project/MDK5/Build/
+# 编译产物
+*.axf
+*.hex
+*.bin
+*.elf
+*.map
+*.crf
+*.d
+*.o
+*.dep
+# 工程临时文件
+*.uvguix.*
+*.bak
+# 系统缓存
+.DS_Store
+Thumbs.db
