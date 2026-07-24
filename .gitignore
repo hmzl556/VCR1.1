@@ -1,18 +1,16 @@
-# Keil编译输出文件夹
-Project/MDK5/Build/
-# 编译产物
-*.axf
-*.hex
-*.bin
-*.elf
-*.map
+# 完整屏蔽bleuart下全部编译输出文件夹
+bleuart/prj/Objects/
+bleuart/prj/Listings/
+
+# 编译产物后缀兜底过滤
+*.o
 *.crf
 *.d
-*.o
 *.dep
-# 工程临时文件
+*.map
+*.axf
+*.bin
+*.hex
+*.elf
 *.uvguix.*
 *.bak
-# 系统缓存
-.DS_Store
-Thumbs.db
