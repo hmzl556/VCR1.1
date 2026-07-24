@@ -1,0 +1,23 @@
+# 完整屏蔽bleuart下全部编译输出文件夹
+bleuart/prj/Objects/
+bleuart/prj/Listings/
+
+# 单独屏蔽根目录生成的固件二进制文件
+ble.bin
+
+# 编译产物后缀兜底过滤（全局所有目录下的编译固件/中间文件）
+*.o
+*.crf
+*.d
+*.dep
+*.map
+*.axf
+*.bin
+*.hex
+*.elf
+*.uvguix.*
+*.uvguix.hmzl556
+*.bak
+*.lst
+*.rpt
+*.htm
