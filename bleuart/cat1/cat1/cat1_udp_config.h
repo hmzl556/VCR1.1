@@ -66,8 +66,8 @@
 /** USART2 TX 等 TXDE 最大空转次数（≈数 ms）；超时返回失败避免整 task 卡死 */
 #define CAT1_UART_TX_SPIN_MAX   60000u
 
-/** USART2 RX DMA 环：≥2 条 ECSORF 行余量（软件消费滞后时的硬件缓冲） */
-#define CAT1_UART_RX_RING_CAP   ((CAT1_AT_LINE_MAX * 2u) + 64u)
+/** USART2 RX DMA 环：1 条 AT 行长 + 256B 余量（省 1KB；须 ATE0 关回显） */
+#define CAT1_UART_RX_RING_CAP   (CAT1_AT_LINE_MAX + 256u)
 
 // 模组 AT 应答拼装缓冲（setup 诊断/ECSOCR；不含 ECSTATUS=PHY）
 #define CAT1_MODEM_RSP_CAP      128u
