@@ -1,0 +1,16 @@
+# 完整屏蔽bleuart下全部编译输出文件夹
+bleuart/prj/Objects/
+bleuart/prj/Listings/
+
+# 编译产物后缀兜底过滤
+*.o
+*.crf
+*.d
+*.dep
+*.map
+*.axf
+*.bin
+*.hex
+*.elf
+*.uvguix.*
+*.bak
