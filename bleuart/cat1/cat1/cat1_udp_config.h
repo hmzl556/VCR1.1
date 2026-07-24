@@ -80,7 +80,7 @@
  * 1 = 开启遥控器自身 Tag10 按键采集上报功能，受服务器 Tag11 (DataID 0x01) 控制
  * 0 = 关闭 Tag10 按键采集上报功能，忽略服务器 Tag11 控制，整条上报链路关闭
  */
-#define RC_TAG10_SELF_REPORT_ENABLE  1u   /* 按需改为 0 关闭 */
+#define RC_TAG10_SELF_REPORT_ENABLE  0u   /* 按需改为 0 关闭 */
 
 /** Tag0x10 按键采集默认开关（Tag11 DataID 0x01：1=开启，2=关闭） */
 #define REMOTE_KEY_CAPTURE_DEFAULT  2u

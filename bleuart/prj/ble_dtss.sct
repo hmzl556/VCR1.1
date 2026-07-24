@@ -15,6 +15,12 @@ LR_IROM1 0x01004000 0x00032000    {    ; APP1 @ 0x01004000, 200KB
     blecomm.o (+ZI +RW)
     qflash.o (+ZI +RW)
     app_audio_pcm.o (+ZI +RW)
+    udp_bootload.o (+ZI +RW)
+    co_printf.o (+ZI +RW)
+    ble_rc_svc.o (+ZI +RW)
+    app_voice_ctrl.o (+ZI +RW)
+    combo_key.o (+ZI +RW)
+    ble_gap.o (+ZI +RW)
   }
   RW_IRAM1 0x20004000 0x00008000  {    ; RW data (32 KB)
    .ANY (+RW,+ZI,IRAM1)
