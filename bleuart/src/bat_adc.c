@@ -22,13 +22,13 @@
 /* EMA 平滑 + 迟滞滤波参数（放电极慢场景） */
 #define BAT_EMA_ALPHA_NUM     1U          /* α = 1/16 ≈ 6.25%，新值权重 */
 #define BAT_EMA_ALPHA_DEN     16U
-#define BAT_HYST_THRESHOLD    3U          /* EMA 偏离显示值 ≥3% 才更新 */
+#define BAT_HYST_THRESHOLD    2U          /* EMA 偏离 ≥x% 才更新 */
 
-static uint8_t s_bat_level_cached = 100U; /* 最近一次有效电量（默认 100%） */
-static uint8_t s_bat_level_ema    = 100U; /* EMA 平滑值，每轮采样都更新 */
+static uint8_t s_bat_level_cached  = 100U;/* 最近一次有效电量（默认 100%） */
+static uint8_t s_bat_level_ema     = 100U;/* EMA 平滑值，每轮采样都更新 */
 static uint8_t s_bat_level_display = 100U;/* 对外显示值，迟滞控制 */
-static uint8_t s_bat_first_sample = 1U;   /* 首次有效采样标志，1=尚未采样 */
-static uint8_t s_pb6_analog_ready = 0U;   /* PB6 模拟输入是否已配置 */
+static uint8_t s_bat_first_sample  = 1U;  /* 首次有效采样标志，1=尚未采样 */
+static uint8_t s_pb6_analog_ready  = 0U;  /* PB6 模拟输入是否已配置 */
 
 /**
  * @brief  将 PB6 配置为模拟输入（ADC CH5），仅初始化一次
