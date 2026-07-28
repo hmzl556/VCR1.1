@@ -46,12 +46,22 @@ extern "C" {
  *         【测试模式】改为 45000ms，方便验证状态切换
  */
 //#define PM_RECONNECT_TIMEOUT_MS      9000000U
-#define PM_RECONNECT_TIMEOUT_MS      120000U   /* 测试用：45秒 */
+#define PM_RECONNECT_TIMEOUT_MS      300000U   /* 测试用：45秒 */
 
 /**
- * @brief  配对态 → 休眠态：广播无连接超时（30 秒）
+ * @brief  静默态 → 休眠态：上电/唤醒后无按键超时（60 秒）
+ * @note   上电或休眠唤醒后若无绑定，进入静默态等待用户按组合键。
+ *         超时无操作则进入休眠节省功耗。
+ *         范围建议：30000 ~ 120000 ms
  */
-#define PM_PAIRING_TIMEOUT_MS         120000U
+#define PM_SILENT_TO_SLEEP_MS          300000U
+
+/**
+ * @brief  配对态 → 休眠态：广播无连接超时（120 秒）
+ * @note   从 KEY14+KEY3 组合键触发配对广播时开始计时，
+ *         与静默态超时独立，确保配对窗口完整。
+ */
+#define PM_PAIRING_TIMEOUT_MS         30000U
 
 /*===========================================================================
  * 二、待机态 BLE 连接参数
