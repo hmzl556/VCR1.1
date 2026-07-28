@@ -42,7 +42,7 @@
 #include "ble_gap.h"    /* g_pairing_active */
 #include "cs_core.h"
 #include "qflash.h"     /* Qflash_Read */
-#include "flash_layout.h" /* BLE_BONDING_STORE_ADDR */
+#include "flash_layout.h" 
 #include "br1601x.h"
 
 uint8_t local_bd[6];    // 本地蓝牙地址
