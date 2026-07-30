@@ -14,4 +14,5 @@ uint8_t bat_get_level_percent(void);
 /** @brief 返回最近一次有效电量缓存（未采样过则为 100） */
 uint8_t bat_get_cached_level(void);
 
+
 #endif /* _BAT_ADC_H_ */
