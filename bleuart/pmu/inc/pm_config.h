@@ -28,7 +28,7 @@ extern "C" {
  *         【测试模式】改为 10000ms，方便验证状态切换
  */
 //#define PM_WORK_TO_STANDBY_MS         4500000U
-#define PM_WORK_TO_STANDBY_MS         4500000U   /* 测试用：10秒 */
+#define PM_WORK_TO_STANDBY_MS         60000U   /* 测试用：10秒 */
 
 /**
  * @brief  最后一次活动 → 休眠态：总空闲超时（120 秒）
@@ -36,7 +36,7 @@ extern "C" {
  *         实际待在待机态的时长 = PM_STANDBY_TO_SLEEP_MS - PM_WORK_TO_STANDBY_MS
  */
 //#define PM_STANDBY_TO_SLEEP_MS       9000000U
-#define PM_STANDBY_TO_SLEEP_MS       9000000U   /* 测试用：120秒 */
+#define PM_STANDBY_TO_SLEEP_MS       120000U   /* 测试用：120秒 */
 
 /**
  * @brief  回连态 → 休眠态：持续广播无连接超时（45 秒）
@@ -46,7 +46,7 @@ extern "C" {
  *         【测试模式】改为 45000ms，方便验证状态切换
  */
 //#define PM_RECONNECT_TIMEOUT_MS      9000000U
-#define PM_RECONNECT_TIMEOUT_MS      300000U   /* 测试用：45秒 */
+#define PM_RECONNECT_TIMEOUT_MS      60000U   /* 测试用：45秒 */
 
 /**
  * @brief  静默态 → 休眠态：上电/唤醒后无按键超时（60 秒）
@@ -54,7 +54,7 @@ extern "C" {
  *         超时无操作则进入休眠节省功耗。
  *         范围建议：30000 ~ 120000 ms
  */
-#define PM_SILENT_TO_SLEEP_MS          300000U
+#define PM_SILENT_TO_SLEEP_MS          60000U
 
 /**
  * @brief  配对态 → 休眠态：广播无连接超时（120 秒）
