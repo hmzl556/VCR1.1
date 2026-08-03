@@ -19,8 +19,16 @@
 #define BAT_SAMPLE_COUNT      8U          /* 连续采样次数，用于平均抑噪 */
 #define BAT_ADC_DONE_TIMEOUT  100000U     /* 单次转换完成等待上限 */
 
-static uint8_t s_bat_level_cached = 100U; /* 最近一次有效电量（默认 100%） */
-static uint8_t s_pb6_analog_ready = 0U;   /* PB6 模拟输入是否已配置 */
+/* EMA 平滑 + 迟滞滤波参数（放电极慢场景） */
+#define BAT_EMA_ALPHA_NUM     1U          /* α = 1/16 ≈ 6.25%，新值权重 */
+#define BAT_EMA_ALPHA_DEN     16U
+#define BAT_HYST_THRESHOLD    2U          /* EMA 偏离 ≥x% 才更新 */
+
+static uint8_t s_bat_level_cached  = 100U;/* 最近一次有效电量（默认 100%） */
+static uint8_t s_bat_level_ema     = 100U;/* EMA 平滑值，每轮采样都更新 */
+static uint8_t s_bat_level_display = 100U;/* 对外显示值，迟滞控制 */
+static uint8_t s_bat_first_sample  = 1U;  /* 首次有效采样标志，1=尚未采样 */
+static uint8_t s_pb6_analog_ready  = 0U;  /* PB6 模拟输入是否已配置 */
 
 /**
  * @brief  将 PB6 配置为模拟输入（ADC CH5），仅初始化一次
@@ -117,11 +125,11 @@ static uint8_t bat_mv_to_percent(uint32_t vbat_mv)
 }
 
 /**
- * @brief  返回最近一次有效电量缓存（未采样过则为 100）
+ * @brief  返回最近一次有效显示电量（未采样过则为 100）
  */
 uint8_t bat_get_cached_level(void)
 {
-	return s_bat_level_cached;
+	return s_bat_level_display;
 }
 
 /**
@@ -177,14 +185,51 @@ uint8_t bat_get_level_percent(void)
 	/* V_bat = V_adc * (20k+4.7k)/4.7k */
 	vbat_mv = (vadc_mv * BAT_DIV_NUM) / BAT_DIV_DEN;
 	level = bat_mv_to_percent(vbat_mv);
-	s_bat_level_cached = level;
 
-	co_printf("[BAT  ] raw_avg=%u vadc=%umV vbat=%umV level=%u%% (n=%u)\r\n",
+	/* === 首次有效采样：直接初始化，避免从 100% 缓慢收敛 === */
+	if (s_bat_first_sample != 0U) {
+		s_bat_level_ema     = level;
+		s_bat_level_display = level;
+		s_bat_first_sample  = 0U;
+	} else {
+		/* === EMA 平滑滤波：每轮都更新，独立状态追踪趋势 === */
+		{
+			uint16_t smoothed;
+			smoothed = (uint16_t)s_bat_level_ema * (BAT_EMA_ALPHA_DEN - BAT_EMA_ALPHA_NUM)
+			         + (uint16_t)level * BAT_EMA_ALPHA_NUM;
+			smoothed = (smoothed + (BAT_EMA_ALPHA_DEN / 2U)) / BAT_EMA_ALPHA_DEN;
+			s_bat_level_ema = (uint8_t)smoothed;
+		}
+
+		/* === 迟滞保护：EMA 偏离显示值 ≥3% 时才更新 === */
+		{
+			int16_t diff = (int16_t)s_bat_level_ema - (int16_t)s_bat_level_display;
+			uint16_t abs_diff = (uint16_t)(diff < 0 ? -diff : diff);
+			if (abs_diff >= BAT_HYST_THRESHOLD) {
+				s_bat_level_display = s_bat_level_ema;
+			}
+		}
+	}
+
+	s_bat_level_cached = s_bat_level_display;
+
+	/*
+	 * raw_avg：ADC 原始码平均值
+	 * vadc：分压器输出电压（mV）
+	 * vbat：电池端电压（mV）
+	 * raw：当前采样原始码
+	 * ema：EMA 平滑值（%）
+	 * disp：对外显示值（%）
+	 * n：有效采样次数
+	 */
+	co_printf("[BAT  ] raw_avg=%u vadc=%umV vbat=%umV raw=%u%% ema=%u%% disp=%u%% (n=%u)\r\n",
 	          (unsigned)(sum_raw / ok_cnt),
 	          (unsigned)vadc_mv,
 	          (unsigned)vbat_mv,
 	          (unsigned)level,
+	          (unsigned)s_bat_level_ema,
+	          (unsigned)s_bat_level_display,
 	          (unsigned)ok_cnt);
 
-	return level;
+	return s_bat_level_display;
 }

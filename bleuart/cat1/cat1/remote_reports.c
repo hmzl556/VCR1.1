@@ -45,7 +45,6 @@ static uint8_t s_key_capture_enable = REMOTE_KEY_CAPTURE_DEFAULT;
 /** UDP 软重建等期间禁止 Tag10 入队 */
 static uint8_t s_tag10_enqueue_paused;
 static const uint8_t s_default_time_bcd[6] = REMOTE_REPORT_FIXED_TIME_BCD;
-static uint8_t s_tlv_frame[CAT1_UDP_MAX_UDP_PDU];
 
 static int remote_frame_build(const uint8_t *plain, uint16_t plain_len,
                               uint8_t *out, size_t buflen, uint16_t *outlen);
@@ -267,13 +266,13 @@ static int remote_queue_tag_tlv(uint8_t tag, const uint8_t *value, uint16_t valu
     plain[3] = (uint8_t)((value_len >> 8) & 0xFFu);
     plain[4] = (uint8_t)(value_len & 0xFFu);
     memcpy(plain + 5u, value, value_len);
-    if (remote_frame_build(plain, plain_len, s_tlv_frame, sizeof(s_tlv_frame),
-                           &frame_len) != 0)
+    if (remote_frame_build(plain, plain_len, s_queue[s_q_tail].buf,
+                           CAT1_UDP_MAX_UDP_PDU, &frame_len) != 0)
     {
         return REMOTE_QUEUE_ERR;
     }
     is_tag10 = (tag == 0x10u) ? 1u : 0u;
-    return remote_queue_push(s_tlv_frame, frame_len, 0u, RC_PACK_INDEX_NONE, is_tag10);
+    return remote_queue_push(s_queue[s_q_tail].buf, frame_len, 0u, RC_PACK_INDEX_NONE, is_tag10);
 }
 
 /**
@@ -634,16 +633,16 @@ int remote_queue_tlv_blob(const uint8_t *plain, uint16_t plain_len,
     {
         return REMOTE_QUEUE_ERR;
     }
-    if (remote_frame_build(plain, plain_len, s_tlv_frame, sizeof(s_tlv_frame),
-                           &frame_len) != 0)
+    if (remote_frame_build(plain, plain_len, s_queue[s_q_tail].buf,
+                           CAT1_UDP_MAX_UDP_PDU, &frame_len) != 0)
     {
         return REMOTE_QUEUE_ERR;
     }
     if (rc_trans_pack_index != RC_PACK_INDEX_NONE)
     {
-        return remote_queue_push_rc_trans(s_tlv_frame, frame_len, rc_trans_pack_index);
+        return remote_queue_push_rc_trans(s_queue[s_q_tail].buf, frame_len, rc_trans_pack_index);
     }
-    return remote_queue_push(s_tlv_frame, frame_len, 0u, RC_PACK_INDEX_NONE, 0u);
+    return remote_queue_push(s_queue[s_q_tail].buf, frame_len, 0u, RC_PACK_INDEX_NONE, 0u);
 }
 
 /**
