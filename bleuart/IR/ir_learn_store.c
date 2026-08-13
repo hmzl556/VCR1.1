@@ -184,6 +184,26 @@ bool ir_learn_store_save(uint8_t key, uint8_t user, uint8_t cmd)
 }
 
 /**
+ * @brief  查询按键是否已学习（仅返回学习值，不兜底默认值）
+ * @param  key  物理按键号（KEYSCAN_KEY1..17）
+ * @param  user 输出学习到的 NEC 用户码
+ * @param  cmd  输出学习到的 NEC 数据码
+ * @return true = 已学习（user/cmd 有效），false = 未学习
+ */
+bool ir_learn_store_get_learned(uint8_t key, uint8_t *user, uint8_t *cmd)
+{
+    if (key == 0u || key > IR_KEY_COUNT) {
+        return false;
+    }
+    if (s_store.entries[key].valid != 1u) {
+        return false;
+    }
+    *user = s_store.entries[key].user_code;
+    *cmd  = s_store.entries[key].cmd_code;
+    return true;
+}
+
+/**
  * @brief  查询按键的最终发送码（学习值优先，否则默认值）
  * @param  key  物理按键号（KEYSCAN_KEY1..17）
  * @param  user 输出用户码

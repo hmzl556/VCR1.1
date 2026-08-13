@@ -62,8 +62,8 @@ static ir_learn_state_t s_state = IR_LEARN_ST_IDLE;
 /** @brief 学习结果回调 */
 static ir_learn_cb_t   s_cb    = NULL;
 
-/** @brief 脉宽缓冲（中断写、主循环读） */
-static volatile uint32_t s_widths[IR_LEARN_MAX_WIDTHS];
+/** @brief 脉宽缓冲（中断写、主循环读；单位 μs，最大 9ms < 65535） */
+static volatile uint16_t s_widths[IR_LEARN_MAX_WIDTHS];
 
 /** @brief 已捕获脉宽个数 */
 static volatile uint8_t  s_width_count;
@@ -82,6 +82,9 @@ static volatile uint32_t s_last_us;
 
 /** @brief 学习开始时间戳（毫秒，超时判断用） */
 static uint32_t s_start_ms;
+
+/** @brief 本次学习的目标物理按键号 */
+static uint8_t  s_target;
 
 /*===========================================================================
  * 三、内部辅助函数
@@ -299,6 +302,24 @@ void ir_learn_process(void)
     }
 }
 
+/**
+ * @brief  设置本次学习的目标按键号
+ * @param  key 物理按键号（KEYSCAN_KEY1..17）
+ */
+void ir_learn_set_target(uint8_t key)
+{
+    s_target = key;
+}
+
+/**
+ * @brief  获取本次学习的目标按键号
+ * @return 目标按键号；未设置返回 0
+ */
+uint8_t ir_learn_get_target(void)
+{
+    return s_target;
+}
+
 /*===========================================================================
  * 五、中断处理
  *===========================================================================*/
@@ -336,10 +357,10 @@ void TIM3_IRQHandler(void)
         if (s_width_count == 0u) {
             /* 首脉宽必须是引导低，否则为噪声丢弃 */
             if (width >= IR_LEARN_LEAD_LOW_MIN && width <= IR_LEARN_LEAD_LOW_MAX) {
-                s_widths[s_width_count++] = width;
+                s_widths[s_width_count++] = (uint16_t)width;
             }
         } else {
-            s_widths[s_width_count++] = width;
+            s_widths[s_width_count++] = (uint16_t)width;
             if (s_width_count >= IR_LEARN_FRAME_WIDTHS) {
                 s_frame_ready = 1u;
             }

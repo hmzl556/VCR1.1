@@ -20,6 +20,7 @@
 #include "udp_ota.h"
 #include "userhard.h"         /* SETLED1, CLRLED1 */
 #include "co_printf.h"
+#include "ir_key_map.h"       /* ir_send_pair_code, ir_user_switch_stb/tv */
 
 /*===========================================================================
  * 一、类型定义
@@ -29,15 +30,28 @@ typedef enum {
     COMBO_IDLE = 0,
     COMBO_HOLDING,       /* 双键按住中，计时 3s                     */
     COMBO_TRIGGERED,     /* 已触发，执行后续动作（仅解配使用此状态） */
+    COMBO_FLASHING,      /* LED 指示中（仅用户码切换使用此状态）     */
 } combo_state_t;
+
+/** @brief 组合键动作类型 */
+typedef enum {
+    COMBO_ACT_PAIR = 0,  /* 配对：发 0x7D + 清绑定 + 配对广播        */
+    COMBO_ACT_UNPAIR,    /* 解配：清绑定 + 等断连 + SLEEP             */
+    COMBO_ACT_USER_STB,  /* 切机顶盒用户码（LED 慢闪2/快闪3）         */
+    COMBO_ACT_USER_TV,   /* 切电视机用户码（LED 慢闪2/快闪3）         */
+} combo_action_t;
 
 typedef struct {
     uint8_t        key1;          /* 按键编号 1                      */
     uint8_t        key2;          /* 按键编号 2                      */
+    combo_action_t action;        /* 触发动作类型                    */
     combo_state_t  state;         /* 当前状态                        */
     uint32_t       state_ts_ms;   /* 进入当前状态的时间戳            */
     uint32_t       led_ts_ms;     /* LED 闪烁时间戳                  */
     bool           led_on;        /* LED 当前亮灭                    */
+    uint8_t        flash_total;   /* 用户码切换：需闪半周期次数      */
+    uint8_t        flash_done;    /* 用户码切换：已闪半周期次数      */
+    uint32_t       flash_period;  /* 用户码切换：闪烁半周期 ms       */
 } combo_key_def_t;
 
 /*===========================================================================
@@ -45,9 +59,18 @@ typedef struct {
  *===========================================================================*/
 
 /* 组合键注册表（编译时确定，不动态分配） */
-#define COMBO_IDX_PAIR   0
-#define COMBO_IDX_UNPAIR 1
-#define COMBO_COUNT      2
+#define COMBO_IDX_PAIR_TV    0   /* 音量- + 电视     → 配对电视机 */
+#define COMBO_IDX_UNPAIR_TV  1   /* 电视 + 返回      → 解配电视机 */
+#define COMBO_IDX_PAIR_STB   2   /* 音量- + 静音     → 配对机顶盒 */
+#define COMBO_IDX_UNPAIR_STB 3   /* 返回 + 静音      → 解配机顶盒 */
+#define COMBO_IDX_USER_STB   4   /* 音量+ + 主页     → 切机顶盒用户码 */
+#define COMBO_IDX_USER_TV    5   /* 音量+ + 菜单     → 切电视机用户码 */
+#define COMBO_COUNT          6
+
+/** @brief 用户码切换 LED 慢闪半周期（默认码） */
+#define COMBO_USER_SLOW_FLASH_MS  500U
+/** @brief 用户码切换 LED 快闪半周期（备用码） */
+#define COMBO_USER_FAST_FLASH_MS  200U
 
 static combo_key_def_t g_combos[COMBO_COUNT];
 
@@ -73,25 +96,32 @@ static bool combo_any_key_up(const combo_key_def_t *c, const uint32_t hw[2])
  * 四、公共 API
  *===========================================================================*/
 
+/** @brief 注册一组组合键（清零运行时状态） */
+static void combo_register(uint8_t idx, uint8_t key1, uint8_t key2, combo_action_t action)
+{
+    g_combos[idx].key1          = key1;
+    g_combos[idx].key2          = key2;
+    g_combos[idx].action        = action;
+    g_combos[idx].state         = COMBO_IDLE;
+    g_combos[idx].state_ts_ms   = 0U;
+    g_combos[idx].led_ts_ms     = 0U;
+    g_combos[idx].led_on        = false;
+    g_combos[idx].flash_total   = 0U;
+    g_combos[idx].flash_done    = 0U;
+    g_combos[idx].flash_period  = 0U;
+}
+
 void combo_key_init(void)
 {
-    /* Combo #1: KEY14 + KEY5 → 进入配对 */
-    g_combos[COMBO_IDX_PAIR].key1      = TASK_KEYSCAN_KEY14;
-    //g_combos[COMBO_IDX_PAIR].key2      = TASK_KEYSCAN_KEY4; //旧板子
-    g_combos[COMBO_IDX_PAIR].key2      = TASK_KEYSCAN_KEY3;    //新板子
-    g_combos[COMBO_IDX_PAIR].state     = COMBO_IDLE;
-    g_combos[COMBO_IDX_PAIR].state_ts_ms = 0U;
-    g_combos[COMBO_IDX_PAIR].led_ts_ms   = 0U;
-    g_combos[COMBO_IDX_PAIR].led_on      = false;
-
-    /* Combo #2: KEY5 + KEY9 → 解除配对 */
-   //g_combos[COMBO_IDX_UNPAIR].key1      = TASK_KEYSCAN_KEY4;  //旧板子
-    g_combos[COMBO_IDX_UNPAIR].key1      = TASK_KEYSCAN_KEY3;     //新板子
-    g_combos[COMBO_IDX_UNPAIR].key2      = TASK_KEYSCAN_KEY9;
-    g_combos[COMBO_IDX_UNPAIR].state     = COMBO_IDLE;
-    g_combos[COMBO_IDX_UNPAIR].state_ts_ms = 0U;
-    g_combos[COMBO_IDX_UNPAIR].led_ts_ms   = 0U;
-    g_combos[COMBO_IDX_UNPAIR].led_on      = false;
+    /* 配对/解配电视机（沿用原按键） */
+    combo_register(COMBO_IDX_PAIR_TV,    TASK_KEYSCAN_KEY14, TASK_KEYSCAN_KEY3,  COMBO_ACT_PAIR);
+    combo_register(COMBO_IDX_UNPAIR_TV,  TASK_KEYSCAN_KEY3,  TASK_KEYSCAN_KEY9,  COMBO_ACT_UNPAIR);
+    /* 配对/解配机顶盒（产品自定义：用静音键替代直播业务键） */
+    combo_register(COMBO_IDX_PAIR_STB,   TASK_KEYSCAN_KEY14, TASK_KEYSCAN_KEY2,  COMBO_ACT_PAIR);
+    combo_register(COMBO_IDX_UNPAIR_STB, TASK_KEYSCAN_KEY9,  TASK_KEYSCAN_KEY2,  COMBO_ACT_UNPAIR);
+    /* 用户码切换 */
+    combo_register(COMBO_IDX_USER_STB,   TASK_KEYSCAN_KEY12, TASK_KEYSCAN_KEY8,  COMBO_ACT_USER_STB);
+    combo_register(COMBO_IDX_USER_TV,    TASK_KEYSCAN_KEY12, TASK_KEYSCAN_KEY10, COMBO_ACT_USER_TV);
 }
 
 bool combo_key_is_idle(void)
@@ -107,7 +137,79 @@ bool combo_key_is_idle(void)
 
 bool combo_key_unpair_in_progress(void)
 {
-    return (g_combos[COMBO_IDX_UNPAIR].state == COMBO_TRIGGERED);
+    return (g_combos[COMBO_IDX_UNPAIR_TV].state == COMBO_TRIGGERED)
+        || (g_combos[COMBO_IDX_UNPAIR_STB].state == COMBO_TRIGGERED);
+}
+
+/*===========================================================================
+ * 五、动作实现（内部）
+ *===========================================================================*/
+
+/**
+ * @brief  配对动作：发配对请求红外码 0x7D + 清绑定 + 进入配对广播
+ */
+static void combo_do_pair(combo_key_def_t *c)
+{
+    co_printf("[COMBO] key%d+key%d pair triggered\r\n", c->key1, c->key2);
+
+    /* 发配对请求红外码 0x7D（机顶盒收到后进入配对模式，GY/T 407-2024 §7.2） */
+    ir_send_pair_code();
+
+    /*
+     * 清除旧绑定以确保设备可被发现，再设置配对广播活跃标志。
+     * 注意：clear_bonding_info() 会重置 g_pairing_active，所以必须在它之后设置。
+     */
+    ble_gap_clear_bonding_info();
+    g_pairing_active = true;
+    pm_state_transition(PM_STATE_PAIRING);
+    ble_adv_start_pairing();
+
+    /* LED2 闪烁由 ble_gap_led_indicate() 自动处理 */
+    c->state = COMBO_IDLE;
+}
+
+/**
+ * @brief  解配动作：清绑定 + 进入等断连状态（LED1 闪烁）
+ */
+static void combo_do_unpair(combo_key_def_t *c, uint32_t now_ms)
+{
+    co_printf("[COMBO] key%d+key%d unpair triggered\r\n", c->key1, c->key2);
+
+    c->state       = COMBO_TRIGGERED;
+    c->state_ts_ms = now_ms;
+    c->led_ts_ms   = now_ms;
+    c->led_on      = true;
+    SETLED1;
+
+    /* 清绑定（内部先断连再擦 Flash），断连异步完成 */
+    ble_gap_clear_bonding_info();
+}
+
+/**
+ * @brief  用户码切换动作：切换变量 + LED 慢闪2下(默认)/快闪3下(备用)
+ */
+static void combo_do_user_switch(combo_key_def_t *c, uint32_t now_ms)
+{
+    bool is_default;
+
+    if (c->action == COMBO_ACT_USER_STB) {
+        is_default = ir_user_switch_stb();
+    } else {
+        is_default = ir_user_switch_tv();
+    }
+
+    co_printf("[COMBO] user code switched to %s\r\n",
+              is_default ? "default" : "alternate");
+
+    /* 默认：慢闪 2 下（4 半周期）；备用：快闪 3 下（6 半周期） */
+    c->flash_total  = is_default ? 4u : 6u;
+    c->flash_done   = 0u;
+    c->flash_period = is_default ? COMBO_USER_SLOW_FLASH_MS : COMBO_USER_FAST_FLASH_MS;
+    c->led_ts_ms    = now_ms;
+    c->led_on       = false;
+    CLRLED1;
+    CLRLED2;
+    c->state        = COMBO_FLASHING;
 }
 
 void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
@@ -145,49 +247,21 @@ void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
                     c->state = COMBO_IDLE;
                     break;
                 }
-                /* 3s 到 → 触发动作 */
-                if (i == COMBO_IDX_PAIR)    //KEY14+KEY5
-                {  
-                    /* ---- 配对组合键 ---- */
-                    co_printf("[COMBO] KEY14+KEY5 triggered! Enter pairing...\r\n");
-
-                    /*
-                     * 先清除旧绑定以确保设备可被发现。
-                     * 再设置配对广播活跃标志，使 ble_gap_led_indicate() 开始闪烁 LED2。
-                     * 注意：clear_bonding_info() 会重置 g_pairing_active，所以必须在它之后设置。
-                     */
-                    ble_gap_clear_bonding_info();
-                    g_pairing_active = true;
-
-                    /* 进入配对态并开始可发现广播 */
-                    pm_state_transition(PM_STATE_PAIRING);
-                    ble_adv_start_pairing();
-
-                    /*
-                     * LED2 闪烁由 ble_gap_led_indicate() 自动处理：
-                     *   ble_gap_get_peer()==NULL && peer_bonded_count()==0
-                     * 30s 超时由 PM 状态机处理：PAIRING → SLEEP
-                     * 连接成功时 PM 自动切到 WORKING，LED2 灭
-                     */
+                /* 3s 到 → 按动作类型分发 */
+                switch (c->action) {
+                case COMBO_ACT_PAIR:
+                    combo_do_pair(c);
+                    break;
+                case COMBO_ACT_UNPAIR:
+                    combo_do_unpair(c, now_ms);
+                    break;
+                case COMBO_ACT_USER_STB:
+                case COMBO_ACT_USER_TV:
+                    combo_do_user_switch(c, now_ms);
+                    break;
+                default:
                     c->state = COMBO_IDLE;
-
-                } else {
-                    /* ---- 解配组合键 ---- */
-                    co_printf("[COMBO] KEY5+KEY9 triggered! Unpairing...\r\n");
-                    c->state = COMBO_TRIGGERED;
-                    c->state_ts_ms = now_ms;
-                    c->led_ts_ms   = now_ms;
-                    c->led_on      = true;
-                    SETLED1;
-
-                    /*
-                     * 清除绑定信息（内部先断连再擦除 Flash）。
-                     * 断连是异步的，ble_gap_disconnected() 回调中：
-                     *   pm_notify_disconnected() 无绑定 → IDLE
-                     *   ble_gap_process_disconnect_pending() 检测到
-                     *   combo_key_unpair_in_progress()==true → 跳过广播重启
-                     */
-                    ble_gap_clear_bonding_info();
+                    break;
                 }
             }
             break;
@@ -223,6 +297,29 @@ void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
             }
             break;
         }
+
+        /* ---------------------------------------------------------- */
+        /*  FLASHING：用户码切换 LED 指示，闪够次数后熄灭              */
+        /* ---------------------------------------------------------- */
+        case COMBO_FLASHING:
+            if ((now_ms - c->led_ts_ms) >= c->flash_period) {
+                c->led_ts_ms = now_ms;
+                c->led_on = !c->led_on;
+                if (c->led_on) {
+                    SETLED1;
+                    SETLED2;
+                } else {
+                    CLRLED1;
+                    CLRLED2;
+                }
+                c->flash_done++;
+                if (c->flash_done >= c->flash_total) {
+                    CLRLED1;
+                    CLRLED2;
+                    c->state = COMBO_IDLE;
+                }
+            }
+            break;
 
         default:
             c->state = COMBO_IDLE;

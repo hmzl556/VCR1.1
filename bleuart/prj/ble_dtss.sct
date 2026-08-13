@@ -19,7 +19,6 @@ LR_IROM1 0x01004000 0x00032000    {    ; APP1 @ 0x01004000, 200KB
     co_printf.o (+ZI +RW)
     ble_rc_svc.o (+ZI +RW)
     app_voice_ctrl.o (+ZI +RW)
-    combo_key.o (+ZI +RW)
     ble_gap.o (+ZI +RW)
     udp_ota.o (+ZI +RW)
   }

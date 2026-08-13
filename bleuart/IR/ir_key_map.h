@@ -14,6 +14,7 @@
 #define _IR_KEY_MAP_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /*===========================================================================
  * 一、常量定义
@@ -21,6 +22,9 @@
 
 /** @brief 物理按键数量（KEYSCAN_KEY1..17，索引 0 未用） */
 #define IR_KEY_COUNT            17u
+
+/** @brief 电视机业务键号（控制对象仅电视机，用 TV 用户码） */
+#define IR_KEY_TV_BUSINESS      3u
 
 /** @brief 默认用户码（机顶盒 STB 0x3A，GY/T 407-2024 §6.1.3） */
 #define IR_DEFAULT_USER_CODE    0x3Au
@@ -78,5 +82,33 @@ static inline uint8_t ir_default_user(void)
 {
     return IR_DEFAULT_USER_CODE;
 }
+
+/*===========================================================================
+ * 四、用户码管理与发送封装（实现见 ir_key_map.c）
+ *===========================================================================*/
+
+/**
+ * @brief  切换机顶盒用户码（0x3A ↔ 0x3C）
+ * @return true = 切换后为默认码 0x3A，false = 切换后为备用码 0x3C
+ */
+bool ir_user_switch_stb(void);
+
+/**
+ * @brief  切换电视机用户码（0x51 ↔ 0x53）
+ * @return true = 切换后为默认码 0x51，false = 切换后为备用码 0x53
+ */
+bool ir_user_switch_tv(void);
+
+/**
+ * @brief  按物理键发送红外（学习值优先，否则当前用户码 + 默认键值）
+ * @param  key 物理按键号（KEYSCAN_KEY1..17）
+ * @note   未定义键（默认 cmd=0）不发送。
+ */
+void ir_send_key(uint8_t key);
+
+/**
+ * @brief  发送配对请求红外码 0x7D（用当前机顶盒用户码）
+ */
+void ir_send_pair_code(void);
 
 #endif /* _IR_KEY_MAP_H_ */

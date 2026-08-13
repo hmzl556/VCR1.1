@@ -26,6 +26,7 @@
 #include "iwdg.h"           /* IWDG 独立看门狗                     */
 #include "irc.h"            /* IRC 红外发送驱动                     */
 #include "ir_learn.h"       /* 红外学习（TIM3 捕获解码）            */
+#include "ir_learn_store.h" /* 学习键值落库                          */
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -125,7 +126,7 @@ static StackType_t s_ble_stack[512];	// 512 字节的任务栈空间，根据实
  * @param  evt  学习事件
  * @param  user 学习到的 NEC 用户码（DONE 时有效）
  * @param  cmd  学习到的 NEC 数据码（DONE 时有效）
- * @note   学习结果暂只打印；目标按键与 NV 保存由按键集成阶段完成。
+ * @note   学习成功后把结果保存到目标按键的 NV 存储（学习值优先）。
  */
 static void ir_learn_result(ir_learn_evt_t evt, uint8_t user, uint8_t cmd)
 {
@@ -133,6 +134,7 @@ static void ir_learn_result(ir_learn_evt_t evt, uint8_t user, uint8_t cmd)
 	case IR_LEARN_EVT_DONE:
 		co_printf("[IR   ] learn result user=0x%02X cmd=0x%02X\r\n",
 		          (unsigned)user, (unsigned)cmd);
+		(void)ir_learn_store_save(ir_learn_get_target(), user, cmd);
 		break;
 	case IR_LEARN_EVT_FAILED:
 		co_printf("[IR   ] learn failed\r\n");

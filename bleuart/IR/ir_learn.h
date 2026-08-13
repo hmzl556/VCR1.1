@@ -67,4 +67,17 @@ bool ir_learn_is_active(void);
  */
 void ir_learn_process(void);
 
+/**
+ * @brief  设置本次学习的目标按键号
+ * @param  key 物理按键号（KEYSCAN_KEY1..17）
+ * @note   学习成功后回调里通过 ir_learn_get_target() 获取并落库。
+ */
+void ir_learn_set_target(uint8_t key);
+
+/**
+ * @brief  获取本次学习的目标按键号
+ * @return 目标按键号；未设置返回 0
+ */
+uint8_t ir_learn_get_target(void);
+
 #endif /* _IR_LEARN_H_ */

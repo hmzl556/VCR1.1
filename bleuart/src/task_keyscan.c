@@ -15,6 +15,10 @@
 #include "cs_core.h"
 #include "userhard.h"
 #include "cat1_skt_udp.h"   /* cat1_modem_is_busy：HID/AT 错峰 */
+#include "ir_key_map.h"     /* ir_send_key — BLE 未连接时发红外  */
+#include "irc.h"            /* irc_send_repeat — 长按重复码       */
+#include "ir_learn.h"       /* 红外学习模式（长按电源键触发）     */
+#include "ir_learn_store.h" /* 学习键值清除（工厂复位联动）       */
 
 volatile uint16_t key_receive = 0;
 volatile uint32_t g_last_ble_ms = 0U;  /* BLE/CAT1 串行化：BLE 最后活动时间戳 */
@@ -36,6 +40,26 @@ static uint32_t key_press_start_ms = 0;
 static bool key_long_triggered = false;
 static bool key_active_is_consumer = false;
 static bool key15_voice_started = false;
+
+/** 上次发送红外重复码的时间戳（ms） */
+static uint32_t s_ir_repeat_ts_ms = 0U;
+
+/* ====== 红外学习模式状态机 ====== */
+typedef enum {
+    IR_LEARN_MODE_OFF = 0,
+    IR_LEARN_MODE_WAIT_KEY,   /* 已长按电源键 5s，等待选目标键 */
+    IR_LEARN_MODE_CAPTURING,  /* 已选目标键，正在捕获 */
+} ir_learn_mode_t;
+
+/** @brief 长按电源键进入学习模式的触发时长 */
+#define IR_LEARN_TRIGGER_MS       5000U
+/** @brief 学习模式无操作超时 */
+#define IR_LEARN_MODE_TIMEOUT_MS  15000U
+
+static ir_learn_mode_t s_ir_learn_mode = IR_LEARN_MODE_OFF;
+static uint32_t s_ir_learn_mode_ts_ms = 0U;
+static uint32_t s_ir_learn_led_ts_ms = 0U;
+static bool     s_ir_learn_led_on = false;
 
 /* KEY_15 语音与 RC-KEY notify 分开发送，避免同周期多次 FSM_Write */
 static struct {
@@ -233,6 +257,8 @@ static void factory_reset_process(uint32_t now_ms, uint16_t key_id,
                         SETLED2;
                         co_printf("Factory reset: KEY4 confirmed! Erasing bonding...\r\n");
                         ble_gap_clear_bonding_info();
+                        /* 工厂复位联动：清除全部红外学习键值，恢复默认 */
+                        ir_learn_store_clear_all();
                     }
                     else
                     {
@@ -274,6 +300,67 @@ static void factory_reset_process(uint32_t now_ms, uint16_t key_id,
         default:
             factory_rst_state = FACTORY_RST_IDLE;
             break;
+    }
+}
+
+/**
+ * @brief  红外学习模式状态机（长按电源键 5s 进入）
+ * @param  now_ms 当前时间戳
+ * @param  key_id 本周期按键事件（0 = 无）
+ * @note   WAIT_KEY：LED 常亮，等待选目标键；
+ *         CAPTURING：LED 闪烁，驱动 ir_learn_process() 解码。
+ */
+static void ir_learn_mode_process(uint32_t now_ms, uint16_t key_id)
+{
+    switch (s_ir_learn_mode) {
+    case IR_LEARN_MODE_OFF:
+        break;
+
+    case IR_LEARN_MODE_WAIT_KEY:
+        SETLED1;  /* 指示灯常亮 */
+        if (key_id != 0u) {
+            if (key_id == TASK_KEYSCAN_KEY1) {
+                /* 再按电源键 → 退出学习 */
+                s_ir_learn_mode = IR_LEARN_MODE_OFF;
+                CLRLED1;
+                co_printf("[IR] learn canceled by power key\r\n");
+                break;
+            }
+            /* 选定目标键 → 开始捕获 */
+            ir_learn_set_target((uint8_t)key_id);
+            (void)ir_learn_start();
+            s_ir_learn_mode = IR_LEARN_MODE_CAPTURING;
+            s_ir_learn_mode_ts_ms = now_ms;
+            s_ir_learn_led_ts_ms = now_ms;
+            s_ir_learn_led_on = false;
+            co_printf("[IR] learn target key=%u, capturing...\r\n", (unsigned)key_id);
+        } else if ((now_ms - s_ir_learn_mode_ts_ms) >= IR_LEARN_MODE_TIMEOUT_MS) {
+            s_ir_learn_mode = IR_LEARN_MODE_OFF;
+            CLRLED1;
+            co_printf("[IR] learn timeout in wait-key\r\n");
+        }
+        break;
+
+    case IR_LEARN_MODE_CAPTURING:
+        /* LED 闪烁指示待学习键已选定 */
+        if ((now_ms - s_ir_learn_led_ts_ms) >= 200U) {
+            s_ir_learn_led_ts_ms = now_ms;
+            s_ir_learn_led_on = !s_ir_learn_led_on;
+            if (s_ir_learn_led_on) SETLED1; else CLRLED1;
+        }
+        /* 驱动解码（结果由 main.c 回调落库） */
+        ir_learn_process();
+        if (!ir_learn_is_active()) {
+            /* 学习已结束（成功/失败/超时） */
+            s_ir_learn_mode = IR_LEARN_MODE_OFF;
+            CLRLED1;
+            co_printf("[IR] learn finished\r\n");
+        }
+        break;
+
+    default:
+        s_ir_learn_mode = IR_LEARN_MODE_OFF;
+        break;
     }
 }
 
@@ -374,18 +461,22 @@ void task_keyscan_process(void)
 	KEYSCAN_ReadKeyData(hw_snapshot);
 
 
-	// ====== 组合键互斥调度 ======
+	// ====== 组合键互斥调度（学习模式活跃时暂停，避免与选目标键冲突） ======
 	// 工厂复位空闲时，简单组合键（配对/解配）才工作
-	if (factory_rst_state == FACTORY_RST_IDLE) {
+	if (factory_rst_state == FACTORY_RST_IDLE && s_ir_learn_mode == IR_LEARN_MODE_OFF) {
 		combo_key_process(now_ms, hw_snapshot);
 	}
 	// 简单组合键空闲时，工厂复位才工作
-	if (combo_key_is_idle()) {
+	if (combo_key_is_idle() && s_ir_learn_mode == IR_LEARN_MODE_OFF) {
 		factory_reset_process(now_ms, key_id, hw_snapshot);
 	}
 
-	// ====== 任一组合键活跃时，跳过正常按键处理 ======
-    if (factory_rst_state != FACTORY_RST_IDLE || !combo_key_is_idle())
+	// ====== 红外学习模式处理（长按电源键 5s 触发） ======
+	ir_learn_mode_process(now_ms, key_id);
+
+	// ====== 任一组合键或学习模式活跃时，跳过正常按键处理 ======
+    if (factory_rst_state != FACTORY_RST_IDLE || !combo_key_is_idle()
+        || s_ir_learn_mode != IR_LEARN_MODE_OFF)
     {
         // 重置正常按键状态机，避免残留状态干扰；同时清除 LED 防止常亮
         if (key_state != KEY_STATE_IDLE)
@@ -453,8 +544,15 @@ void task_keyscan_process(void)
 					SETLED1;
 				}
 
-				if (key_active != 0) {
-					task_keyscan_hid_send_press(key_active);
+				if (key_active != 0 && key_active != TASK_KEYSCAN_KEY1) {
+					/* 非电源键：按下立即发送（电源键延迟到松开，见 PRESSED 释放处） */
+					if (ble_gap_get_peer() != NULL) {
+						task_keyscan_hid_send_press(key_active);
+					} else {
+						/* BLE 未连接 → 发红外 */
+						ir_send_key((uint8_t)key_active);
+					}
+					s_ir_repeat_ts_ms = now_ms;  /* 重复码计时起点 */
 					if (udp_ota_session_busy() != 0u) {
 						cs_schedule();
 					}
@@ -470,6 +568,24 @@ void task_keyscan_process(void)
 		case KEY_STATE_PRESSED:
 		{
 			uint8_t hw_key = app_keyscan_read_key_id();
+
+			/* 长按电源键 5s → 进入红外学习模式 */
+			if (key_active == TASK_KEYSCAN_KEY1
+			    && (now_ms - key_press_start_ms) >= IR_LEARN_TRIGGER_MS) {
+				s_ir_learn_mode = IR_LEARN_MODE_WAIT_KEY;
+				s_ir_learn_mode_ts_ms = now_ms;
+				CLRLED2;
+				SETLED1;  /* LED 常亮 */
+				co_printf("[IR] learn mode entered\r\n");
+				/* 模拟电源键释放，避免 STB 认为按键一直按住 */
+				task_keyscan_rc_notify(0x00u);
+				/* 重置按键状态机，学习模式接管 */
+				key_state = KEY_STATE_IDLE;
+				key_active = 0;
+				key_active_usage = 0;
+				key_active_is_consumer = false;
+				break;
+			}
 
 			// 中途按键值变化，重新回到消抖状态
 			if (hw_key == key_active) {
@@ -502,7 +618,26 @@ void task_keyscan_process(void)
 				}
 			}
 
+			/* 红外长按重复码：BLE 未连接且非语音键/电源键，每 108ms 发一次 */
+			if (ble_gap_get_peer() == NULL
+			    && key_active != TASK_KEYSCAN_KEY15
+			    && key_active != TASK_KEYSCAN_KEY1
+			    && (now_ms - s_ir_repeat_ts_ms) >= IR_REPEAT_INTERVAL_MS) {
+				s_ir_repeat_ts_ms = now_ms;
+				irc_send_repeat();
+			}
+
 			if (hw_key == 0 && (now_ms - key_last_event_ms) >= KEY_RELEASE_TIMEOUT_MS) {
+				/* 电源键延迟发送：松开时才发短按（BLE 连接时 HID+红外双发） */
+				if (key_active == TASK_KEYSCAN_KEY1) {
+					if (ble_gap_get_peer() != NULL) {
+						task_keyscan_hid_send_press(TASK_KEYSCAN_KEY1);
+						ir_send_key((uint8_t)TASK_KEYSCAN_KEY1);  /* 双发红外开机 */
+					} else {
+						ir_send_key((uint8_t)TASK_KEYSCAN_KEY1);
+					}
+				}
+
 				task_keyscan_hid_send_release(key_active_is_consumer ? 1u : 0u);
 				if (udp_ota_session_busy() != 0u) {
 					cs_schedule();

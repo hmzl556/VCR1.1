@@ -823,6 +823,11 @@
               <FileType>1</FileType>
               <FilePath>..\IR\ir_learn_store.c</FilePath>
             </File>
+            <File>
+              <FileName>ir_key_map.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\IR\ir_key_map.c</FilePath>
+            </File>
           </Files>
         </Group>
       </Groups>

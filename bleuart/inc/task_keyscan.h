@@ -8,13 +8,19 @@
 #define KEY_LONG_PRESS_MS			50U
 #define KEY_RELEASE_TIMEOUT_MS		20U
 
+/** @brief 红外重复码发送间隔（GY/T 407-2024 §6.1.4） */
+#define IR_REPEAT_INTERVAL_MS		108U
+
 // 按键编号定义（与 KEYSCAN 中断上报一致）
 #define TASK_KEYSCAN_KEY1            1U
+#define TASK_KEYSCAN_KEY2            2U
 #define TASK_KEYSCAN_KEY3            3U
 #define TASK_KEYSCAN_KEY4            4U
 #define TASK_KEYSCAN_KEY6            6U
 #define TASK_KEYSCAN_KEY8            8U
 #define TASK_KEYSCAN_KEY9            9U
+#define TASK_KEYSCAN_KEY10          10U
+#define TASK_KEYSCAN_KEY12          12U
 #define TASK_KEYSCAN_KEY14          14U
 
 // 恢复出厂设置相关时间常量（ms）
