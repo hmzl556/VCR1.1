@@ -23,7 +23,7 @@
 #include "userhard.h"   /* CLRLED1, CLRLED2, SETLED1                 */
 #include "iwdg.h"       /* IWDG_ReloadKey()                          */
 #include "cat1_skt_udp.h" /* cat1_sleep_prepare, cat1_sleep_wakeup     */
-#include "cat1_usart2.h"  /* USART2_CAT1_RxFlush after sleep            */
+#include "cat1_usart1.h"  /* USART1_CAT1_RxFlush after sleep            */
 #include "app_audio_pcm.h" /* Audio_Pcm_HardwareShutdown                */
 
 /** @brief 休眠中标志：进入 WFI 前置 true，KEYSCAN ISR 据此在按键唤醒瞬间亮 LED1 */
@@ -65,9 +65,9 @@ static void pm_peripherals_sleep_shutdown(void)
     CLRLED2;
 
     /* Disable CAT1 UART completely (TX+RX)；DMA_CH2 保持配置，唤醒后 RxFlush */
-    USART2->CTRL1 &= (uint16_t)(~((uint16_t)USART_CTRL1_TXEN | (uint16_t)USART_CTRL1_RXEN));
+    USART1->CTRL1 &= (uint16_t)(~((uint16_t)USART_CTRL1_TXEN | (uint16_t)USART_CTRL1_RXEN));
 
-    /* Shutdown audio (ADC/CH1)；AHB DMA 时钟保留给 USART2 RX */
+    /* Shutdown audio (ADC/CH1)；AHB DMA 时钟保留给 USART1 RX */
     Audio_Pcm_HardwareShutdown();
 
     /* Unused GPIO → analog mode to eliminate floating-input leakage */
@@ -88,8 +88,8 @@ static void pm_peripherals_sleep_shutdown(void)
 static void pm_peripherals_sleep_restore(void)
 {
     /* Re-enable CAT1 UART RX+TX，并清空休眠期间可能积压的 DMA 环 */
-    USART2->CTRL1 |= (USART_CTRL1_RXEN | USART_CTRL1_TXEN);
-    USART2_CAT1_RxFlush();
+    USART1->CTRL1 |= (USART_CTRL1_RXEN | USART_CTRL1_TXEN);
+    USART1_CAT1_RxFlush();
 }
 
 /*===========================================================================

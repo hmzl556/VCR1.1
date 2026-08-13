@@ -24,6 +24,8 @@
 #include "pm_state.h"       /* 电源管理状态机 — 休眠/待机态控制 */
 #include "combo_key.h"      /* 组合键管理器（配对/解配）           */
 #include "iwdg.h"           /* IWDG 独立看门狗                     */
+#include "irc.h"            /* IRC 红外发送驱动                     */
+#include "ir_learn.h"       /* 红外学习（TIM3 捕获解码）            */
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -118,13 +120,41 @@ uint8_t myBleStartAdv(void)
 static StaticTask_t s_ble_tcb;			// BLE 任务控制块
 static StackType_t s_ble_stack[512];	// 512 字节的任务栈空间，根据实际需求调整大小
 
+/**
+ * @brief  红外学习结果回调
+ * @param  evt  学习事件
+ * @param  user 学习到的 NEC 用户码（DONE 时有效）
+ * @param  cmd  学习到的 NEC 数据码（DONE 时有效）
+ * @note   学习结果暂只打印；目标按键与 NV 保存由按键集成阶段完成。
+ */
+static void ir_learn_result(ir_learn_evt_t evt, uint8_t user, uint8_t cmd)
+{
+	switch (evt) {
+	case IR_LEARN_EVT_DONE:
+		co_printf("[IR   ] learn result user=0x%02X cmd=0x%02X\r\n",
+		          (unsigned)user, (unsigned)cmd);
+		break;
+	case IR_LEARN_EVT_FAILED:
+		co_printf("[IR   ] learn failed\r\n");
+		break;
+	case IR_LEARN_EVT_TIMEOUT:
+		co_printf("[IR   ] learn timeout\r\n");
+		break;
+	case IR_LEARN_EVT_CANCELED:
+		co_printf("[IR   ] learn canceled\r\n");
+		break;
+	default:
+		break;
+	}
+}
+
 // 主函数，程序入口点
 int main(void)
 {
 	delay_n_10us(50U * 100U);	// 上电后延时 50ms，等待电源稳定
 	initialGmem();				// 初始化全局内存与变量
 	initialGpio();				// 初始化 GPIO，主要是 LED
-	delay_n_10us(1000U * 100U); // 上电后延时 1000ms，同步时间需要CAT1稳定下来
+	delay_n_10us(2000U * 100U); // 上电后延时 2000ms，预留SWD烧录窗口，之后PA4/PA5切为USART1
 	co_log_init();				// 初始化日志模块，后续可使用 co_printf 输出日志
 
 	/*
@@ -143,6 +173,8 @@ int main(void)
 	co_printf("C heap %u bytes\r\n", (unsigned)((char *)&__heap_limit - (char *)&__heap_base));
 
 	ble_keyscan_init();			// 初始化按键扫描模块
+	irc_init();				// 初始化 IRC 红外发送
+	ir_learn_init(ir_learn_result);	// 初始化红外学习（PB5 = TIM3_CH2）
 	rc_cat1_init();				// 初始化 Cat.1 模块
 	app_rtos_init();			// 初始化 RTOS
 

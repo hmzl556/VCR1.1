@@ -4,7 +4,7 @@
  *        下行 +ECSONMI URC + ECSORF 主动读。
  */
 #include "cat1_skt_udp.h"
-#include "cat1_usart2.h"
+#include "cat1_usart1.h"
 #include "cat1_udp_config.h"
 #include "co_printf.h"
 #include "br_timer.h"
@@ -754,7 +754,7 @@ static void cat1_ecso_issue_ecsorf(void)
 {
 	snprintf(s_modem_line, sizeof(s_modem_line), "AT+ECSORF=%u,%u",
 	         (unsigned)s_sock_id, (unsigned)CAT1_ECSORF_READ_MAX);
-	usart2_at_send(s_modem_line, (unsigned)sizeof(s_modem_line));
+	usart1_at_send(s_modem_line, (unsigned)sizeof(s_modem_line));
 	s_at_phase = AT_PHASE_WAIT_ECSORF;
 	s_at_got_ok = 0u;
 	s_at_line_len = 0u;
@@ -1014,7 +1014,7 @@ cat1_modem_result_t cat1_modem_step(void)
 		return CAT1_MODEM_IDLE;
 	}
 
-	while (USART2_CAT1_RxPop(&b) != 0U) {
+	while (USART1_CAT1_RxPop(&b) != 0U) {
 		rc = cat1_modem_process_byte(b);
 		if (rc != CAT1_MODEM_BUSY) {
 			return rc;
@@ -1043,7 +1043,7 @@ void cat1_skt_udp_pump_urc(void)
 		return;
 	}
 
-	while (USART2_CAT1_RxPop(&b) != 0U) {
+	while (USART1_CAT1_RxPop(&b) != 0U) {
 		cat1_skt_udp_feed_char((char)b);
 	}
 	/* 空闲且仍有 +ECSONMI：立刻起 ECSORF，不等下一笔业务发送 */
@@ -1136,14 +1136,14 @@ int cat1_skt_udp_poll_recv(uint8_t *pdu, uint16_t pdu_cap, uint16_t *pdu_len)
 
 static void cat1_rx_discard_all(void)
 {
-	USART2_CAT1_RxFlush();
+	USART1_CAT1_RxFlush();
 	s_urc_line_len = 0u;
 }
 
 static void cat1_send_at_line(char *line)
 {
-	USART2_CAT1_RxFlush();
-	usart2_at_send(line, (unsigned)sizeof(s_modem_line));
+	USART1_CAT1_RxFlush();
+	usart1_at_send(line, (unsigned)sizeof(s_modem_line));
 }
 
 static void cat1_setup_log_rsp(const char *tag)
@@ -1558,7 +1558,7 @@ cat1_modem_result_t cat1_skt_udp_send_begin_wait_ex(const uint8_t *payload, uint
 
 	/* 业务/OTA 统一：pump 保住 +ECSONMI，非 URC 残字节由 feed_char 丢弃；勿 RxFlush */
 	cat1_skt_udp_pump_urc();
-	if (usart2_at_send_pump(line, (unsigned)sizeof(s_modem_line),
+	if (usart1_at_send_pump(line, (unsigned)sizeof(s_modem_line),
 	                        cat1_skt_udp_pump_urc) != 0) {
 		co_printf("[CAT1 UDP] ECSOST TX timeout\r\n");
 		return CAT1_MODEM_FAIL;
@@ -1603,13 +1603,13 @@ void cat1_skt_udp_log_recv_diag(uint16_t req_seq)
 	}
 	head[n] = '\0';
 
-	USART2_CAT1_RxSync();
-	rx_head = USART2_CAT1_RX_HEAD;
-	rx_tail = USART2_CAT1_RX_TAIL;
+	USART1_CAT1_RxSync();
+	rx_head = USART1_CAT1_RX_HEAD;
+	rx_tail = USART1_CAT1_RX_TAIL;
 	if (rx_head >= rx_tail) {
 		rx_used = (uint16_t)(rx_head - rx_tail);
 	} else {
-		rx_used = (uint16_t)(USART2_CAT1_RX_RING_CAP - rx_tail + rx_head);
+		rx_used = (uint16_t)(USART1_CAT1_RX_RING_CAP - rx_tail + rx_head);
 	}
 
 	co_printf("[OTA diag] seq=%u urc_len=%u rx_used=%u rx_drop=%lu pending=%u "
@@ -1617,7 +1617,7 @@ void cat1_skt_udp_log_recv_diag(uint16_t req_seq)
 	          (unsigned)req_seq,
 	          (unsigned)s_urc_line_len,
 	          (unsigned)rx_used,
-	          (unsigned long)USART2_CAT1_RxDropCount(),
+	          (unsigned long)USART1_CAT1_RxDropCount(),
 	          (unsigned)s_recv_pending,
 	          (unsigned)s_ecsonmi_pending,
 	          (unsigned)s_ecsonmi_len,

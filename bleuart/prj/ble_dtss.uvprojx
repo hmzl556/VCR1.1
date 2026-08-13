@@ -339,7 +339,7 @@
               <MiscControls>--diag_suppress=188 --diag_suppress=177</MiscControls>
               <Define>BR1601A01,USB_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\bsp\common\inc;..\..\bsp\core\inc;..\..\bsp\driver\inc;..\..\audio\audio_encode;..\..\audio\audio_code_sbc;..\..\cs\inc;..\inc;..\src;..\prj;..\..\audio\audio_code_adpcm;..\freertos\include;..\freertos;..\freertos\portable\RVDS\ARM_CM0;..\cat1;..\cat1;..\cat1\tiny-aes;..\pmu\inc;..\cat1\OTA;..\cat1\cat1;..\cat1\cat1\OTA;..\cat1\cat1\tiny-aes</IncludePath>
+              <IncludePath>..\..\bsp\common\inc;..\..\bsp\core\inc;..\..\bsp\driver\inc;..\..\audio\audio_encode;..\..\audio\audio_code_sbc;..\..\cs\inc;..\inc;..\src;..\prj;..\..\audio\audio_code_adpcm;..\freertos\include;..\freertos;..\freertos\portable\RVDS\ARM_CM0;..\cat1;..\cat1;..\cat1\tiny-aes;..\pmu\inc;..\cat1\OTA;..\cat1\cat1;..\cat1\cat1\OTA;..\cat1\cat1\tiny-aes;..\IR</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -579,9 +579,9 @@
               <FilePath>..\cat1\cat1\cat1_time_sync.c</FilePath>
             </File>
             <File>
-              <FileName>cat1_usart2.c</FileName>
+              <FileName>cat1_usart1.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\cat1\cat1\cat1_usart2.c</FilePath>
+              <FilePath>..\cat1\cat1\cat1_usart1.c</FilePath>
             </File>
             <File>
               <FileName>rc_cat1_bridge.c</FileName>
@@ -802,6 +802,26 @@
               <FileName>udp_ota.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\cat1\cat1\OTA\udp_ota.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>IR</GroupName>
+          <Files>
+            <File>
+              <FileName>irc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\IR\irc.c</FilePath>
+            </File>
+            <File>
+              <FileName>ir_learn.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\IR\ir_learn.c</FilePath>
+            </File>
+            <File>
+              <FileName>ir_learn_store.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\IR\ir_learn_store.c</FilePath>
             </File>
           </Files>
         </Group>

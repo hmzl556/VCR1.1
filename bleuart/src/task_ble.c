@@ -14,6 +14,7 @@
 #include "pm_state.h"       /* 电源管理状态机 — 空闲超时检查 */
 #include "iwdg.h"            /* IWDG 独立看门狗 — 喂狗            */
 #include "udp_ota.h"
+#include "ir_learn_store.h" /* 学习键值加载（须在 BLE 栈/Qflash 就绪后） */
 #include "ble_bas.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -45,6 +46,7 @@ void task_ble_entry(void *pvParameters)
 				if (ble_gap_get_peer() == NULL) {
 					bleAdvStat = ble_stack_init_only();
 					pm_state_sync_after_ble_init();
+					ir_learn_store_load();
 				} else {
 					bleAdvStat = 0xa6U;
 				}
@@ -91,6 +93,7 @@ void task_ble_entry(void *pvParameters)
 			 * 若原先是 PAIRING（默认值）但实际有绑定，修正为 RECONNECTING。
 			 */
 			pm_state_sync_after_ble_init();
+			ir_learn_store_load();
 		}
 
 		// 处理 BLE 相关的事件和状态

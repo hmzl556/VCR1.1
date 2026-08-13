@@ -1,6 +1,6 @@
 #include <string.h>
 #include "rc_cat1_bridge.h"
-#include "cat1_usart2.h"
+#include "cat1_usart1.h"
 #include "cat1_skt_udp.h"
 #include "cat1_udp_config.h"
 #include "remote_reports.h"
@@ -327,7 +327,7 @@ void rc_cat1_init(void)
 	udp_ota_init();
 	/* Qflash 已就绪：从独立扇区恢复 Tag0x11 策略（覆盖默认值） */
 	rc_cat1_cloud_policy_load_from_flash();
-	USART2_CAT1_Init();
+	USART1_CAT1_Init();
 	cat1_skt_udp_bind_recv_buf(s_cat1_tlv, (uint16_t)sizeof(s_cat1_tlv));
 	cat1_skt_udp_set_recv_allow(1u);
 	co_printf("[RC   ] CAT1 init OK, boot delay %u ms\r\n", (unsigned)CAT1_MODEM_BOOT_DELAY_MS);

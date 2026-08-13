@@ -217,7 +217,7 @@ void Audio_Pcm_Start(void)
  * @brief  完全关闭 ADC/MICBIAS/PGA/AUDIOPLL；仅停 DMA_CH1。
  * @note   供 Audio_Pcm_Stop() 和 pm_peripherals_sleep_shutdown() 复用。
  *         下次 Audio_Pcm_Start() 会从 RCC 开始完整重新初始化。
- *         不关闭 AHB DMA 时钟：CAT1 USART2 RX 使用 DMA_CH2。
+ *         不关闭 AHB DMA 时钟：CAT1 USART1 RX 使用 DMA_CH2。
  */
 void Audio_Pcm_HardwareShutdown(void)
 {
@@ -231,7 +231,7 @@ void Audio_Pcm_HardwareShutdown(void)
 	ADC_EnablePGA(ADC, DISABLE);
 	ADC_EnableDMA(ADC, DISABLE);
 
-	/* 3. 仅关 ADC 用的 DMA_CH1；勿关 AHB DMA 时钟（USART2 RX 占用 DMA_CH2） */
+	/* 3. 仅关 ADC 用的 DMA_CH1；勿关 AHB DMA 时钟（USART1 RX 占用 DMA_CH2） */
 	DMA_EnableChannel(DMA_CH1, DISABLE);
 
 	/* 4. 关 ADC/AUDIOPLL 时钟省电；DMA 时钟保持给 CAT1 */
