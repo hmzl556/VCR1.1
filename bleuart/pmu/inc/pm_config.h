@@ -28,7 +28,7 @@ extern "C" {
  *         【测试模式】改为 10000ms，方便验证状态切换
  */
 //#define PM_WORK_TO_STANDBY_MS         4500000U
-#define PM_WORK_TO_STANDBY_MS         60000U   /* 测试用：10秒 */
+#define PM_WORK_TO_STANDBY_MS         30000U   /* 测试用：10秒 */
 
 /**
  * @brief  最后一次活动 → 休眠态：总空闲超时（120 秒）
@@ -36,7 +36,7 @@ extern "C" {
  *         实际待在待机态的时长 = PM_STANDBY_TO_SLEEP_MS - PM_WORK_TO_STANDBY_MS
  */
 //#define PM_STANDBY_TO_SLEEP_MS       9000000U
-#define PM_STANDBY_TO_SLEEP_MS       120000U   /* 测试用：120秒 */
+#define PM_STANDBY_TO_SLEEP_MS       90000U   /* 测试用：120秒 */
 
 /**
  * @brief  回连态 → 休眠态：持续广播无连接超时（45 秒）
@@ -78,17 +78,16 @@ extern "C" {
 
 /**
  * @brief  待机态从机延迟（单位：连接事件个数）
- * @note   100 个连接事件 × 50ms = 最大 5 秒才响应一次
- *         取最大值以最大程度降低功耗
- *         范围：40 ~ 100（GY/T 407-2024 附录 C.2）
+ * @note   100 个事件 × 50ms = 最大 5 秒不用监听
+ *         监管超时: (1+100)×50ms×2 = 10.1s → timeout 需 >1010
  */
 #define PM_STANDBY_CONN_LATENCY         100U
 
 /**
- * @brief  待机态连接超时（单位：10ms）
- * @note   800 × 10ms = 8s，确保待机态下链路不会轻易断开
+ * @brief  待机态监管超时（单位：10ms）
+ * @note   1200 × 10ms = 12s > (1+100)×50ms×2 = 10.1s
  */
-#define PM_STANDBY_CONN_TIMEOUT         800U
+#define PM_STANDBY_CONN_TIMEOUT        1200U
 
 /*===========================================================================
  * 三、工作态 BLE 连接参数（从待机态切回时使用）

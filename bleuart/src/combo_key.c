@@ -78,7 +78,7 @@ void combo_key_init(void)
     /* Combo #1: KEY14 + KEY5 → 进入配对 */
     g_combos[COMBO_IDX_PAIR].key1      = TASK_KEYSCAN_KEY14;
     //g_combos[COMBO_IDX_PAIR].key2      = TASK_KEYSCAN_KEY4; //旧板子
-    g_combos[COMBO_IDX_PAIR].key2      = TASK_KEYSCAN_KEY3;    //新板子
+    g_combos[COMBO_IDX_PAIR].key2      = TASK_KEYSCAN_KEY10;   //新板子
     g_combos[COMBO_IDX_PAIR].state     = COMBO_IDLE;
     g_combos[COMBO_IDX_PAIR].state_ts_ms = 0U;
     g_combos[COMBO_IDX_PAIR].led_ts_ms   = 0U;
@@ -146,10 +146,10 @@ void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
                     break;
                 }
                 /* 3s 到 → 触发动作 */
-                if (i == COMBO_IDX_PAIR)    //KEY14+KEY5
+                if (i == COMBO_IDX_PAIR)    //KEY14+KEY10
                 {  
                     /* ---- 配对组合键 ---- */
-                    co_printf("[COMBO] KEY14+KEY5 triggered! Enter pairing...\r\n");
+                    co_printf("[COMBO] KEY14+KEY10 triggered! Enter pairing...\r\n");
 
                     /*
                      * 先清除旧绑定以确保设备可被发现。

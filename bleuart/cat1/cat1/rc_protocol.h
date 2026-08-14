@@ -56,7 +56,7 @@
 #define RC_READ_VAL_DEVICE_REGION_ID               "370100"           //行政区划码，符合 GB/T 2260 济南市
 #define RC_READ_VAL_USER_ID                        "0001"             //用户编码
 #define RC_READ_VAL_DEVICE_MODEL                   0x01u              //0x01=语音遥控器, 0x02=4G 模块
-#define RC_READ_VAL_DEVICE_SW_VERSION              "01270000"         //软件版本，如 `01020304` 版本 v1.2.3.4
+#define RC_READ_VAL_DEVICE_SW_VERSION              "01290000"         //软件版本，如 `01020304` 版本 v1.2.3.4
 #define RC_READ_VAL_DEVICE_STATUS                  0x00u              //0x00=正常, 0x01=失效, 0x02=未知
 #define RC_READ_VAL_DEVICE_ACTIVE_TIME             "20260101100800"   // YYYYMMDDhhmmss，无值填全 0
 #define RC_READ_VAL_DEVICE_INACTIVE_TIME           "20360101100800"   // YYYYMMDDhhmmss，无值填全 0

@@ -132,20 +132,11 @@ uint8_t pm_sleep_enter(void)
     /* 4. Shutdown non-essential peripherals */
     pm_peripherals_sleep_shutdown();
 
-    PM_LOG("Sleep enter: entering Sleep mode (WFI)...");
+    co_printf("[SLEEP] >>> entering WFI (SLEEPDEEP=1)\r\n");
 
-    /*
-     * 5. Enter Sleep mode via WFI.
-     *    Wake on KEYSCAN EXTI (key press).
-     */
     g_pm_sleeping = true;
     PWR_EnterSLEEPMode(PWR_SLEEPENTRY_WFI);
 
-    /*
-     * CPU resumes HERE after wakeup.
-     */
-
-    /* 6. Detect wake source */
     wake_reason = pm_detect_wake_reason();
 
     /* Clear g_pm_sleeping if ISR didn't already */
@@ -156,7 +147,6 @@ uint8_t pm_sleep_enter(void)
     /* 7. Restore peripherals */
     pm_peripherals_sleep_restore();
 
-    PM_LOG("Sleep exit: wake reason=%u, returning to main loop", (unsigned)wake_reason);
     return wake_reason;
 }
 

@@ -17,9 +17,11 @@
 #include "ble_bas.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "pwr.h"            /* PWR_EnterSTANDBYMode */
 
 extern uint8_t myBleStartAdv(void);     // 声明外部函数，启动 BLE 广播并完成相关初始化
 extern void setSdkTimer(uint16_t ms);   // 声明外部函数，设置 SDK 定时器，单位为毫秒
+extern volatile uint16_t key_receive;
 
 /**
  * @brief  BLE 任务入口函数，负责处理 BLE 相关的事件和状态
@@ -92,6 +94,18 @@ void task_ble_entry(void *pvParameters)
 			 */
 			pm_state_sync_after_ble_init();
 		}
+
+	if (pm_state_get() == PM_STATE_STANDBY) {
+		cs_schedule();
+		ble_gap_process_disconnect_pending();
+		if (key_receive || app_keyscan_read_key_id() != 0u)
+		{ pm_activity_notify(PM_ACTIVITY_KEY); continue; }
+
+		br_sleep();
+
+		if (key_receive) { pm_activity_notify(PM_ACTIVITY_KEY); }
+		continue;
+	}
 
 		// 处理 BLE 相关的事件和状态
 		cs_schedule();

@@ -173,6 +173,13 @@ const char* pm_state_name(pm_state_t state);
  */
 uint32_t pm_get_idle_ms(void);
 
+/**
+ * @brief  补偿低功耗期间的时间流逝
+ * @param  elapsed_ms  流逝的毫秒数（从空闲计时器中减去）
+ * @note   供 Standby 模式唤醒后调用，使超时检测能正确工作
+ */
+void pm_activity_compensate_time(uint32_t elapsed_ms);
+
 #ifdef __cplusplus
 }
 #endif

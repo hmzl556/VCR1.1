@@ -529,7 +529,13 @@ static uint8_t cat1_skt_udp_feed_char(char c)
 				s_urc_line_len = 0u;
 				return 1u;
 			}
-			/* 非 ECSONMI 的 + 行：交回命令解析（+CME ERROR 等） */
+			/* +CSCON URC: 0=idle/PSM-ready, 1=connected */
+			if (strncmp(s_ecsonmi_line, "+CSCON:", 7) == 0) {
+				co_printf("[CAT1 URC] %s\r\n", s_ecsonmi_line);
+				s_urc_line_len = 0u;
+				return 1u;
+			}
+			/* other + lines: spill to cmd response */
 			if (s_urc_line_len < sizeof(s_urc_spill)) {
 				memcpy(s_urc_spill, s_ecsonmi_line, s_urc_line_len);
 				s_urc_spill_len = (uint8_t)s_urc_line_len;
@@ -544,15 +550,7 @@ static uint8_t cat1_skt_udp_feed_char(char c)
 		return 0u;
 	}
 
-	/* 前缀必须逐步匹配 +ECSONMI:，否则吐回已缓存字节 */
-	if (s_urc_line_len < 9u && c != s_ecsonmi_pref[s_urc_line_len]) {
-		if (s_urc_line_len > 0u && s_urc_line_len < sizeof(s_urc_spill)) {
-			memcpy(s_urc_spill, s_ecsonmi_line, s_urc_line_len);
-			s_urc_spill_len = (uint8_t)s_urc_line_len;
-		}
-		s_urc_line_len = 0u;
-		return 0u; /* 当前字节由命令行接收 */
-	}
+	/* all + lines captured, classified at end-of-line */
 
 	if (s_urc_line_len + 1u < sizeof(s_ecsonmi_line)) {
 		s_ecsonmi_line[s_urc_line_len++] = c;
@@ -1185,7 +1183,7 @@ static int cat1_setup_parse_ecsocr_id(void)
 
 static int cat1_setup_issue_cscon(void)
 {
-	strncpy(s_modem_line, "AT+CSCON=0", sizeof(s_modem_line) - 1u);
+	strncpy(s_modem_line, "AT+CSCON=1", sizeof(s_modem_line) - 1u);
 	s_modem_line[sizeof(s_modem_line) - 1u] = '\0';
 	cat1_send_at_line(s_modem_line);
 	cat1_modem_begin_wait(s_modem_rsp, (unsigned)sizeof(s_modem_rsp), 1u, 0u);
@@ -1302,7 +1300,7 @@ static void cat1_setup_on_diag_done(setup_phase_t phase, uint8_t ok)
 {
 	switch (phase) {
 	case SETUP_PHASE_CSCON:
-		cat1_setup_log_rsp("AT+CSCON=0");
+		cat1_setup_log_rsp("AT+CSCON=1");
 		s_setup_phase = SETUP_PHASE_CEREG;
 		break;
 	case SETUP_PHASE_CEREG:

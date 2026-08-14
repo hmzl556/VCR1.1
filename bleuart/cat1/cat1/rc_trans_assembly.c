@@ -4,6 +4,7 @@
 #include "rc_cat1_bridge.h"
 #include "co_printf.h"
 #include "udp_ota.h"
+#include "pm_state.h"   /* pm_state_get / PM_STATE_STANDBY */
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -303,6 +304,12 @@ int rc_trans_on_write(peer_t peer, const uint8_t *val, uint16_t len)
         rc_trans_fail(peer, RC_RESULT_BUSY_REJECT, RC_PACK_INDEX_NONE);
         return -1;
     }
+
+    /*
+     * 收到 RC-TRANS → 通知 PM 有对端数据活动。
+     * 待机态下会退出到工作态, CAT1 由主循环检测 s_pending_tlv 后上电。
+     */
+    pm_activity_notify(PM_ACTIVITY_PEER_DATA);
 
     rc_trans_log_rx(val, len);
 

@@ -15,6 +15,7 @@
 #define TASK_KEYSCAN_KEY6            6U
 #define TASK_KEYSCAN_KEY8            8U
 #define TASK_KEYSCAN_KEY9            9U
+#define TASK_KEYSCAN_KEY10           10U
 #define TASK_KEYSCAN_KEY14          14U
 
 // 恢复出厂设置相关时间常量（ms）

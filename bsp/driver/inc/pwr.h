@@ -68,7 +68,10 @@ extern "C" {
 #define PWR_SLEEPENTRY_WFI        ((uint8_t)0x01)
 #define PWR_SLEEPENTRY_WFE        ((uint8_t)0x02)
 
-/** @defgroup Powerdown_mode_entry 
+#define PWR_STANDBYENTRY_WFI      ((uint8_t)0x01)
+#define PWR_STANDBYENTRY_WFE      ((uint8_t)0x02)
+
+/** @defgroup Powerdown_mode_entry
   * @{
   */
 
@@ -83,6 +86,7 @@ extern "C" {
 void PWR_DeInit(void);
 void PWR_EnterIDLEMode(uint8_t IDLEONEXIT, uint8_t PWR_IdleEntry);
 void PWR_EnterSLEEPMode(uint8_t PWR_SleepEntry);
+void PWR_EnterSTANDBYMode(uint8_t PWR_StandbyEntry);
 void PWR_EnterPDMode(uint8_t PWR_PDEntry);
 
 #ifdef __cplusplus
