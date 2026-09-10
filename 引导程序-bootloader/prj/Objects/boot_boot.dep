@@ -1,261 +1,15 @@
 Dependencies for Project 'boot', Target 'boot': (DO NOT MODIFY !)
 CompilerVersion: 5060750::V5.06 update 6 (build 750)::.\ARMCC
-F (..\..\total-随时更新\bleuart\prj\system_br1601x.c)(0x6724B8FE)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\system_br1601x.o --omf_browse .\objects\system_br1601x.crf --depend .\objects\system_br1601x.d)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cm0.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdint.h)(0x67A49912)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmInstr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmFunc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\system_br1601x.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdbool.h)(0x599ECD2E)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x_conf.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\adc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\crc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\dma.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\exti.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\gpio.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\i2c.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\iwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\pwr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rcc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rtc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\spi.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\tim.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\usart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\lpuart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\wwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\keyscan.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\qflash.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\misc.h)(0x00000000)
-F (..\..\total-随时更新\bleuart\prj\startup_br1601x.s)(0x6A421F62)(--cpu Cortex-M0 --li -g --apcs=interwork --pd "__MICROLIB SETA 1"-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include--pd "__UVISION_VERSION SETA 539" --pd "ARMCM0 SETA 1"--list .\listings\startup_br1601x.lst --xref -o .\objects\startup_br1601x.o --depend .\objects\startup_br1601x.d)
-F (..\src\boot_main.c)(0x6A4337B8)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\boot_main.o --omf_browse .\objects\boot_main.crf --depend .\objects\boot_main.d)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cm0.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdint.h)(0x67A49912)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmInstr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmFunc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\system_br1601x.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdbool.h)(0x599ECD2E)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x_conf.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\adc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\crc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\dma.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\exti.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\gpio.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\i2c.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\iwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\pwr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rcc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rtc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\spi.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\tim.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\usart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\lpuart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\wwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\keyscan.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\qflash.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\misc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bleuart\cat1\OTA\udp_bootload.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bleuart\cat1\OTA\flash_layout.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\common\inc\co_printf.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\string.h)(0x599ECD2C)
-F (..\..\total-随时更新\bsp\common\src\co_printf.c)(0x6A4319E8)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\co_printf.o --omf_browse .\objects\co_printf.crf --depend .\objects\co_printf.d)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdio.h)(0x67D28AEC)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdarg.h)(0x599ECD2A)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\string.h)(0x599ECD2C)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\usart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cm0.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdint.h)(0x67A49912)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmInstr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmFunc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\system_br1601x.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdbool.h)(0x599ECD2E)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x_conf.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\adc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\crc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\dma.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\exti.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\gpio.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\i2c.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\iwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\pwr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rcc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rtc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\spi.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\tim.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\lpuart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\wwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\keyscan.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\qflash.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\misc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\common\inc\co_printf.h)(0x00000000)
-F (..\..\total-随时更新\bleuart\cat1\OTA\udp_bootload.c)(0x6A4319E8)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\udp_bootload.o --omf_browse .\objects\udp_bootload.crf --depend .\objects\udp_bootload.d)
-I (..\..\total-闅忔椂鏇存柊\bleuart\cat1\OTA\udp_bootload.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdint.h)(0x67A49912)
-I (..\..\total-闅忔椂鏇存柊\bleuart\cat1\OTA\flash_layout.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\qflash.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cm0.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmInstr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmFunc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\system_br1601x.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdbool.h)(0x599ECD2E)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x_conf.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\adc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\crc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\dma.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\exti.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\gpio.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\i2c.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\iwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\pwr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rcc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rtc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\spi.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\tim.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\usart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\lpuart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\wwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\keyscan.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\misc.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\string.h)(0x599ECD2C)
-F (..\..\total-随时更新\bleuart\cat1\OTA\flash_layout.h)(0x6A393E3A)()
-F (..\..\total-随时更新\cs\src\cs.lib)(0x68022596)()
-F (..\..\total-随时更新\bsp\driver\src\qflash.c)(0x6724B8FE)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\qflash.o --omf_browse .\objects\qflash.crf --depend .\objects\qflash.d)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\qflash.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cm0.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdint.h)(0x67A49912)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmInstr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmFunc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\system_br1601x.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdbool.h)(0x599ECD2E)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x_conf.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\adc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\crc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\dma.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\exti.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\gpio.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\i2c.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\iwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\pwr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rcc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rtc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\spi.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\tim.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\usart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\lpuart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\wwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\keyscan.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\misc.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\string.h)(0x599ECD2C)
-F (..\..\total-随时更新\bsp\driver\src\misc.c)(0x6724B8FE)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\misc.o --omf_browse .\objects\misc.crf --depend .\objects\misc.d)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\misc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cm0.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdint.h)(0x67A49912)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmInstr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmFunc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\system_br1601x.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdbool.h)(0x599ECD2E)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x_conf.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\adc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\crc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\dma.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\exti.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\gpio.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\i2c.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\iwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\pwr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rcc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rtc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\spi.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\tim.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\usart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\lpuart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\wwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\keyscan.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\qflash.h)(0x00000000)
-F (..\..\total-随时更新\bsp\driver\src\gpio.c)(0x68A2CF08)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\gpio.o --omf_browse .\objects\gpio.crf --depend .\objects\gpio.d)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\gpio.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cm0.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdint.h)(0x67A49912)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmInstr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmFunc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\system_br1601x.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdbool.h)(0x599ECD2E)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x_conf.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\adc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\crc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\dma.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\exti.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\i2c.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\iwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\pwr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rcc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rtc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\spi.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\tim.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\usart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\lpuart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\wwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\keyscan.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\qflash.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\misc.h)(0x00000000)
-F (..\..\total-随时更新\bsp\driver\src\lpuart.c)(0x6A105E1C)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\lpuart.o --omf_browse .\objects\lpuart.crf --depend .\objects\lpuart.d)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\lpuart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cm0.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdint.h)(0x67A49912)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmInstr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmFunc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\system_br1601x.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdbool.h)(0x599ECD2E)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x_conf.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\adc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\crc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\dma.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\exti.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\gpio.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\i2c.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\iwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\pwr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rcc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rtc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\spi.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\tim.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\usart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\wwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\keyscan.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\qflash.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\misc.h)(0x00000000)
-F (..\..\total-随时更新\bsp\driver\src\rcc.c)(0x689736F0)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\rcc.o --omf_browse .\objects\rcc.crf --depend .\objects\rcc.d)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rcc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cm0.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdint.h)(0x67A49912)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmInstr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\core_cmFunc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\system_br1601x.h)(0x00000000)
-I (D:\RuanJian\KEIL5\ARM\ARMCC\include\stdbool.h)(0x599ECD2E)
-I (..\..\total-闅忔椂鏇存柊\bsp\core\inc\br1601x_conf.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\adc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\crc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\dma.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\exti.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\gpio.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\i2c.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\iwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\pwr.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\rtc.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\spi.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\tim.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\usart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\lpuart.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\wwdg.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\keyscan.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\qflash.h)(0x00000000)
-I (..\..\total-闅忔椂鏇存柊\bsp\driver\inc\misc.h)(0x00000000)
-F (.\boot.sct)(0x6A38D39C)()
+F (..\..\total-随时更新\bleuart\prj\system_br1601x.c)(0x00000000)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\system_br1601x.o --omf_browse .\objects\system_br1601x.crf --depend .\objects\system_br1601x.d)
+F (..\..\total-随时更新\bleuart\prj\startup_br1601x.s)(0x00000000)(--cpu Cortex-M0 --li -g --apcs=interwork --pd "__MICROLIB SETA 1"-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include--pd "__UVISION_VERSION SETA 539" --pd "ARMCM0 SETA 1"--list .\listings\startup_br1601x.lst --xref -o .\objects\startup_br1601x.o --depend .\objects\startup_br1601x.d)
+F (..\src\boot_main.c)(0x6A6890E0)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\boot_main.o --omf_browse .\objects\boot_main.crf --depend .\objects\boot_main.d)
+F (..\..\total-随时更新\bsp\common\src\co_printf.c)(0x00000000)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\co_printf.o --omf_browse .\objects\co_printf.crf --depend .\objects\co_printf.d)
+F (..\..\total-随时更新\bleuart\cat1\OTA\udp_bootload.c)(0x00000000)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\udp_bootload.o --omf_browse .\objects\udp_bootload.crf --depend .\objects\udp_bootload.d)
+F (..\..\total-随时更新\bleuart\cat1\OTA\flash_layout.h)(0x00000000)()
+F (..\..\total-随时更新\cs\src\cs.lib)(0x00000000)()
+F (..\..\total-随时更新\bsp\driver\src\qflash.c)(0x00000000)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\qflash.o --omf_browse .\objects\qflash.crf --depend .\objects\qflash.d)
+F (..\..\total-随时更新\bsp\driver\src\misc.c)(0x00000000)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\misc.o --omf_browse .\objects\misc.crf --depend .\objects\misc.d)
+F (..\..\total-随时更新\bsp\driver\src\gpio.c)(0x00000000)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\gpio.o --omf_browse .\objects\gpio.crf --depend .\objects\gpio.d)
+F (..\..\total-随时更新\bsp\driver\src\lpuart.c)(0x00000000)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\lpuart.o --omf_browse .\objects\lpuart.crf --depend .\objects\lpuart.d)
+F (..\..\total-随时更新\bsp\driver\src\rcc.c)(0x00000000)(--c99 -c --cpu Cortex-M0 -D__MICROLIB --li -g -O0 --apcs=interwork --split_sections -I ..\..\total-随时更新\bsp\driver\inc -I ..\..\total-随时更新\bsp\core\inc -I ..\..\total-随时更新\bsp\common\inc -I ..\..\total-随时更新\cs\inc -I ..\..\total-随时更新\bleuart\cat1\OTA --diag_suppress=188 --diag_suppress=177-ID:\RuanJian\KEIL5\pack\ARM\CMSIS\5.9.0\Device\ARM\ARMCM0\Include-D__UVISION_VERSION="539" -DARMCM0 -DBR1601A01 -DUSB_STDPERIPH_DRIVER-o .\objects\rcc.o --omf_browse .\objects\rcc.crf --depend .\objects\rcc.d)
+F (.\boot.sct)(0x6A6890E0)()

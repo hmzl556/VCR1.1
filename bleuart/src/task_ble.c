@@ -13,6 +13,7 @@
 #include "co_printf.h"
 #include "pm_state.h"       /* 电源管理状态机 — 空闲超时检查 */
 #include "iwdg.h"            /* IWDG 独立看门狗 — 喂狗            */
+#include "exti.h"            /* EXTI_ClrITPendBit — 清中断挂起位   */
 #include "udp_ota.h"
 #include "ble_bas.h"
 #include "FreeRTOS.h"
@@ -100,6 +101,15 @@ void task_ble_entry(void *pvParameters)
 		ble_gap_process_disconnect_pending();
 		if (key_receive || app_keyscan_read_key_id() != 0u)
 		{ pm_activity_notify(PM_ACTIVITY_KEY); continue; }
+
+		/*
+		 * 厂商低功耗 demo 的核心: 睡眠前清理 KEYSCAN 残留中断。
+		 * 残留的 pending 位会让 br_sleep() 一进去就被唤醒(dt=0ms),
+		 * 永远进不了深睡。
+		 */
+		KEYSCAN_InfoClear();
+		KEYSCAN_ClearInterrupt();
+		EXTI_ClrITPendBit(EXTI_LINE13);
 
 		br_sleep();
 

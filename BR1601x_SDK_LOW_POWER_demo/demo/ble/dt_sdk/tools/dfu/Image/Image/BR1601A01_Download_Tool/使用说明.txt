@@ -1,0 +1,11 @@
+1、此工具用于BR1601A01手动烧录
+2、此工具依赖电脑安装有JLINK软件及JLINK下载器
+3、Jlink_Script下是烧录脚本download.jlink内含固件名称与地址，可以根据实际修改
+4、固件烧录起始地址由编译时决定
+5、烧录接线（见JLINK_SWD.png）
+JTAG-24PIN		BR1601A01
+PIN1 VREF		VDD
+PIN7 SWDIO		PA5
+PIN9 SWCLK		PA4
+PIN4-20 GND		GND
+注意：芯片可以因为休眠而无法下载，请复位后下载

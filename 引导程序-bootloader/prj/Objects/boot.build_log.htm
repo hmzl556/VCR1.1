@@ -21,26 +21,43 @@ Target DLL:      CMSIS_AGDI.dll V1.33.16.0
 Dialog DLL:      TARMCM1.DLL V1.14.6.0
  
 <h2>Project:</h2>
-D:\ZZW\桌面\ble\ble\引导程序-先下载引导程序-再下载用户程序\引导程序-bootloader\prj\boot.uvprojx
-Project File Date:  07/01/2026
+D:\ZZW\桌面\ble\GitHub\VCR1.1\引导程序-bootloader\prj\boot.uvprojx
+Project File Date:  08/14/2026
 
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 6 (build 750)', folder: 'D:\RuanJian\KEIL5\ARM\ARMCC\Bin'
 Rebuild target 'boot'
-assembling startup_br1601x.s...
-compiling lpuart.c...
-compiling misc.c...
-compiling udp_bootload.c...
 compiling qflash.c...
-compiling co_printf.c...
-compiling system_br1601x.c...
-compiling boot_main.c...
+"no source": Error:  #5: cannot open source input file "..\..\total-闅忔椂鏇存柊\bsp\driver\src\qflash.c": No such file or directory
+..\..\total-随时更新\bsp\driver\src\qflash.c: 0 warnings, 1 error
 compiling gpio.c...
+"no source": Error:  #5: cannot open source input file "..\..\total-闅忔椂鏇存柊\bsp\driver\src\gpio.c": No such file or directory
+..\..\total-随时更新\bsp\driver\src\gpio.c: 0 warnings, 1 error
 compiling rcc.c...
-linking...
-Program Size: Code=6548 RO-data=556 RW-data=1160 ZI-data=1848  
-FromELF: creating hex file...
-".\Objects\boot.axf" - 0 Error(s), 0 Warning(s).
+"no source": Error:  #5: cannot open source input file "..\..\total-闅忔椂鏇存柊\bsp\driver\src\rcc.c": No such file or directory
+..\..\total-随时更新\bsp\driver\src\rcc.c: 0 warnings, 1 error
+assembling startup_br1601x.s...
+startup_br1601x.s: error: A1023E: File "..\..\total-????euart\prj\startup_br1601x.s" could not be opened: No such file or directory
+compiling misc.c...
+"no source": Error:  #5: cannot open source input file "..\..\total-闅忔椂鏇存柊\bsp\driver\src\misc.c": No such file or directory
+..\..\total-随时更新\bsp\driver\src\misc.c: 0 warnings, 1 error
+compiling udp_bootload.c...
+"no source": Error:  #5: cannot open source input file "..\..\total-闅忔椂鏇存柊\bleuart\cat1\OTA\udp_bootload.c": No such file or directory
+..\..\total-随时更新\bleuart\cat1\OTA\udp_bootload.c: 0 warnings, 1 error
+compiling system_br1601x.c...
+"no source": Error:  #5: cannot open source input file "..\..\total-闅忔椂鏇存柊\bleuart\prj\system_br1601x.c": No such file or directory
+..\..\total-随时更新\bleuart\prj\system_br1601x.c: 0 warnings, 1 error
+compiling co_printf.c...
+"no source": Error:  #5: cannot open source input file "..\..\total-闅忔椂鏇存柊\bsp\common\src\co_printf.c": No such file or directory
+..\..\total-随时更新\bsp\common\src\co_printf.c: 0 warnings, 1 error
+compiling lpuart.c...
+"no source": Error:  #5: cannot open source input file "..\..\total-闅忔椂鏇存柊\bsp\driver\src\lpuart.c": No such file or directory
+..\..\total-随时更新\bsp\driver\src\lpuart.c: 0 warnings, 1 error
+compiling boot_main.c...
+..\src\boot_main.c(5): error:  #5: cannot open source input file "br1601x.h": No such file or directory
+  #include "br1601x.h"
+..\src\boot_main.c: 0 warnings, 1 error
+".\Objects\boot.axf" - 10 Error(s), 0 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -53,7 +70,8 @@ Package Vendor: ARM
   D:/RuanJian/KEIL5/pack/ARM/CMSIS/5.9.0/Device/ARM/ARMCM0/Include
 
 <h2>Collection of Component Files used:</h2>
-Build Time Elapsed:  00:00:02
+Target not created.
+Build Time Elapsed:  00:00:01
 </pre>
 </body>
 </html>

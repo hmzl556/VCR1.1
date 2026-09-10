@@ -22,6 +22,11 @@
 #include "gap.h"        /* peer_bonded_count() 绑定数量查询 */
 #include "rc_cat1_bridge.h"
 #include "udp_ota.h"
+#include "ble_adv.h"    /* ble_adv_start_by_bonding() — 唤醒后复用栈重启广播 */
+
+extern void sdk_timer_pause(void);   /* main.c: 删 8ms 定时器让 WFI 深睡 */
+extern void sdk_timer_resume(void);  /* main.c: 恢复 8ms 定时器 (FreeRTOS tick) */
+extern volatile bool g_pairing_active; /* ble_gap.c: 组合键配对广播标志 */
 
 /*===========================================================================
  * 一、内部静态变量
@@ -153,6 +158,10 @@ static void pm_enter_sleep(void)
 
     PM_LOG("Enter SLEEP state - prep sleep mode");
 
+    /* 配对会话随休眠结束: 清除组合键配对标志, 否则唤醒后广播重启
+     * 会误发配对广播 (实测: 配对态进休眠, 唤醒后直接回到配对广播) */
+    g_pairing_active = false;
+
     /*
      * pm_sleep_enter() handles all sleep-mode hardware operations:
      *   1. Stop BLE advertising
@@ -168,10 +177,15 @@ static void pm_enter_sleep(void)
     /*
      * 休眠唤醒后：CAT1 UART/模组状态已在 sleep 流程中关闭，需重新初始化；
      * pm_wakeup_entry() 按绑定关系切到 SILENT/RECONNECTING 并刷新 PM 计时。
-     * bleAdvStat 已在 sleep 中清零，主循环会 myBleStartAdv() 重建 BLE。
+     * bleAdvStat 保持 0xa6 (见 pm_sleep.c): 复用现有 BLE 栈重启广播,
+     * 不重建栈 (重建=二次 malloc → HardFault)。
      */
     rc_cat1_init();
     pm_wakeup_entry();
+    /* 恢复 8ms sdk 定时器 (FreeRTOS tick): 休眠入口已暂停, 否则唤醒后
+     * tick 一直冻结 (vTaskDelay 等会挂死) */
+    sdk_timer_resume();
+    ble_adv_start_by_bonding();
 
     (void)wake_reason;
 }
@@ -226,11 +240,14 @@ static void pm_enter_reconnecting(void)
  */
 void pm_state_init(void)
 {
+    extern volatile bool g_pairing_active;
+
     /* 根据绑定状态决定初始状态 */
     if (pm_has_bonding()) {
         g_pm_state = PM_STATE_RECONNECTING;
         PM_LOG("PM init: bonded, start=RECONNECTING");
     } else {
+        /* 无绑定: 上电后进静默态, 等 KEY14+KEY3 组合键触发配对 */
         g_pm_state = PM_STATE_SILENT;
         g_pm_silent_start_ms = app_now_ms();
         PM_LOG("PM init: no bond, start=SILENT");
@@ -301,11 +318,16 @@ void pm_state_transition(pm_state_t new_state)
     switch (old_state) {
         case PM_STATE_STANDBY:
             /*
-             * 从待机态退出：目标为 WORKING 时恢复外设；
-             * 目标为 SLEEP 时跳过（马上要关外设睡觉，不需要恢复）
+             * 无论目标是 WORKING 还是 SLEEP 都完整退出待机:
+             * - 目标 SLEEP 时不恢复的话, pm_clk_off 门控掉的
+             *   TIM1/SPI1/SPI2/USART1 时钟会一直缺到休眠唤醒之后,
+             *   BLE 栈重建时挂死 → 看门狗复位 (实测: 每次休眠后自动重启);
+             * - 进 SLEEP 前需再次暂停 sdk 定时器: WFI 有 pending 定时器
+             *   会被每 8ms 唤醒 (休眠瞬间自动唤醒的根源)。
              */
-            if (new_state != PM_STATE_SLEEP) {
-                pm_exit_standby();
+            pm_exit_standby();
+            if (new_state == PM_STATE_SLEEP) {
+                sdk_timer_pause();
             }
             break;
         /* 其他状态当前无需特殊退出操作 */
@@ -397,6 +419,12 @@ void pm_notify_connected(void)
 void pm_notify_disconnected(void)
 {
     PM_LOG("Disconnect notify, curr=%s", pm_state_name(g_pm_state));
+
+    /* 休眠前的主动断连(le_conn_destory): 忽略, 唤醒后由 pm_wakeup_entry 决定去向 */
+    if (g_pm_state == PM_STATE_SLEEP) {
+        PM_LOG("Disconnect during SLEEP (pre-sleep destroy), ignore");
+        return;
+    }
 
     /* 根据是否有绑定记录决定去向 */
     if (pm_has_bonding()) {

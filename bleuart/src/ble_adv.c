@@ -337,10 +337,10 @@ void ble_adv_start_by_bonding(void)
     if (peer_bonded_count() > 0) {
         ble_adv_start_reconnect();
     } else if (g_pairing_active) {
-        // KEY14+KEY5 组合键已触发，启动可发现广播
+        // KEY14+KEY3 组合键已触发，启动可发现广播
         ble_adv_start_pairing();
     } else {
-        // 无绑定且未触发配对：不广播，由 KEY14+KEY5 组合键手动发起
-        co_printf("No bonding, skip advertising. Press KEY14+KEY5 to pair.\r\n");
+        // 无绑定且未触发配对（静默态）：不广播，由组合键手动发起
+        co_printf("No bonding, skip advertising. Press KEY14+KEY3 to pair.\r\n");
     }
 }

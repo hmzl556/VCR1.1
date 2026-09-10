@@ -67,25 +67,51 @@ int ble_stack_init(void)
 	return 0;					// 返回 0 表示 BLE 栈初始化成功
 }
 
+/* 待机暂停标志: 修复 sdk_timer_pause() 删除与回调重装之间的竞态。
+ * 竞态: del 之后 s_sdk_hdl=0 之前, 若已排队的中断回调恰好触发,
+ * callBakSdkTimer 开头 setSdkTimer(8) 会重建一个"孤儿"8ms 定时器
+ * (句柄随后被清 0, 无人管理), 导致待机态每 8ms 被唤醒 ≈500µA。
+ * 修复: pause 先置标志, 在途回调见到标志直接返回, 不重装。 */
+static volatile uint8_t s_sdk_timer_paused;
+
 // SDK 定时器回调函数，每 8ms 被调用一次
 void callBakSdkTimer(uint8_t ev, void *arg)
 {
 	(void)ev;
 	(void)arg;
 
-	setSdkTimer(8U);			// 重新设置定时器，确保每 8ms 调用一次此回调函数
+	if (s_sdk_timer_paused != 0u) {
+		/* 暂停期间的回调: 不重装定时器, 不推进 FreeRTOS tick */
+		return;
+	}
 
-	// 如果 FreeRTOS 调度器正在运行，调用 xTaskIncrementTick 来更新系统时间和触发任务切换
+	setSdkTimer(8U);
+
 	if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
 		(void)xTaskIncrementTick();
 	}
 }
 
+static uint32_t s_sdk_hdl;
+
 // 设置 SDK 定时器，单位为毫秒
 void setSdkTimer(uint16_t ms)
 {
-	// 定时器接口，设置一个定时器在 ms 毫秒后触发，触发时调用 callBakSdkTimer 函数
-	sdk_timer_add(ms, 2, callBakSdkTimer, NULL);
+	s_sdk_hdl = sdk_timer_add(ms, 2, callBakSdkTimer, NULL);
+}
+
+/* 待机态: 删掉 SDK 定时器, br_sleep() 无 pending 定时器可深睡 */
+void sdk_timer_pause(void)
+{
+	s_sdk_timer_paused = 1u;  /* 先置标志: 在途回调不再重装 */
+	if (s_sdk_hdl != 0u) { sdk_timer_del(s_sdk_hdl); s_sdk_hdl = 0u; }
+}
+
+/* 待机态唤醒: 重建 SDK 定时器 */
+void sdk_timer_resume(void)
+{
+	if (s_sdk_hdl == 0u) { s_sdk_hdl = sdk_timer_add(8U, 2, callBakSdkTimer, NULL); }
+	s_sdk_timer_paused = 0u;  /* 后清标志: 重建完成后再允许重装 */
 }
 
 // 初始化 BLE 栈与 GATT/GAP（不启动广播），供 OTA 会话并行 HID 使用

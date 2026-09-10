@@ -147,7 +147,7 @@ typedef struct {
 } ble_conn_param_store_t;
 
 // 最近一次合规的连接参数（默认从持久化或内置值恢复）
-static ble_conn_param_store_t g_last_good_params = {0}; 
+static ble_conn_param_store_t g_last_good_params = {0};
 
 static uint32_t ble_conn_param_checksum(const ble_conn_param_store_t *p)
 {
