@@ -18,6 +18,9 @@ void rc_cat1_cancel_pending(void);
  */
 void rc_cat1_power_down(void);
 
+/** UDP socket 是否已就绪 (setup 完成, 可安全入队上行帧) */
+uint8_t rc_cat1_udp_is_ready(void);
+
 /**
  * @brief CAT1 模组上电：开 LTE_EN，完整初始化（boot 延时 + UDP setup）
  * @note  将在 pm_standby_exit() 中调用，替代仅开 TX 的做法

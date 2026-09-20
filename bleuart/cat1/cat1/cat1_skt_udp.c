@@ -56,6 +56,11 @@ static uint8_t  s_sock_id = 255u;
 static char     s_modem_line[CAT1_AT_LINE_MAX];
 static char     s_ecsonmi_line[CAT1_ECSONMI_LINE_MAX];
 static char     s_modem_rsp[CAT1_MODEM_RSP_CAP];
+
+/* ICCID (SIM卡号) 捕获: AT+ECICCID 响应原文(实测可含字母), 供心跳 Tag0x0A 使用 */
+static uint8_t  s_iccid_raw[20];
+static uint8_t  s_iccid_len;
+static uint8_t  s_iccid_valid;
 static unsigned s_urc_line_len;
 static uint8_t  s_ota_uplink_wait;
 static uint8_t  s_recv_allow = 1u;
@@ -1221,6 +1226,68 @@ static int cat1_setup_issue_iccid(void)
 	return CAT1_SETUP_BUSY;
 }
 
+/**
+ * @brief  从 AT+ECICCID 响应中提取 20 位 SIM 卡号并转 BCD10 存储
+ * @note   响应不完整时保留旧值; 心跳 Tag0x0A 通过 cat1_iccid_get_raw 读取
+ */
+static void cat1_iccid_capture_from_rsp(const char *rsp)
+{
+	const char *p;
+	uint8_t digits[20];
+	uint8_t nd = 0u;
+	uint8_t i;
+
+	if (rsp == NULL) {
+		return;
+	}
+	p = strstr(rsp, "ECICCID");
+	if (p == NULL) {
+		co_printf("[CAT1] ICCID rsp has no ECICCID\r\n");
+		return;
+	}
+	/*
+	 * 卡号原文可含字母(实测含 F/D): 原样保存。
+	 * 传输编码待与服务器协商: BCD10 带不了字母, 拟改 HEX,
+	 * 协商确定前 Tag0x0A 的 SIM 字段暂填 0。
+	 * 此处只收 [0-9A-Fa-f] 字符, 最长 20。
+	 */
+	while (*p != '\0' && nd < 20u) {
+		char c = *p;
+
+		if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')
+		    || (c >= 'a' && c <= 'f')) {
+			digits[nd++] = (uint8_t)c;
+		}
+		p++;
+	}
+	if (nd < 18u) {
+		co_printf("[CAT1] ICCID capture incomplete (%u chars)\r\n", (unsigned)nd);
+		return;   /* 不完整: 保留旧值 */
+	}
+	memcpy(s_iccid_raw, digits, nd);
+	s_iccid_len = nd;
+	s_iccid_valid = 1u;
+	co_printf("[CAT1] ICCID captured raw (%u chars): ", (unsigned)nd);
+	for (i = 0u; i < nd; i++) {
+		co_printf("%c", (char)s_iccid_raw[i]);
+	}
+	co_printf("\r\n");
+}
+
+/**
+ * @brief  读取 SIM 卡号原文 (setup 阶段 AT+ECICCID 捕获, 可含字母)
+ * @return 0=成功; -1=尚未捕获
+ */
+int cat1_iccid_get_raw(uint8_t out[20], uint8_t *out_len)
+{
+	if (s_iccid_valid == 0u || out == NULL || out_len == NULL) {
+		return -1;
+	}
+	memcpy(out, s_iccid_raw, s_iccid_len);
+	*out_len = s_iccid_len;
+	return 0;
+}
+
 static int cat1_setup_issue_cgatt(void)
 {
 	strncpy(s_modem_line, "AT+CGATT?", sizeof(s_modem_line) - 1u);
@@ -1312,6 +1379,7 @@ static void cat1_setup_on_diag_done(setup_phase_t phase, uint8_t ok)
 		s_setup_phase = SETUP_PHASE_ICCID_PENDING;
 		break;
 	case SETUP_PHASE_ICCID:
+		cat1_iccid_capture_from_rsp(s_modem_rsp);
 		cat1_setup_log_rsp("AT+ECICCID");
 		s_setup_phase = SETUP_PHASE_FREQ_PENDING;
 		break;

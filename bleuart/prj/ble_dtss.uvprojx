@@ -619,6 +619,11 @@
               <FileType>5</FileType>
               <FilePath>..\cat1\cat1\rc_protocol.h</FilePath>
             </File>
+            <File>
+              <FileName>heartbeat.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\heartbeat.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

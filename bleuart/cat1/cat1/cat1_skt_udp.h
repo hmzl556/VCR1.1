@@ -29,6 +29,13 @@ cat1_modem_result_t cat1_modem_step(void);
 /** @brief 是否有 AT 事务正在进行 */
 uint8_t cat1_modem_is_busy(void);
 
+/**
+ * @brief  读取 SIM 卡号原文 (setup 阶段 AT+ECICCID 捕获, 可含字母)
+ * @note   传输编码待服务器协商: BCD10 带不了字母, 拟改 HEX
+ * @return 0=成功; -1=尚未捕获
+ */
+int cat1_iccid_get_raw(uint8_t out[20], uint8_t *out_len);
+
 /** @brief OTA 已收到代码片时提前结束 ECSOST 等待（不必等 AT 超时） */
 void cat1_skt_udp_finish_active_ok(void);
 

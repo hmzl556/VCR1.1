@@ -15,6 +15,7 @@
 #include "iwdg.h"            /* IWDG 独立看门狗 — 喂狗            */
 #include "exti.h"            /* EXTI_ClrITPendBit — 清中断挂起位   */
 #include "udp_ota.h"
+#include "heartbeat.h"      /* 服务器心跳 — 工作/待机循环检查 */
 #include "ble_bas.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -96,10 +97,17 @@ void task_ble_entry(void *pvParameters)
 			pm_state_sync_after_ble_init();
 		}
 
+		/* 服务器心跳: 到期则给 CAT1 上电建链报活 (见 heartbeat.c) */
+		heartbeat_poll();
+
 	if (pm_state_get() == PM_STATE_STANDBY) {
 		cs_schedule();
 		ble_gap_process_disconnect_pending();
 		if (key_receive || app_keyscan_read_key_id() != 0u)
+		{ pm_activity_notify(PM_ACTIVITY_KEY); continue; }
+
+		/* 心跳到期或有待发业务: 切回工作态执行 (待机态不跑 CAT1 poll) */
+		if (heartbeat_due() || heartbeat_pending())
 		{ pm_activity_notify(PM_ACTIVITY_KEY); continue; }
 
 		/*
@@ -138,7 +146,8 @@ void task_ble_entry(void *pvParameters)
 		{
 			extern volatile uint32_t g_last_ble_ms;
 			if (cat1_modem_is_busy() != 0u
-			    || (app_now_ms() - g_last_ble_ms) >= 50U) {
+			    || (app_now_ms() - g_last_ble_ms) >= 50U
+			    || heartbeat_needs_cat1_poll() != 0u) {
 				rc_cat1_poll();
 			}
 			/* AT 刚结束则立刻补发延后 HID */

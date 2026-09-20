@@ -39,6 +39,12 @@ int remote_queue_tag01_status(void);
 /** RC 本地直报 Tag0x10 按键（不经 STB/RC-TRANS）；返回值见 REMOTE_QUEUE_* */
 int remote_queue_tag10_key(uint8_t key_code);
 
+/**
+ * @brief  心跳直报 Tag0x0A（时间+SIM卡号+电量, heartbeat 模块到期触发）
+ * @return REMOTE_QUEUE_OK 成功；REMOTE_QUEUE_ERR 组帧失败；REMOTE_QUEUE_FULL 队列满
+ */
+int remote_queue_tag0A_heartbeat(void);
+
 /** UDP 软重建期间暂停/恢复 Tag10 入队（1=暂停，0=恢复） */
 void remote_tag10_enqueue_set_paused(uint8_t paused);
 

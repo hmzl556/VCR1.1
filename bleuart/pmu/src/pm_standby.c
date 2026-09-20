@@ -13,6 +13,7 @@
 #include "rcc.h"
 #include "br1601x.h"        /* USART2, USART_CTRL1_TXEN */
 #include "cat1_usart2.h"    /* USART2_CAT1_Init — 退出待机恢复 PB4/PB5 AF */
+#include "cat1_skt_udp.h"   /* cat1_skt_udp_force_fail_active — 终止在途 AT */
 extern void Audio_Pcm_HardwareShutdown(void);  /* app_audio_pcm.h */
 extern void sdk_timer_pause(void);   /* main.c: 删 8ms 定时器让 br_sleep 深睡 */
 extern void sdk_timer_resume(void);  /* main.c: 恢复 8ms 定时器 */
@@ -110,6 +111,12 @@ void pm_standby_enter(void)
      *   (注: 早期观察到的 500µA 主因是 8ms sdk 定时器竞态, 见 main.c 注释,
      *   并非此路; 此处是防御性省电配置。)
      */
+    /*
+     * 待机前终止在途 AT: 待机关掉 USART2 后未完成的 AT 事务永远不会
+     * 完成, 残留的 s_at_active 会让后续心跳的 busy 检查永远卡死
+     * (实测: 只打印 [HB] due, waiting for CAT1 idle..., tick 不来)。
+     */
+    cat1_skt_udp_force_fail_active();
     USART2->CTRL1 &= (uint16_t)(~((uint16_t)USART_CTRL1_TXEN | (uint16_t)USART_CTRL1_RXEN));
     /* 语音硬件兜底关断 (正常流程 Audio_Pcm_Stop 已关, 此处作保险) */
     Audio_Pcm_HardwareShutdown();

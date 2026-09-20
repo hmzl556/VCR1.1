@@ -7,6 +7,9 @@
 #include "ble_rc_svc.h"
 #include "rc_protocol.h"
 #include "cat1_time_sync.h"
+#include "cat1_skt_udp.h"   /* cat1_iccid_get_raw — 心跳 Tag0x0A SIM 卡号 */
+#include "bat_adc.h"        /* bat_get_level_percent — 心跳电量        */
+#include "heartbeat.h"      /* heartbeat_set_period_s — Tag11 数据ID6  */
 #include "udp_ota.h"
 #include "br1601x.h"
 #include "co_printf.h"
@@ -350,6 +353,71 @@ int remote_queue_tag10_key(uint8_t key_code)
         return REMOTE_QUEUE_ERR;
     }
     return REMOTE_QUEUE_OK;
+}
+
+/**
+ * @brief  组装 Tag0x0A 心跳 Value (5G遥控器数据采集规范 V1.2):
+ *         DataID0 操作时间 BCD6 + DataID1 SIM卡号 BCD10 + DataID2 电量 1B
+ * @return 0 成功；-1 失败
+ */
+static int remote_build_tag0A_value(uint8_t *value, uint16_t *value_len)
+{
+    uint16_t len = 0u;
+    uint8_t time_bcd[6];
+    uint8_t iccid_raw[20];
+    uint8_t iccid_len = 0u;
+    uint8_t iccid_zero[10];
+    uint8_t batt;
+
+    if (value == NULL || value_len == NULL)
+    {
+        return -1;
+    }
+    remote_fill_report_time_bcd6(time_bcd);
+    (void)cat1_iccid_get_raw(iccid_raw, &iccid_len);
+    batt = bat_get_level_percent();
+
+    /* Value 固定 20B: (DataID+时间 7B) + (DataID+SIM 11B) + (DataID+电量 2B) */
+    if (remote_value_append(value, &len, 20u, 0x00u, time_bcd, 6u) != 0)
+    {
+        return -1;
+    }
+    /*
+     * DataID1 SIM卡号: 卡号原文含字母, BCD10 放不下 → 暂填全 0,
+     * 待与服务器协商 HEX 编码后按新格式填入。
+     */
+    memset(iccid_zero, 0x00u, sizeof(iccid_zero));
+    if (remote_value_append(value, &len, 20u, 0x01u, iccid_zero, 10u) != 0)
+    {
+        return -1;
+    }
+    if (remote_value_append(value, &len, 20u, 0x02u, &batt, 1u) != 0)
+    {
+        return -1;
+    }
+    if (len != 20u)
+    {
+        return -1;
+    }
+    *value_len = len;
+    return 0;
+}
+
+/**
+ * @brief  心跳直报 Tag0x0A (heartbeat 模块到期触发, 不经 STB);
+ *         返回值见 REMOTE_QUEUE_*
+ */
+int remote_queue_tag0A_heartbeat(void)
+{
+    uint8_t value[32];
+    uint16_t value_len = 0u;
+
+    if (remote_build_tag0A_value(value, &value_len) != 0)
+    {
+        co_printf("[RC   ] Tag0A build fail\r\n");
+        return REMOTE_QUEUE_ERR;
+    }
+    return remote_queue_tag_tlv(0x0Au, value, value_len);
 }
 
 #define REMOTE_FRAME_FIXED_TAIL  21u   // 0x6868 头至 data field 前 19B + 校验 1B + 0x16 1B 中的「头+尾固定」
@@ -838,6 +906,7 @@ int remote_report_poll(uint8_t *out, size_t buflen, uint16_t *outlen,
 }
 
 #define REMOTE_TAG_11  0x11u
+#define REMOTE_TAG_0A  0x0Au   /* 心跳数据 (5G遥控器数据采集规范 V1.2) */
 
 /**
  * @brief  将 UploadIntervalSec 写入 CloudUploadPolicy 前 4 字节（大端）
@@ -872,6 +941,7 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
     uint8_t got_key_capture;
     uint8_t got_ota_sw;
     uint8_t got_ota_pkts;
+    uint8_t got_heartbeat;
     uint16_t ota_sw_version;
     uint16_t ota_total_packets;
 
@@ -885,6 +955,7 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
     got_key_capture = 0u;
     got_ota_sw = 0u;
     got_ota_pkts = 0u;
+    got_heartbeat = 0u;
     ota_sw_version = 0u;
     ota_total_packets = 0u;
     pos = 0u;
@@ -964,12 +1035,24 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
                 got_ota_pkts = 1u;
                 pos += 2u;
                 break;
+            case 0x06u:
+                /* 心跳间隔 (秒, 2B BE; 0=关闭) — 热更新 heartbeat 周期 */
+                if (remain < 2u)
+                {
+                    return -1;
+                }
+                heartbeat_set_period_s((uint16_t)(((uint16_t)value_bytes[pos] << 8)
+                    | value_bytes[pos + 1u]));
+                got_heartbeat = 1u;
+                pos += 2u;
+                break;
             default:
                 return -1;
         }
     }
 
-    if (got_interval == 0u && got_count == 0u && got_key_capture == 0u)
+    if (got_interval == 0u && got_count == 0u && got_key_capture == 0u
+        && got_heartbeat == 0u)
     {
         return -1;
     }

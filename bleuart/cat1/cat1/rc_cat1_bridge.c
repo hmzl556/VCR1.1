@@ -4,6 +4,7 @@
 #include "cat1_skt_udp.h"
 #include "cat1_udp_config.h"
 #include "remote_reports.h"
+#include "heartbeat.h"      /* heartbeat_on_udp_ready — UDP 就绪补发心跳 */
 #include "rc_key_input.h"
 #include "ble_rc_svc.h"
 #include "rc_trans_assembly.h"
@@ -301,7 +302,14 @@ void rc_cat1_init(void)
 {
 	co_printf("[RC   ] CAT1 init start\r\n");
 
-	cat1_time_sync_reset();
+	/*
+	 * ★ 不重置时间同步: 锚点是纯 MCU 侧状态(基于 sdk_timer 单调计数),
+	 *   与模组通断电无关。此函数在每次心跳上电/休眠唤醒时执行,
+	 *   若重置会把 Tag11/CCLK 建立的有效锚点抹掉, 导致后续上报
+	 *   时间全部 fallback (实测: send11 锚定后下一个心跳又变 000101000000)。
+	 *   CCLK 同步成功时会自然覆盖为更优锚点, 无需先清。
+	 */
+	// cat1_time_sync_reset();
 	cat1_skt_udp_setup_reset();
 
 	s_udp_ready = 0u;
@@ -450,6 +458,16 @@ static void rc_cat1_on_setup_ok(void)
 			co_printf("[RC   ] Tag01 queued (probe after setup)\r\n");
 		}
 	}
+	/* 心跳挂起补发: 在 UDP 就绪瞬间入队 (提前入队会被建链期误发丢失) */
+	heartbeat_on_udp_ready();
+}
+
+/**
+ * @brief  UDP socket 是否已就绪 (setup 完成)
+ */
+uint8_t rc_cat1_udp_is_ready(void)
+{
+	return s_udp_ready;
 }
 
 static void rc_cat1_setup_poll(void)

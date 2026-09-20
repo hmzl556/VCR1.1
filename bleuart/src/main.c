@@ -23,6 +23,7 @@
 #include "app_rtos.h"
 #include "pm_state.h"       /* 电源管理状态机 — 休眠/待机态控制 */
 #include "combo_key.h"      /* 组合键管理器（配对/解配）           */
+#include "heartbeat.h"      /* 服务器心跳定时器                     */
 #include "iwdg.h"           /* IWDG 独立看门狗                     */
 #include "FreeRTOS.h"
 #include "task.h"
@@ -174,6 +175,7 @@ int main(void)
 
 	pm_state_init();			// 初始化电源管理状态机
 	combo_key_init();			// 初始化组合键管理器
+	heartbeat_init();			// 初始化服务器心跳定时器
 
 	(void)xTaskCreateStatic(task_ble_entry, "ble", 512, NULL, 3, s_ble_stack, &s_ble_tcb);
 	vTaskStartScheduler();		// 启动 FreeRTOS 调度器
