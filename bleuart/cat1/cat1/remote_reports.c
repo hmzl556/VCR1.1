@@ -136,6 +136,7 @@ static int remote_value_append(uint8_t *buf, uint16_t *len, uint16_t max_len,
  *         2←DeviceSWVersion(前 4 位 ASCII→2B BCD)；3←DeviceStatus；
  *         4←DeviceActiveTime(14B ASCII→6B BCD)；5←DeviceInactiveTime；
  *         6←DeviceTransmissionNetwork。默认值改 rc_protocol.h 的 RC_READ_VAL_*。
+ *         协议 V1.2 新增: 7←SIM卡号(20B ASCII 原文)；8←电量(1B)。
  * @return 0 成功；-1 失败
  */
 static int remote_build_tag01_value(uint8_t *value, uint16_t *value_len)
@@ -149,6 +150,10 @@ static int remote_build_tag01_value(uint8_t *value, uint16_t *value_len)
     uint8_t model;
     uint8_t status;
     uint8_t network;
+    uint8_t iccid_raw[20];
+    uint8_t iccid_len = 0u;
+    uint8_t iccid_field[20];
+    uint8_t batt;
 
     if (value == NULL || value_len == NULL || rc_read == NULL)
     {
@@ -175,36 +180,56 @@ static int remote_build_tag01_value(uint8_t *value, uint16_t *value_len)
     status = rc_read[RC_READ_OFF_DEVICE_STATUS];
     network = rc_read[RC_READ_OFF_DEVICE_TRANSMISSION_NETWORK];
 
-    /* Value 固定 27B（7×DataID+Value） */
-    if (remote_value_append(value, &len, 27u, 0x00u, region, 3u) != 0)
+    /*
+     * 协议 V1.2: DataID7 SIM卡号 BYTE[20] ASCII (20位数字或字母,
+     * 无补位; 未捕获时补 0), DataID8 电量 BYTE[1]。
+     */
+    memset(iccid_field, 0x00u, sizeof(iccid_field));
+    (void)cat1_iccid_get_raw(iccid_raw, &iccid_len);
+    if (iccid_len > 20u) {
+        iccid_len = 20u;
+    }
+    memcpy(iccid_field, iccid_raw, iccid_len);
+    batt = bat_get_level_percent();
+
+    /* Value 固定 50B: 原 7 项 27B + DataID7+SIM 21B + DataID8+电量 2B */
+    if (remote_value_append(value, &len, 50u, 0x00u, region, 3u) != 0)
     {
         return -1;
     }
-    if (remote_value_append(value, &len, 27u, 0x01u, &model, 1u) != 0)
+    if (remote_value_append(value, &len, 50u, 0x01u, &model, 1u) != 0)
     {
         return -1;
     }
-    if (remote_value_append(value, &len, 27u, 0x02u, sw, 2u) != 0)
+    if (remote_value_append(value, &len, 50u, 0x02u, sw, 2u) != 0)
     {
         return -1;
     }
-    if (remote_value_append(value, &len, 27u, 0x03u, &status, 1u) != 0)
+    if (remote_value_append(value, &len, 50u, 0x03u, &status, 1u) != 0)
     {
         return -1;
     }
-    if (remote_value_append(value, &len, 27u, 0x04u, active, 6u) != 0)
+    if (remote_value_append(value, &len, 50u, 0x04u, active, 6u) != 0)
     {
         return -1;
     }
-    if (remote_value_append(value, &len, 27u, 0x05u, inactive, 6u) != 0)
+    if (remote_value_append(value, &len, 50u, 0x05u, inactive, 6u) != 0)
     {
         return -1;
     }
-    if (remote_value_append(value, &len, 27u, 0x06u, &network, 1u) != 0)
+    if (remote_value_append(value, &len, 50u, 0x06u, &network, 1u) != 0)
     {
         return -1;
     }
-    if (len != 27u)
+    if (remote_value_append(value, &len, 50u, 0x07u, iccid_field, 20u) != 0)
+    {
+        return -1;
+    }
+    if (remote_value_append(value, &len, 50u, 0x08u, &batt, 1u) != 0)
+    {
+        return -1;
+    }
+    if (len != 50u)
     {
         return -1;
     }
@@ -310,7 +335,7 @@ int remote_get_local_sw_version_bcd(uint16_t *out_ver)
  */
 int remote_queue_tag01_status(void)
 {
-    uint8_t value[27u];
+    uint8_t value[64];
     uint16_t value_len;
 
     if (remote_build_tag01_value(value, &value_len) != 0)
@@ -366,7 +391,7 @@ static int remote_build_tag0A_value(uint8_t *value, uint16_t *value_len)
     uint8_t time_bcd[6];
     uint8_t iccid_raw[20];
     uint8_t iccid_len = 0u;
-    uint8_t iccid_zero[10];
+    uint8_t iccid_field[20];
     uint8_t batt;
 
     if (value == NULL || value_len == NULL)
@@ -374,28 +399,33 @@ static int remote_build_tag0A_value(uint8_t *value, uint16_t *value_len)
         return -1;
     }
     remote_fill_report_time_bcd6(time_bcd);
-    (void)cat1_iccid_get_raw(iccid_raw, &iccid_len);
     batt = bat_get_level_percent();
 
-    /* Value 固定 20B: (DataID+时间 7B) + (DataID+SIM 11B) + (DataID+电量 2B) */
-    if (remote_value_append(value, &len, 20u, 0x00u, time_bcd, 6u) != 0)
-    {
-        return -1;
-    }
     /*
-     * DataID1 SIM卡号: 卡号原文含字母, BCD10 放不下 → 暂填全 0,
-     * 待与服务器协商 HEX 编码后按新格式填入。
+     * 协议 V1.2: DataID1 SIM卡号 BYTE[20] ASCII 原文 (20位数字或字母,
+     * 无补位; 未捕获时补 0)。
      */
-    memset(iccid_zero, 0x00u, sizeof(iccid_zero));
-    if (remote_value_append(value, &len, 20u, 0x01u, iccid_zero, 10u) != 0)
+    memset(iccid_field, 0x00u, sizeof(iccid_field));
+    (void)cat1_iccid_get_raw(iccid_raw, &iccid_len);
+    if (iccid_len > 20u) {
+        iccid_len = 20u;
+    }
+    memcpy(iccid_field, iccid_raw, iccid_len);
+
+    /* Value 固定 30B: (DataID+时间 7B) + (DataID+SIM 21B) + (DataID+电量 2B) */
+    if (remote_value_append(value, &len, 30u, 0x00u, time_bcd, 6u) != 0)
     {
         return -1;
     }
-    if (remote_value_append(value, &len, 20u, 0x02u, &batt, 1u) != 0)
+    if (remote_value_append(value, &len, 30u, 0x01u, iccid_field, 20u) != 0)
     {
         return -1;
     }
-    if (len != 20u)
+    if (remote_value_append(value, &len, 30u, 0x02u, &batt, 1u) != 0)
+    {
+        return -1;
+    }
+    if (len != 30u)
     {
         return -1;
     }
@@ -409,7 +439,7 @@ static int remote_build_tag0A_value(uint8_t *value, uint16_t *value_len)
  */
 int remote_queue_tag0A_heartbeat(void)
 {
-    uint8_t value[32];
+    uint8_t value[64];
     uint16_t value_len = 0u;
 
     if (remote_build_tag0A_value(value, &value_len) != 0)

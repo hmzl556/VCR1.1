@@ -31,7 +31,7 @@ uint8_t cat1_modem_is_busy(void);
 
 /**
  * @brief  读取 SIM 卡号原文 (setup 阶段 AT+ECICCID 捕获, 可含字母)
- * @note   传输编码待服务器协商: BCD10 带不了字母, 拟改 HEX
+ * @note   协议 V1.2: 上行按 BYTE[20] ASCII 原样上报 (无补位)
  * @return 0=成功; -1=尚未捕获
  */
 int cat1_iccid_get_raw(uint8_t out[20], uint8_t *out_len);

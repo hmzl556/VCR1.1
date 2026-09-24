@@ -8,7 +8,7 @@
 #ifndef BSP_CAT1_UDP_CONFIG_H
 #define BSP_CAT1_UDP_CONFIG_H
 
-#if 1   /* 0=自己 106.53.179.53，1=赛科 120.48.54.123 */
+#if 0   /* 0=自己 106.53.179.53，1=赛科 120.48.54.123 */
 #define CAT1_UDP_REMOTE_HOST   "120.48.54.123"     // 服务器地址 赛科
 #else
 #define CAT1_UDP_REMOTE_HOST   "106.53.179.53"     // 服务器地址 自己
