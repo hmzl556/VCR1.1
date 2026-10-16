@@ -87,7 +87,7 @@ typedef struct {
 	uint8_t  reserved0;
 	uint16_t interval_sec;   /* DataID 0x02 */
 	uint16_t item_count;     /* DataID 0x03 */
-	uint16_t reserved1;
+	uint16_t heartbeat_sec;  /* DataID 0x06；0=关闭 */
 	uint32_t checksum;
 } app_cloud_policy_store_t;
 
@@ -100,11 +100,12 @@ static uint32_t rc_cat1_cloud_policy_checksum(const app_cloud_policy_store_t *p)
 	sum ^= (uint32_t)p->key_capture;
 	sum ^= (uint32_t)p->interval_sec;
 	sum ^= (uint32_t)p->item_count;
+	sum ^= (uint32_t)p->heartbeat_sec;
 	return sum;
 }
 
 static void rc_cat1_policy_to_store(const uint8_t policy[6], uint8_t key_capture,
-                                    app_cloud_policy_store_t *out)
+                                    uint16_t heartbeat_sec, app_cloud_policy_store_t *out)
 {
 	out->magic = APP_CLOUD_POLICY_MAGIC;
 	out->version = (uint16_t)APP_CLOUD_POLICY_VER;
@@ -112,7 +113,7 @@ static void rc_cat1_policy_to_store(const uint8_t policy[6], uint8_t key_capture
 	out->reserved0 = 0u;
 	out->interval_sec = (uint16_t)(((uint16_t)policy[2] << 8) | policy[3]);
 	out->item_count = (uint16_t)(((uint16_t)policy[4] << 8) | policy[5]);
-	out->reserved1 = 0u;
+	out->heartbeat_sec = heartbeat_sec;
 	out->checksum = rc_cat1_cloud_policy_checksum(out);
 }
 
@@ -160,11 +161,13 @@ static void rc_cat1_cloud_policy_load_from_flash(void)
 	taskEXIT_CRITICAL();
 
 	remote_set_key_capture_enable(store.key_capture);
+	remote_set_heartbeat_sec(store.heartbeat_sec);
 
-	co_printf("[RC   ] CloudPolicy restored: capture=%u interval=%u count=%u\r\n",
+	co_printf("[RC   ] CloudPolicy restored: capture=%u interval=%u count=%u heartbeat=%u\r\n",
 	          (unsigned)store.key_capture,
 	          (unsigned)store.interval_sec,
-	          (unsigned)store.item_count);
+	          (unsigned)store.item_count,
+	          (unsigned)store.heartbeat_sec);
 }
 
 /**
@@ -175,20 +178,23 @@ static void rc_cat1_cloud_policy_save_to_flash(const uint8_t policy[6])
 	app_cloud_policy_store_t neu;
 	app_cloud_policy_store_t old;
 	uint8_t key_capture;
+	uint16_t heartbeat_sec;
 
 	if (policy == NULL) {
 		return;
 	}
 
 	key_capture = (remote_is_key_capture_enabled() != 0) ? 1u : 2u;
-	rc_cat1_policy_to_store(policy, key_capture, &neu);
+	heartbeat_sec = remote_get_heartbeat_sec();
+	rc_cat1_policy_to_store(policy, key_capture, heartbeat_sec, &neu);
 
 	if (Qflash_Read(FLASH_USER_CFG_START, (uint8_t *)&old,
 	                (uint32_t)sizeof(old)) == FlashOperationSuccess
 	    && rc_cat1_cloud_policy_store_valid(&old) != 0
 	    && old.key_capture == neu.key_capture
 	    && old.interval_sec == neu.interval_sec
-	    && old.item_count == neu.item_count) {
+	    && old.item_count == neu.item_count
+	    && old.heartbeat_sec == neu.heartbeat_sec) {
 		co_printf("[RC   ] CloudPolicy flash unchanged, skip write\r\n");
 		return;
 	}
@@ -203,10 +209,11 @@ static void rc_cat1_cloud_policy_save_to_flash(const uint8_t policy[6])
 		return;
 	}
 
-	co_printf("[RC   ] CloudPolicy flash saved: capture=%u interval=%u count=%u\r\n",
+	co_printf("[RC   ] CloudPolicy flash saved: capture=%u interval=%u count=%u heartbeat=%u\r\n",
 	          (unsigned)neu.key_capture,
 	          (unsigned)neu.interval_sec,
-	          (unsigned)neu.item_count);
+	          (unsigned)neu.item_count,
+	          (unsigned)neu.heartbeat_sec);
 }
 
 /**
@@ -596,10 +603,11 @@ static void rc_cat1_poll_downlink(void)
 		taskENTER_CRITICAL();
 		memcpy(s_cloud_policy, policy, 6u);
 		taskEXIT_CRITICAL();
-		co_printf("[RC   ] CloudPolicy updated: interval=%u count=%u\r\n",
+		co_printf("[RC   ] CloudPolicy updated: interval=%u count=%u heartbeat=%u\r\n",
 				  (unsigned)(((uint32_t)policy[0] << 24) | ((uint32_t)policy[1] << 16)
 						   | ((uint32_t)policy[2] << 8) | policy[3]),
-				  (unsigned)(((uint16_t)policy[4] << 8) | policy[5]));
+				  (unsigned)(((uint16_t)policy[4] << 8) | policy[5]),
+				  (unsigned)remote_get_heartbeat_sec());
 		rc_cat1_cloud_policy_save_to_flash(policy);
 	}
 }

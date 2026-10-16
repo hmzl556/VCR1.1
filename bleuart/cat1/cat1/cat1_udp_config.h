@@ -85,6 +85,9 @@
 /** Tag0x10 按键采集默认开关（Tag11 DataID 0x01：1=开启，2=关闭） */
 #define REMOTE_KEY_CAPTURE_DEFAULT  2u
 
+/** Tag11 DataID 0x06 心跳间隔：上电未收到服务器前默认 0（关闭）；1800 由服务器下发 */
+#define REMOTE_HEARTBEAT_SEC_DEFAULT  0u
+
 /** 连续业务上行 ECSOST 失败（含 Tag10/Tag01/RC-TRANS）达到此次数后触发 UDP 软重建 */
 #define CAT1_UDP_REBUILD_FAIL_THRESH  3u
 

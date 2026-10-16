@@ -42,6 +42,8 @@ static uint8_t s_q_tail;
 static uint8_t s_q_count;
 static uint16_t s_next_mid = 1u;
 static uint8_t s_key_capture_enable = REMOTE_KEY_CAPTURE_DEFAULT;
+/** Tag11 DataID 0x06 心跳间隔（秒）；0=关闭 */
+static uint16_t s_heartbeat_sec = (uint16_t)REMOTE_HEARTBEAT_SEC_DEFAULT;
 /** UDP 软重建等期间禁止 Tag10 入队 */
 static uint8_t s_tag10_enqueue_paused;
 static const uint8_t s_default_time_bcd[6] = REMOTE_REPORT_FIXED_TIME_BCD;
@@ -655,10 +657,13 @@ void remote_reports_init(void)
     s_q_count = 0u;
     s_next_mid = 1u;
     s_key_capture_enable = REMOTE_KEY_CAPTURE_DEFAULT;
+    s_heartbeat_sec = (uint16_t)REMOTE_HEARTBEAT_SEC_DEFAULT;
     s_tag10_enqueue_paused = 0u;
     (void)rc_udp_aes_init();
     co_printf("[RC   ] Tag10 key capture default=%s (Tag11 0x01=1 to enable)\r\n",
               (s_key_capture_enable == 1u) ? "ON" : "OFF");
+    co_printf("[RC   ] heartbeat default=%u s (Tag11 0x06)\r\n",
+              (unsigned)s_heartbeat_sec);
 }
 
 /**
@@ -732,6 +737,26 @@ void remote_set_key_capture_enable(uint8_t enable)
 void remote_key_capture_on_ble_disconnect(void)
 {
     /* 按键采集由 Tag11 / Flash 持久化管理，BLE 断连不再强制关 */
+}
+
+uint16_t remote_get_heartbeat_sec(void)
+{
+    uint16_t sec;
+
+    taskENTER_CRITICAL();
+    sec = s_heartbeat_sec;
+    taskEXIT_CRITICAL();
+    return sec;
+}
+
+void remote_set_heartbeat_sec(uint16_t heartbeat_sec)
+{
+    taskENTER_CRITICAL();
+    s_heartbeat_sec = heartbeat_sec;
+    taskEXIT_CRITICAL();
+    co_printf("[RC   ] heartbeat=%u s (Tag11 0x06)%s\r\n",
+              (unsigned)heartbeat_sec,
+              (heartbeat_sec == 0u) ? " OFF" : "");
 }
 
 /**
@@ -962,6 +987,16 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
                 ota_total_packets = (uint16_t)(((uint16_t)value_bytes[pos] << 8)
                     | value_bytes[pos + 1u]);
                 got_ota_pkts = 1u;
+                pos += 2u;
+                break;
+            case 0x06u:
+                /* DataID6 心跳间隔（秒，大端 uint16；0=关闭） */
+                if (remain < 2u)
+                {
+                    return -1;
+                }
+                remote_set_heartbeat_sec((uint16_t)(((uint16_t)value_bytes[pos] << 8)
+                    | value_bytes[pos + 1u]));
                 pos += 2u;
                 break;
             default:

@@ -64,6 +64,12 @@ void remote_set_key_capture_enable(uint8_t enable);
 /** BLE 断连钩子：保留 Tag11/Flash 下发的按键采集状态，不断连清零 */
 void remote_key_capture_on_ble_disconnect(void);
 
+/** Tag11 DataID 0x06 心跳间隔（秒）；0=关闭 */
+uint16_t remote_get_heartbeat_sec(void);
+
+/** 设置心跳间隔（秒，与 Tag11 DataID 0x06 一致；0=关闭） */
+void remote_set_heartbeat_sec(uint16_t heartbeat_sec);
+
 /** 当前 UDP 发送队列占用深度 */
 uint8_t remote_report_queue_count(void);
 

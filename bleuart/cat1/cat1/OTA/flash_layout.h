@@ -33,7 +33,7 @@
 
 #define BLE_BONDING_STORE_ADDR       (FLASH_OTA_CFG_START + FLASH_OTA_CFG_SIZE)
 
-/** Tag0x11 云策略持久化（按键采集 / 上报间隔 / 数据量阈值），独立 4KB 扇区 */
+/** Tag0x11 云策略持久化（按键采集 / 上报间隔 / 阈值 / 心跳），独立 4KB 扇区 */
 #define FLASH_USER_CFG_START         (BLE_BONDING_STORE_ADDR + 0x1000u)  /* 0x0106A000 */
 #define FLASH_USER_CFG_SIZE          0x00001000u
 #define APP_CLOUD_POLICY_MAGIC       0x5243504Cu   /* 'RCPL' */
