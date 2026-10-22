@@ -14,6 +14,7 @@
 #include "irc.h"
 #include "br1601x.h"
 #include "rcc.h"
+#include "gpio.h"
 #include "misc.h"
 
 /*===========================================================================
@@ -34,17 +35,43 @@
 /** @brief IRC 初始化完成标志 */
 static bool    s_ok;
 
+/* IRQ delivery stays disabled; reap completion before submitting a new frame.
+ * Manual 20.5.6 requires software to clear TX_START at completion.
+ */
+static void irc_poll_complete(void)
+{
+    if (s_ok && (IRC->STATUS & IR_IRQ_FLAG)) {
+        IRC->CTRL &= ~IR_CTRL_TX_START_Msk;
+        IRC->STATUS &= ~IR_IRQ_FLAG;
+    }
+}
+
 /*===========================================================================
  * 三、公共 API
  *===========================================================================*/
 
 /**
  * @brief  初始化 IRC 外设
- * @note   开时钟 → 复位 → 配载波/位时序 → 使能 + 中断。
+ * @note   开时钟 → 复位 → 配载波/位时序 → 使能，发送不使用中断。
  */
 void irc_init(void)
 {
+    GPIO_InitType gpio;
+
     if (s_ok) return;
+
+    /* Manual table 5-12: PB4 AF2 is shared by TIM3_CH1 and IRC_TX.
+     * IR_ENABLE selects IRC within AF2; it does not configure the GPIO mux.
+     * The board's NPN emitter driver is active high.
+     */
+    RCC_EnableAPB2PeriphClk(RCC_APB2_PERIPH_GPIOB | RCC_APB2_PERIPH_AFIO, ENABLE);
+    GPIO_ResetBits(GPIOB, GPIO_PIN_4);
+    GPIO_InitStruct(&gpio);
+    gpio.Pin = GPIO_PIN_4;
+    gpio.GPIO_Mode = GPIO_MODE_AF_PP;
+    gpio.GPIO_Pull = GPIO_NO_PULL;
+    gpio.GPIO_Alternate = GPIO_AF2;
+    GPIO_InitPeripheral(GPIOB, &gpio);
 
     RCC->AHBPCLKEN |= RCC_AHBPCLKEN_IRCEN;
     RCC->AHBPRST   |= RCC_AHBRST_IRCRST;
@@ -54,10 +81,14 @@ void irc_init(void)
     IRC->FREQ_CARRIER_OFF = IRC_CARR_OFF;
     IRC->LOGIC_ZERO_TIME  = (IRC_LO_MARK << 8)  | IRC_LO_SPACE;
     IRC->LOGIC_ONE_TIME   = (IRC_HI_MARK << 8)  | IRC_HI_SPACE;
-    IRC->CTRL              = IR_CTRL_ENABLE_Msk | IR_CTRL_IRQ_EN_Msk;
-
-    NVIC_InitType nv = { .NVIC_IRQChannel = IRC_IRQn, .NVIC_IRQChannelPriority = 2, .NVIC_IRQChannelCmd = ENABLE };
-    NVIC_Init(&nv);
+    /* cs.lib copies only 31 external vectors (IRQ0..30) into its RAM
+     * dispatch table. IRQ31 (IRC) is omitted and would branch to NULL.
+     * A complete frame fits in CODE_FIFO; hardware transmits it without
+     * interrupt service, and callers already poll IR_STATUS_BUSY.
+     */
+    NVIC_DisableIRQ(IRC_IRQn);
+    NVIC_ClearPendingIRQ(IRC_IRQn);
+    IRC->CTRL = IR_CTRL_ENABLE_Msk;
 
     s_ok = true;
 }
@@ -71,6 +102,7 @@ void irc_init(void)
  */
 bool irc_send(uint8_t user_code, uint8_t cmd_code)
 {
+    irc_poll_complete();
     if (!s_ok || (IRC->STATUS & IR_STATUS_BUSY)) return false;
 
     uint16_t u = (uint16_t)user_code | ((uint16_t)~user_code << 8);
@@ -91,6 +123,7 @@ bool irc_send(uint8_t user_code, uint8_t cmd_code)
  */
 void irc_send_repeat(void)
 {
+    irc_poll_complete();
     if (!s_ok || (IRC->STATUS & IR_STATUS_BUSY)) return;
 
     IRC->CODE_FIFO = PAINT_MARK(IRC_T9MS);
@@ -105,7 +138,10 @@ void irc_send_repeat(void)
  */
 void irc_stop(void)
 {
-    if (s_ok) IRC->CTRL &= ~IR_CTRL_TX_START_Msk;
+    if (s_ok) {
+        IRC->CTRL &= ~IR_CTRL_TX_START_Msk;
+        IRC->STATUS &= ~IR_IRQ_FLAG;
+    }
 }
 
 /**
@@ -114,6 +150,7 @@ void irc_stop(void)
  */
 bool irc_is_busy(void)
 {
+    irc_poll_complete();
     return s_ok && (IRC->STATUS & IR_STATUS_BUSY);
 }
 

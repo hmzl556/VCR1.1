@@ -9,6 +9,7 @@
 #include "ir_key_map.h"
 #include "ir_learn_store.h"
 #include "irc.h"
+#include "co_printf.h"
 
 /*===========================================================================
  * 一、当前用户码状态（RAM）
@@ -65,7 +66,12 @@ void ir_send_key(uint8_t key)
         /* 电视机业务键用 TV 用户码，其余用 STB 用户码（机顶盒遥控器） */
         user = (key == IR_KEY_TV_BUSINESS) ? s_ir_user_tv : s_ir_user_stb;
     }
-    irc_send(user, cmd);
+    if (irc_send(user, cmd)) {
+        co_printf("[IR TX] key=%u user=0x%02X cmd=0x%02X started\r\n",
+                  (unsigned)key, (unsigned)user, (unsigned)cmd);
+    } else {
+        co_printf("[IR TX] key=%u skipped: busy or uninitialized\r\n", (unsigned)key);
+    }
 }
 
 /**

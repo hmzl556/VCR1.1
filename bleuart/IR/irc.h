@@ -4,7 +4,7 @@
  * @note    基于 BR1601x 硬件 IRC 外设，实现 GY/T 407-2024 §6.1 的
  *          NEC 协议红外发送。硬件自动处理载波、位时序、重复码。
  *
- *          引脚：PB4=IRTX(AF2)，IRC 使能后自动接管，无需 GPIO_Init。
+ *          引脚：PB4=IRTX(AF2)，须配置 GPIO 复用并使能 IRC。
  *          时序基准：AHB = HSI = 64MHz。
  */
 #ifndef _IRC_H_
@@ -49,8 +49,8 @@
 
 /**
  * @brief  初始化 IRC 外设
- * @note   配置 38kHz 载波与 NEC 位时序，使能 IRC 与中断。
- *         使能后 PB4 自动切换为 IRTX。
+ * @note   配置 38kHz 载波与 NEC 位时序，使能 IRC，使用 BUSY 轮询而非中断。
+ *         配置 PB4 为 AF2 推挽输出，再使能 IRC 选择 IRTX。
  */
 void irc_init(void);
 

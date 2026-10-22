@@ -46,12 +46,12 @@ extern "C" {
  *         【测试模式】改为 45000ms，方便验证状态切换
  */
 //#define PM_RECONNECT_TIMEOUT_MS      9000000U
-#define PM_RECONNECT_TIMEOUT_MS      120000U   /* 测试用：45秒 */
+#define PM_RECONNECT_TIMEOUT_MS      1200000U   /* 测试用：45秒 */
 
 /**
  * @brief  配对态 → 休眠态：广播无连接超时（30 秒）
  */
-#define PM_PAIRING_TIMEOUT_MS         120000U
+#define PM_PAIRING_TIMEOUT_MS         1200000U
 
 /*===========================================================================
  * 二、待机态 BLE 连接参数
