@@ -12,10 +12,12 @@
  */
 
 #include "irc.h"
+#include "ir_rc6.h"
 #include "br1601x.h"
 #include "rcc.h"
 #include "gpio.h"
 #include "misc.h"
+#include "gmem.h"
 
 /*===========================================================================
  * 一、CODE_FIFO 消息编码宏
@@ -34,6 +36,8 @@
 
 /** @brief IRC 初始化完成标志 */
 static bool    s_ok;
+static uint32_t s_start_ms;
+static bool s_transmitting;
 
 /* IRQ delivery stays disabled; reap completion before submitting a new frame.
  * Manual 20.5.6 requires software to clear TX_START at completion.
@@ -43,6 +47,11 @@ static void irc_poll_complete(void)
     if (s_ok && (IRC->STATUS & IR_IRQ_FLAG)) {
         IRC->CTRL &= ~IR_CTRL_TX_START_Msk;
         IRC->STATUS &= ~IR_IRQ_FLAG;
+        s_transmitting = false;
+    }
+    if (s_ok && s_transmitting && app_now_ms() - s_start_ms > 120u) {
+        /* A normal NEC frame is <70ms. Bound recovery without blocking BLE. */
+        irc_stop();
     }
 }
 
@@ -58,7 +67,9 @@ void irc_init(void)
 {
     GPIO_InitType gpio;
 
-    if (s_ok) return;
+    /* Called at cold boot and after idle-only standby/sleep. The software
+     * flag survives low power, but PB4 has been parked as GPIO output and
+     * IRC clocks/registers may need restoration. Always restore hardware. */
 
     /* Manual table 5-12: PB4 AF2 is shared by TIM3_CH1 and IRC_TX.
      * IR_ENABLE selects IRC within AF2; it does not configure the GPIO mux.
@@ -90,6 +101,7 @@ void irc_init(void)
     NVIC_ClearPendingIRQ(IRC_IRQn);
     IRC->CTRL = IR_CTRL_ENABLE_Msk;
 
+    s_transmitting = false;
     s_ok = true;
 }
 
@@ -103,16 +115,18 @@ void irc_init(void)
 bool irc_send(uint8_t user_code, uint8_t cmd_code)
 {
     irc_poll_complete();
-    if (!s_ok || (IRC->STATUS & IR_STATUS_BUSY)) return false;
+    if (!s_ok || ir_rc6_is_busy() || (IRC->STATUS & IR_STATUS_BUSY)) return false;
 
-    uint16_t u = (uint16_t)user_code | ((uint16_t)~user_code << 8);
-    uint16_t d = (uint16_t)cmd_code  | ((uint16_t)~cmd_code  << 8);
+    uint16_t u = (uint16_t)user_code | ((uint16_t)(uint8_t)~user_code << 8);
+    uint16_t d = (uint16_t)cmd_code  | ((uint16_t)(uint8_t)~cmd_code  << 8);
 
     IRC->CODE_FIFO = PAINT_MARK(IRC_T9MS);
     IRC->CODE_FIFO = PAINT_SPACE(IRC_T4P5MS);
     IRC->CODE_FIFO = DIGITAL(16u, u);
     IRC->CODE_FIFO = DIGITAL(16u, d);
     IRC->CODE_FIFO = PAINT_MARK(IRC_T600US);
+    s_start_ms = app_now_ms();
+    s_transmitting = true;
     IRC->CTRL |= IR_CTRL_TX_START_Msk;
     return true;
 }
@@ -124,11 +138,13 @@ bool irc_send(uint8_t user_code, uint8_t cmd_code)
 void irc_send_repeat(void)
 {
     irc_poll_complete();
-    if (!s_ok || (IRC->STATUS & IR_STATUS_BUSY)) return;
+    if (!s_ok || ir_rc6_is_busy() || (IRC->STATUS & IR_STATUS_BUSY)) return;
 
     IRC->CODE_FIFO = PAINT_MARK(IRC_T9MS);
     IRC->CODE_FIFO = PAINT_SPACE(IRC_T2P25MS);
     IRC->CODE_FIFO = PAINT_MARK(IRC_T600US);
+    s_start_ms = app_now_ms();
+    s_transmitting = true;
     IRC->CTRL |= IR_CTRL_TX_START_Msk;
 }
 
@@ -140,7 +156,10 @@ void irc_stop(void)
 {
     if (s_ok) {
         IRC->CTRL &= ~IR_CTRL_TX_START_Msk;
+        IRC->CTRL |= IR_CTRL_CODE_FIFO_RESET_Msk | IR_CTRL_REP_FIFO_RESET_Msk;
+        IRC->CTRL &= ~(IR_CTRL_CODE_FIFO_RESET_Msk | IR_CTRL_REP_FIFO_RESET_Msk);
         IRC->STATUS &= ~IR_IRQ_FLAG;
+        s_transmitting = false;
     }
 }
 

@@ -33,6 +33,7 @@ static volatile uint32_t s_usart1_rx_drop;
 /** 上次 sync 时的 DMA 写指针，用于检测环被覆盖 */
 static uint16_t s_dma_last_head;
 static uint8_t  s_rx_dma_ready;
+static uint32_t s_uart_baud;
 
 /**
  * @brief 使能 USART1 时钟与 PA4/PA5 复用 AF3。
@@ -163,12 +164,46 @@ static void usart1_periph_init(void)
 
     USART_Enable(USART1, ENABLE);
     usart1_rx_dma_start();
+    s_uart_baud = USART1_CAT1_BAUDRATE;
 
     /* ORE 等仍走 USART IRQ（DMA 忙碌时偶发）；优先级保持最高 */
     nvic.NVIC_IRQChannel                   = USART1_IRQn;
     nvic.NVIC_IRQChannelPriority           = 0;
     nvic.NVIC_IRQChannelCmd                = ENABLE;
     NVIC_Init(&nvic);
+}
+
+int USART1_CAT1_SetBaudrate(uint32_t baud)
+{
+    USART_InitType us;
+    uint32_t irq_mask;
+    if ((baud != 9600U && baud != 115200U) || !s_rx_dma_ready) return -1;
+    if (baud == s_uart_baud) return 0;
+    irq_mask = __get_PRIMASK();
+    __disable_irq();
+    USART_EnableDMA(USART1, USART_DMAREQ_RX | USART_DMAREQ_TX, DISABLE);
+    DMA_EnableChannel(USART1_RX_DMA_CH, DISABLE);
+    USART_Enable(USART1, DISABLE);
+    USART_StructInit(&us);
+    us.BaudRate = baud;
+    us.WordLength = USART_WL_8B;
+    us.StopBits = USART_STPB_1;
+    us.Parity = USART_PE_NO;
+    us.HardwareFlowControl = USART_HFCTRL_NONE;
+    us.Mode = USART_MODE_RX | USART_MODE_TX;
+    USART_Init(USART1, &us);
+    USART_ConfigInt(USART1, USART_INT_RXDNE, DISABLE);
+    USART_Enable(USART1, ENABLE);
+    (void)USART_ReceiveData(USART1);
+    USART_ClrFlag(USART1, USART_FLAG_OREF);
+    USART1_CAT1_RX_HEAD = USART1_CAT1_RX_TAIL = 0U;
+    s_dma_last_head = 0U;
+    DMA_SetCurrDataCounter(USART1_RX_DMA_CH, USART1_CAT1_RX_RING_CAP);
+    DMA_EnableChannel(USART1_RX_DMA_CH, ENABLE);
+    USART_EnableDMA(USART1, USART_DMAREQ_RX, ENABLE);
+    s_uart_baud = baud;
+    __set_PRIMASK(irq_mask);
+    return 0;
 }
 
 void USART1_CAT1_RxFlush(void)

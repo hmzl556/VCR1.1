@@ -1,0 +1,36 @@
+                                                            BR1601A0X/B0X 用户手册 
+   516 / 532  
+31：11 Reserved 
+始终读为0。 
+10：0 FREQ_CARRIER_ON 
+定义载波时钟高持续时间（AHB 总线时钟周期数，不允许配置为0） 
+20.5.3. IRC 载波时钟低持续时间寄存器（FREQ_CARR_OFF） 
+偏移地址：0x04 
+复位值：0x0000 0001 
+位域 
+名称 
+描述 
+31：11 Reserved 
+始终读为0。 
+10：0 FREQ_CARRIER_OFF 定义载波时钟低持续时间（AHB 总线时钟周期数，不允许配置为0） 
+20.5.4. IRC 逻辑1 时间配置寄存器（LOGIC_ONE_TIME） 
+偏移地址：0x08 
+复位值：0x0000 0101 
+位域 
+名称 
+描述 
+31：16 
+Reserved 
+始终读为0。 
+15：8 
+LOGIC_ONE_MARK 
+逻辑1 MARK 时间（载波时钟周期） 
+7：0 
+LOGIC_ONE_SPACE 逻辑1 SPACE 时间（载波时钟周期） 
+20.5.5. IRC 逻辑0 时间配置寄存器（LOGIC_ZERO_TIME） 
+偏移地址：0x0C 
+复位值：0x0000 0101 
+位域 
+名称 
+描述 
+Barrot Confidential

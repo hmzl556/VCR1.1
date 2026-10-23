@@ -1,0 +1,44 @@
+                                                            BR1601A0X/B0X 用户手册 
+   517 / 532  
+31：16 
+Reserved 
+始终读为0。 
+15：8 
+LOGIC_ZERO_MARK 
+逻辑0 MARK 时间（载波时钟周期） 
+7：0 
+LOGIC_ZERO_SPACE 
+逻辑0 SPACE 时间（载波时钟周期） 
+20.5.6. IRC 控制寄存器（IR_CTRL） 
+偏移地址：0x10 
+复位值：0x0000 0000 
+位域 
+名称 
+描述 
+31：10 
+Reserved 
+始终读为0。 
+9 
+NO_CARR_MODE 
+无载波模式选择： 
+0：载波模式 
+1：使能无载波模式，信号输出没有载波调制 
+8 
+IR_IRQ_EN 
+IRC 模块中断使能选择 
+0：屏蔽IRC 中断 
+1：使能IRC 中断 
+7 
+IR_LOGIC_ONE_FORMAT 
+逻辑1 格式 
+0：MARK 信息在前，SPACE 信息其后 
+1：SPACE 信息在前，MARK 信息其后 
+6 
+IR_LOGIC_ZERO_FORMAT 
+逻辑0 格式 
+0：MARK 信息在前，SPACE 信息其后 
+1：SPACE 信息在前，MARK 信息其后 
+5 
+IR_INVERT_OUTPUT 
+红外传输信号反向输出使能 
+Barrot Confidential

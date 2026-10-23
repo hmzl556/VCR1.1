@@ -16,12 +16,16 @@
 #define TASK_KEYSCAN_KEY2            2U
 #define TASK_KEYSCAN_KEY3            3U
 #define TASK_KEYSCAN_KEY4            4U
+#define TASK_KEYSCAN_KEY5            5U  /* Left; matrix-safe combo alias */
 #define TASK_KEYSCAN_KEY6            6U
 #define TASK_KEYSCAN_KEY8            8U
 #define TASK_KEYSCAN_KEY9            9U
 #define TASK_KEYSCAN_KEY10          10U
 #define TASK_KEYSCAN_KEY12          12U
 #define TASK_KEYSCAN_KEY14          14U
+#define TASK_KEYSCAN_KEY18          18U /* Left physical power key: PB9--PA6 */
+#define TASK_KEYSCAN_TV_POWER       TASK_KEYSCAN_KEY1  /* right */
+#define TASK_KEYSCAN_STB_POWER      TASK_KEYSCAN_KEY18 /* left */
 
 // 恢复出厂设置相关时间常量（ms）
 #define FACTORY_RST_COMBO_HOLD_MS   3000U   // KEY6 + KEY14 同时长按 3s
@@ -40,4 +44,7 @@ void task_keyscan_flush_deferred_voice_rc(void);
 void task_keyscan_flush_deferred_hid(void);
 void task_keyscan_reset_on_ble_disconnect(void);
 
+#include "ir_learn.h"
+void task_keyscan_ir_learn_result(ir_learn_evt_t evt, uint8_t user, uint8_t cmd);
+bool task_keyscan_ir_busy(void);
 #endif /* _TASK_KEYSCAN_H_ */

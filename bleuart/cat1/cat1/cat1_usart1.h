@@ -25,6 +25,9 @@ extern volatile uint16_t USART1_CAT1_RX_HEAD;
 extern volatile uint16_t USART1_CAT1_RX_TAIL;
 
 void USART1_CAT1_Init(void);
+/** Setup-only: switch 9600/115200, retain RX DMA_CH2, discard old RX.
+ * Caller must have no active AT transaction/TX; returns -1 for invalid input. */
+int USART1_CAT1_SetBaudrate(uint32_t baud);
 void USART1_CAT1_IRQHandler(void);
 
 void USART1_CAT1_PollSend(const uint8_t *data, uint16_t len);

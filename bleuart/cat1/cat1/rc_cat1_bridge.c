@@ -4,6 +4,9 @@
 #include "cat1_skt_udp.h"
 #include "cat1_udp_config.h"
 #include "remote_reports.h"
+#include "task_keyscan.h"
+#include "bat_adc.h"
+#include "heartbeat.h"      /* heartbeat_on_udp_ready — UDP 就绪补发心跳 */
 #include "rc_key_input.h"
 #include "ble_rc_svc.h"
 #include "rc_trans_assembly.h"
@@ -18,6 +21,7 @@
 #include "cat1_time_sync.h"
 #include "flash_layout.h"
 #include "qflash.h"
+#include "userhard.h"   /* LTE_EN_ON / LTE_EN_OFF / LTE_EN_IS_ON */
 
 #ifndef CAT1_MODEM_BOOT_DELAY_MS
 #define CAT1_MODEM_BOOT_DELAY_MS  2000u		//启动CAT1之前的上电等待时间
@@ -33,6 +37,8 @@
 #define RC_CAT1_IO_BUF_MAX  RC_TRANS_ASSEMBLY_MAX
 #endif
 
+static uint8_t s_cloud_save_pending;
+static uint32_t s_setup_started_ms;
 static uint8_t  s_udp_ready;
 static uint8_t  s_cat1_booting;
 static uint32_t s_cat1_boot_ms;
@@ -180,6 +186,12 @@ static void rc_cat1_cloud_policy_save_to_flash(const uint8_t policy[6])
 		return;
 	}
 
+    /* Flash masks IRQs; preserve the live IR frame/capture and save later. */
+    if (task_keyscan_ir_busy() || udp_ota_session_busy()) {
+        s_cloud_save_pending = 1u;
+        return;
+    }
+    s_cloud_save_pending = 0u;
 	key_capture = (remote_is_key_capture_enabled() != 0) ? 1u : 2u;
 	rc_cat1_policy_to_store(policy, key_capture, &neu);
 
@@ -298,13 +310,22 @@ static void rc_cat1_busy_orphan_watch(void)
 
 void rc_cat1_init(void)
 {
+    bat_adc_restart_window();
 	co_printf("[RC   ] CAT1 init start\r\n");
 
-	cat1_time_sync_reset();
+	/*
+	 * ★ 不重置时间同步: 锚点是纯 MCU 侧状态(基于 sdk_timer 单调计数),
+	 *   与模组通断电无关。此函数在每次心跳上电/休眠唤醒时执行,
+	 *   若重置会把 Tag11/CCLK 建立的有效锚点抹掉, 导致后续上报
+	 *   时间全部 fallback (实测: send11 锚定后下一个心跳又变 000101000000)。
+	 *   CCLK 同步成功时会自然覆盖为更优锚点, 无需先清。
+	 */
+	// cat1_time_sync_reset();
 	cat1_skt_udp_setup_reset();
 
 	s_udp_ready = 0u;
 	s_cat1_booting = 1u;
+    s_setup_started_ms = rc_cat1_now_ms();
 	s_cat1_boot_ms = 0u;
 	s_pending_tlv = 0u;
 	s_tx_waiting = 0u;
@@ -377,6 +398,7 @@ static void rc_cat1_udp_rebuild(const char *reason)
 	s_tag01_queued = 0u;
 
 	s_udp_ready = 0u;
+    s_setup_started_ms = rc_cat1_now_ms();
 	if (s_tx_waiting != 0u || s_inflight_rc_trans != 0u) {
 		rc_cat1_abort_inflight_rc_trans(RC_RESULT_NET_ERROR, reason);
 	}
@@ -389,32 +411,32 @@ static void rc_cat1_udp_rebuild(const char *reason)
 }
 
 /**
- * @brief  连续下行空等达阈值则软重建（modem busy 则挂起待轮询）
+ * @brief  连续下行空等达阈值 → CAT1 断电（下次上电自然重建 socket/网络）
+ * @note   替代原软重建: 断电后再次上电走完整 setup(ECSOCL→ECSOCR),
+ *         等效网络重建, 且符合 CAT1 平时断开的省电策略。
  */
 static void rc_cat1_try_silent_rebuild(void)
 {
-	if (s_silent_dl < CAT1_UDP_SILENT_REBUILD_THRESH
-	    && s_silent_rebuild_pending == 0u) {
+	if (s_silent_dl < CAT1_UDP_SILENT_REBUILD_THRESH) {
 		return;
 	}
 	if (udp_ota_session_busy() != 0u) {
 		return;
 	}
 	if (cat1_modem_is_busy() != 0u) {
-		if (s_silent_dl >= CAT1_UDP_SILENT_REBUILD_THRESH
-		    && s_silent_rebuild_pending == 0u) {
+		if (s_silent_rebuild_pending == 0u) {
 			s_silent_rebuild_pending = 1u;
 			remote_tag10_enqueue_set_paused(1u);
 			(void)remote_report_drop_all_tag10();
-			co_printf("[RC   ] silent rebuild pending (silent=%u thresh=%u)\r\n",
+			co_printf("[RC   ] silent power-off pending (silent=%u thresh=%u)\r\n",
 			          (unsigned)s_silent_dl,
 			          (unsigned)CAT1_UDP_SILENT_REBUILD_THRESH);
 		}
 		return;
 	}
-	rc_cat1_udp_rebuild((s_silent_rebuild_pending != 0u)
-	                    ? "silent downlink pending"
-	                    : "silent downlink");
+	co_printf("[RC   ] silent=%u >= thresh=%u, CAT1 power OFF\r\n",
+	          (unsigned)s_silent_dl, (unsigned)CAT1_UDP_SILENT_REBUILD_THRESH);
+	rc_cat1_power_down();
 }
 
 /** 业务上行 ECSOST 失败累计（Tag10/Tag01/RC-TRANS）；满阈值软重建。OTA 不走此路径。 */
@@ -427,7 +449,8 @@ static void rc_cat1_on_sktsend_fail(void)
 	          (unsigned)s_sktsend_fail_streak,
 	          (unsigned)CAT1_UDP_REBUILD_FAIL_THRESH);
 	if (s_sktsend_fail_streak >= CAT1_UDP_REBUILD_FAIL_THRESH) {
-		rc_cat1_udp_rebuild("SKTSEND fail streak");
+		/* 替代软重建: 断电, 下次上电自然重建网络 */
+		rc_cat1_power_down();
 	}
 }
 
@@ -448,6 +471,16 @@ static void rc_cat1_on_setup_ok(void)
 			co_printf("[RC   ] Tag01 queued (probe after setup)\r\n");
 		}
 	}
+	/* 心跳挂起补发: 在 UDP 就绪瞬间入队 (提前入队会被建链期误发丢失) */
+	heartbeat_on_udp_ready();
+}
+
+/**
+ * @brief  UDP socket 是否已就绪 (setup 完成)
+ */
+uint8_t rc_cat1_udp_is_ready(void)
+{
+	return s_udp_ready;
 }
 
 static void rc_cat1_setup_poll(void)
@@ -461,6 +494,12 @@ static void rc_cat1_setup_poll(void)
 		s_setup_retry_ms = 0u;
 	}
 
+    /* Bound a missing SIM/network: no endless powered setup retry or BUSY. */
+    if (rc_cat1_now_ms() - s_setup_started_ms >= 120000u) {
+        co_printf("[RC   ] setup deadline, abort and power off\r\n");
+        rc_cat1_power_down();
+        return;
+    }
 	setup_rc = cat1_skt_udp_setup_step();
 	if (setup_rc == CAT1_SETUP_BUSY) {
 		return;
@@ -596,17 +635,18 @@ static void rc_cat1_poll_downlink(void)
 		taskENTER_CRITICAL();
 		memcpy(s_cloud_policy, policy, 6u);
 		taskEXIT_CRITICAL();
-		co_printf("[RC   ] CloudPolicy updated: interval=%u count=%u\r\n",
+		co_printf("[RC   ] CloudPolicy updated: interval=%u count=%u heartbeat=%us\r\n",
 				  (unsigned)(((uint32_t)policy[0] << 24) | ((uint32_t)policy[1] << 16)
 						   | ((uint32_t)policy[2] << 8) | policy[3]),
-				  (unsigned)(((uint16_t)policy[4] << 8) | policy[5]));
+				  (unsigned)(((uint16_t)policy[4] << 8) | policy[5]),
+                  (unsigned)heartbeat_get_period_s());
 		rc_cat1_cloud_policy_save_to_flash(policy);
 	}
 }
 
 static void rc_cat1_handle_pending_tlv(void)
 {
-	const uint8_t *tlv;
+	uint8_t *tlv;
 	uint16_t asm_len;
 	uint16_t pending_tlv_len = 0u;
 	uint32_t done_pack = RC_PACK_INDEX_NONE;
@@ -657,6 +697,12 @@ static void rc_cat1_handle_pending_tlv(void)
 		return;
 	}
 
+    if (remote_normalize_tlv_blob(tlv, &asm_len) != REMOTE_QUEUE_OK) {
+        co_printf("[RC   ] invalid STB TLV pack=0x%08X\r\n", (unsigned)done_pack);
+        rc_trans_release();
+        rc_cat1_on_udp_done(RC_RESULT_PARAM_ERROR, done_pack);
+        return;
+    }
 	cat1_skt_udp_set_recv_allow(0u);
 	queue_rc = remote_queue_tlv_blob(tlv, asm_len, done_pack);
 	cat1_skt_udp_set_recv_allow(1u);
@@ -668,7 +714,7 @@ static void rc_cat1_handle_pending_tlv(void)
 	} else if (queue_rc != REMOTE_QUEUE_OK) {
 		co_printf("[RC   ] UDP TLV queue fail pack=0x%08X rc=%d\r\n",
 		          (unsigned)done_pack, queue_rc);
-		rc_cat1_on_udp_done(RC_RESULT_NET_ERROR, done_pack);
+		rc_cat1_on_udp_done(queue_rc == REMOTE_QUEUE_PARAM ? RC_RESULT_PARAM_ERROR : RC_RESULT_NET_ERROR, done_pack);
 	}
 }
 
@@ -899,8 +945,27 @@ static void rc_cat1_poll_core(uint8_t ota_exclusive)
 	uint32_t now_ms;
 	cat1_modem_result_t mr;
 
-	if (ota_exclusive == 0u) {
-		rc_trans_poll();
+    /* Continue in-flight UART/OTA, but do not start idle Flash/AT work while
+     * IR owns precise timing. Deferred cloud policy is saved before a reboot
+     * of the modem could reload older policy from Flash. */
+    if (task_keyscan_ir_busy() && !cat1_modem_is_busy() && !udp_ota_session_busy()) return;
+    if (s_cloud_save_pending && !cat1_modem_is_busy() && !udp_ota_session_busy())
+        rc_cat1_cloud_policy_save_to_flash(s_cloud_policy);
+
+    /* Assembly timeout belongs to BLE, including while LTE is powered off. */
+    if (ota_exclusive == 0u) rc_trans_poll();
+
+	/*
+	 * CAT1 断电时：
+	 *   - 有 RC-TRANS 待上传(s_pending_tlv) → 上电并继续初始化流程
+	 *   - 无数据 → 跳过所有轮询
+	 */
+	if (!LTE_EN_IS_ON()) {
+		if (s_pending_tlv != 0u || udp_ota_session_busy() != 0u) {
+			rc_cat1_power_up();
+		} else {
+			return;
+		}
 	}
 
 	/* AT 进行中优先抽干 RX，缩短 ring 占用时间 */
@@ -1009,6 +1074,22 @@ static void rc_cat1_poll_core(uint8_t ota_exclusive)
 	if (ota_exclusive == 0u) {
 		rc_key_input_poll_tag10();
 	}
+
+	/*
+	 * 事务完成断电检测: 无待发数据 + 无在途 + 无 OTA + modem 空闲
+	 * → CAT1 断电。Tag11 已收到且无 OTA 时自然走到这里断电;
+	 * 下次 s_pending_tlv 置位时 poll 入口处自动重新上电。
+	 * 注意: s_udp_ready==1 才检查, 排除 boot 延时和 setup 阶段
+	 * (此时 modem 空闲但初始化未完成, 不应断电)。
+	 */
+	if (s_udp_ready != 0u
+	    && udp_ota_session_busy() == 0u
+	    && s_pending_tlv == 0u
+	    && s_tx_waiting == 0u
+	    && remote_report_queue_count() == 0u
+	    && cat1_modem_is_busy() == 0u) {
+		rc_cat1_power_down();
+	}
 }
 
 void rc_cat1_poll(void)
@@ -1019,4 +1100,89 @@ void rc_cat1_poll(void)
 void rc_cat1_poll_ota_exclusive(void)
 {
 	rc_cat1_poll_core(1u);
+}
+
+/**
+ * @brief  CAT1 模组断电：关 LTE_EN，重置所有状态，放弃未完成的业务
+ * @note   供 pm_standby_enter() 调用。不等模组响应，直接断电。
+ *         在途 RC-TRANS 会回 ERROR 给 STB，Tag10 会丢弃。
+ */
+void rc_cat1_power_down(void)
+{
+	co_printf("[RC   ] CAT1 power OFF\r\n");
+
+	/* 1. 中止进行中和排队中的 RC-TRANS，避免 STB 永久卡 BUSY */
+	rc_cat1_abort_inflight_rc_trans(RC_RESULT_NET_ERROR, "CAT1 power off");
+	rc_cat1_abort_queued_rc_trans(RC_RESULT_NET_ERROR, "CAT1 power off");
+    if (s_pending_tlv) rc_cat1_cancel_pending();
+    remote_report_clear_queue();
+
+	/* 2. 如果 OTA 进行中，也中止 */
+	if (udp_ota_session_busy() != 0u || udp_ota_is_active() != 0u) {
+		co_printf("[RC   ] CAT1 power off: OTA session interrupted\r\n");
+	}
+
+	/* 3. 重置所有 CAT1/UDP 软件状态 */
+	cat1_skt_udp_setup_reset();
+	s_udp_ready      = 0u;
+	s_cat1_booting   = 0u;
+	s_cat1_boot_ms   = 0u;
+	s_pending_tlv    = 0u;
+	s_tx_waiting     = 0u;
+	s_inflight_rc_trans = 0u;
+	s_inflight_ota   = 0u;
+	s_setup_retry_ms = 0u;
+	s_tag01_queued   = 0u;
+	s_busy_orphan_ms = 0u;
+	s_uplink_ok_logged = 0u;
+	s_rc_done_on_uplink = 0u;
+	s_silent_dl      = 0u;
+	s_silent_rebuild_pending = 0u;
+	rc_cat1_inflight_6868_clear();
+
+	/* 4. 硬件断电 */
+	LTE_EN_OFF();
+    bat_adc_restart_window();
+}
+
+/**
+ * @brief  CAT1 模组上电：开 LTE_EN，完整走 rc_cat1_init() 初始化流程
+ * @note   供 pm_standby_exit() 调用。包含 boot 延时 + UDP setup。
+ *         保护断电期间 STB 通过 BLE 发来的 RC-TRANS（s_pending_tlv），
+ *         避免被 rc_cat1_init() 内部的清零误清除。
+ */
+void rc_cat1_power_up(void)
+{
+	uint8_t  saved_pending_tlv      = s_pending_tlv;
+	uint16_t saved_pending_tlv_len  = s_pending_tlv_len;
+	uint32_t saved_pending_pack_idx = s_pending_pack_index;
+
+	co_printf("[RC   ] CAT1 power ON\r\n");
+	LTE_EN_ON();
+	rc_cat1_init();
+
+	/* rc_cat1_init() 内部把 s_pending_tlv 清零了，恢复之 */
+	s_pending_tlv       = saved_pending_tlv;
+	s_pending_tlv_len   = saved_pending_tlv_len;
+	s_pending_pack_index = saved_pending_pack_idx;
+	if (saved_pending_tlv != 0u) {
+		co_printf("[RC   ] CAT1 power ON: restored pending TLV pack=0x%08X\r\n",
+		          (unsigned)saved_pending_pack_idx);
+	}
+}
+
+/**
+ * @brief  查询 CAT1 模组当前是否已上电
+ * @return 1=上电，0=断电
+ */
+uint8_t rc_cat1_is_powered(void)
+{
+	return (LTE_EN_IS_ON()) ? 1u : 0u;
+}
+
+uint8_t rc_cat1_has_work(void)
+{
+    return (uint8_t)(s_cloud_save_pending || s_pending_tlv || s_tx_waiting ||
+        cat1_modem_is_busy() || (LTE_EN_IS_ON() && (!s_udp_ready || s_cat1_booting)) ||
+        remote_report_queue_count());
 }

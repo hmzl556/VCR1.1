@@ -1,0 +1,40 @@
+                                                            BR1601A0X/B0X 用户手册 
+   519 / 532  
+位域 
+名称 
+描述 
+31：12 
+Reserved 
+始终读为0。 
+11 
+IR_IRQ_FLG 
+传输完成标志 
+如果设置了IR_CTRL 寄存器中IR_TX_START 位，当检
+测到CODE 和REPEAT FIFO 都为空时，该位由硬件置
+位。 
+该位由软件清0。 
+如果IR_CTRL 寄存器中IR_IRQ_EN 被置位时，将产生
+中断。 
+0：没有检测到传输完成。 
+1：检测到传输完成。 
+10 
+IR_BUSY 
+IRC 忙标志 
+0：IRC 模块空闲 
+1：IRC 模块忙 
+9:6 
+IR_REP_FIFO_WORDS 
+REPEAT FIFO 中字数 
+5:0 
+IR_CODE_FIFO_WORDS 
+CODE FIFO 中字数 
+20.5.8. IRC 重复时间寄存器（IR_REPEAT_TIME） 
+偏移地址：0x18 
+复位值：0x0000 0000 
+位域 
+名称 
+描述 
+31：16 
+Reserved 
+始终读为0。 
+Barrot Confidential

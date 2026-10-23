@@ -1,0 +1,568 @@
+{
+  "basis": "VCR1.1-main-NEW-zzw latest software deltas merged into IR_Project V1.2 hardware/IR implementation",
+  "changed_baseline_files": [
+    "bleuart\\cat1\\cat1\\OTA\\flash_layout.h",
+    "bleuart\\inc\\app_keyscan.h",
+    "bleuart\\inc\\task_keyscan.h",
+    "bleuart\\IR\\irc.c",
+    "bleuart\\IR\\ir_key_map.c",
+    "bleuart\\IR\\ir_key_map.h",
+    "bleuart\\IR\\ir_learn.c",
+    "bleuart\\IR\\ir_learn.h",
+    "bleuart\\pmu\\src\\pm_state.c",
+    "bleuart\\src\\combo_key.c",
+    "bleuart\\src\\main.c",
+    "bleuart\\src\\task_keyscan.c",
+    "bleuart\\prj\\ble_dtss.uvprojx",
+    "bleuart\\src\\task_ble.c"
+  ],
+  "compared_files": 225,
+  "old_key_mapping_preserved": true,
+  "build": "0 errors, 2 pre-existing rc_key_input.c warnings",
+  "binary_bytes": 187804,
+  "sha256": "a2a7e8532df86c225efb4d6c3605c7117831718c266915c3f48db17649880096",
+  "receiver": "PB5 active-low raw carrier; TIM3_CH2 falling edges, 1MHz timestamp extension; IRQ envelope/histogram only, task classification/retry; no blocking sampling loop",
+  "host_test_groups": 27,
+  "power_positions": {
+    "left": "KEY18 STB power, PB9--PA6",
+    "right": "KEY1 TV power, hold 5s for learning"
+  },
+  "learn_store_version": {
+    "raw_reference_format": 1
+  },
+  "rc6_status": "Enabled: Gehua RC6-6A-32 STB 36kHz, fixed system 0x26, 13 physical commands, pairing 0xAD; NEC TV and learned override retained",
+  "stb_user_switch_combo": "Disabled: volume+ + home; all other combinations retained",
+  "undefined_gehua_commands": "KEY2/3/17 have no default IR; KEY15 voice is BLE-only, not learnable; legacy voice learning ignored",
+  "linker_region_ends": {
+    "ER_IROM1": "0x0102F41C",
+    "RW_IRAM0": "0x20003FC0",
+    "RW_IRAM1": "0x2000BAE0",
+    "crash_record_start": "0x2000BBE0",
+    "MCU_STACK": "0x2000C000"
+  },
+  "pairing_order": "Synchronous bonding Flash write and advertisement setup before IR frame start",
+  "new_rc6_files": [
+    "bleuart/IR/ir_rc6.c",
+    "bleuart/IR/ir_rc6.h",
+    "bleuart/IR/ir_rc6_encode.c",
+    "bleuart/IR/ir_rc6_encode.h"
+  ],
+  "hardware_validation": "Not flashed/tested on board for this merge; low-power current, repeated wake, heartbeat/server, BLE/CAT1/OTA integration remain hardware acceptance items",
+  "reference_project": "VCR-新板红外发送与自学习-PB4_PB5 L7, user-confirmed hardware functional baseline; reference sources unchanged",
+  "learnable_keys": [
+    1,
+    2,
+    3,
+    17
+  ],
+  "locked_default_keys": [
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    18
+  ],
+  "learning_protocols": [
+    "Gehua 8010 RC6 canonical replay/toggle",
+    "NEC full waveform and carrier-specific repeat",
+    "bounded generic raw waveform"
+  ],
+  "raw_banks": {
+    "A": "0x0106B000-0x0106DFFF",
+    "B": "0x0106E000-0x01070FFF",
+    "slot_bytes": 524,
+    "slot_count": 18,
+    "cached_slots": 0,
+    "read_max_bytes": 256,
+    "write_page_bytes": 256,
+    "commit": "CRC before magic; verify committed bank and reload target slot"
+  },
+  "storage_failure_injection_points": 147,
+  "tv_power_behavior": "KEY1 short release sends learned waveform or preserved default NEC; hold 5s enters learning without prior power frame; no repeat",
+  "repeat_behavior": "400ms hold delay in key task; Gehua toggle stable; NEC dedicated repeat at learned carrier; raw full-frame repeat; at least108ms start interval and20ms gap for long frames",
+  "raw_files": [
+    "bleuart/IR/ir_raw.c",
+    "bleuart/IR/ir_raw.h",
+    "bleuart/IR/ir_wave_store.c",
+    "bleuart/IR/ir_wave_store.h",
+    "bleuart/IR/ir_key_policy.h"
+  ],
+  "removed_files": [
+    "bleuart/IR/ir_learn_store.c",
+    "bleuart/IR/ir_learn_store.h",
+    "tools/tests/test_store.c"
+  ],
+  "legacy_nec_storage": "Removed, including old-sector address macros, load/save/clear module, migration and fallback paths",
+  "layout_update": "Waveform banks shifted 8KB earlier; user explicitly chose no migration and relearning after update",
+  "unallocated_flash": {
+    "range": "0x01071000-0x0107FFFF",
+    "bytes": 61440
+  },
+  "original_basis": "20IWDG working tree; subsequently updated by three-way merging VCR1.1-main-NEW-zzw APP changes",
+  "software_version": "02010000",
+  "latest_app_merge": {
+    "source": "用户程序-app1/VCR1.1-main-NEW-zzw",
+    "method": "Three-way comparison against 20IWDG; manual resolution preserves IR/key and V1.2 hardware paths",
+    "candidate_file_count": 31,
+    "included_features": [
+      "heartbeat Tag0A and Tag11 DataID6",
+      "Tag01 ASCII ICCID20 and battery",
+      "CAT1 on-demand power and idle shutdown",
+      "time anchor retention across modem restart",
+      "SILENT state, timer pause/resume and retained BLE stack wake",
+      "latest low-power timeout and BLE parameters"
+    ],
+    "preserved": [
+      "USART1 PA4/PA5 with DMA_CH2",
+      "IR PB4/PB5",
+      "18-key matrix and swapped power roles",
+      "4 learnable keys, voice excluded, 13 fixed Gehua keys",
+      "raw banks 0x0106B000/0x0106E000",
+      "ARMCC5u7 project settings",
+      "C heap8192 and BLE task stack3072"
+    ],
+    "board_adaptations": [
+      "KEYSCAN AF5 retained during standby/sleep",
+      "CAT1 TX PA4 and IR TX PB4 parked independently",
+      "USART1 and IRC reinitialised on wake",
+      "DMA_CH2 flags cleared before sleep",
+      "IR/OTA/CAT1/heartbeat sleep exclusion",
+      "KEY18 connected HID only; ordinary learned keys preserve HID when connected; KEY1 targets TV"
+    ],
+    "merge_fixes": [
+      "URC prefix discrimination preserves long AT replies",
+      "ICCID capture limited to current line",
+      "heartbeat pending retained on queue full",
+      "heartbeat interval changes committed only for valid Tag11 payload",
+      "SILENT timer refreshed by physical key"
+    ],
+    "memory_layout": {
+      "ordinary_RAM_end_limit": "0x2000BBE0",
+      "crash_record": "0x2000BBE0-0x2000BBFF",
+      "main_ISR_stack": "0x2000BC00-0x2000BFFF",
+      "initial_MSP": "0x2000C000",
+      "C_heap_bytes": 8192,
+      "BLE_task_stack_bytes": 3072,
+      "static_max_call_depth_bytes": 1236
+    },
+    "tests": "Current: 11 IR + 12 APP/OTA/AES tests passed; original merge had 17 groups",
+    "hardware_validation": "Not flashed/tested on board for this merge; low-power current, repeated wake, heartbeat/server, BLE/CAT1/OTA integration remain hardware acceptance items"
+  },
+  "runtime_logic_review": {
+    "date": "2026-10-22",
+    "software_version": "02010000",
+    "host_test_groups": 23,
+    "static_analysis_translation_units": 73,
+    "static_analysis_raw_diagnostics": 11,
+    "static_max_call_depth_bytes": 1236,
+    "hardware_tested": false,
+    "confirmation_document": "待确认事项_02010000.md",
+    "separate_bootloader_modified": false,
+    "separate_bootloader_issue": "boot_main.c jumps to potentially partially erased APP1 after copy failure; requires separate recovery fix and on-device update",
+    "manifest": "tools/logic_review.json",
+    "backup": "backups/IR_logic_review_20261022_010759.zip"
+  },
+  "confirmation_followup": {
+    "date": "2026-10-22",
+    "battery_policy": "LTE off returns last valid displayed level; initial 100%; no ADC/modem power-on",
+    "battery_source_sha256": "2f7cc29ce9e9f5daf6e068db510e655308eae62f1cccb9d4c8ddb63bd73af732",
+    "regressions": "11 IR + 12 APP + 1 battery groups passed",
+    "build": "0 errors, 2 pre-existing warnings",
+    "hardware_tested": false
+  },
+  "voice_routing_revision": {
+    "date": "2026-10-22",
+    "backup": "backups/IR_voice_routing_20261022.zip",
+    "source_sha256": {
+      "bleuart/IR/ir_key_policy.h": "143cdbcc478d60594edeaa99b1e6b9d602123a2792ec50531ff71b05e26e970e",
+      "bleuart/IR/ir_key_map.c": "a6b22a202f249c411f3e5698453ee97bfcc428fb2a8d61da0f1769e07eea62a9",
+      "bleuart/IR/ir_key_map.h": "629e421f02fc4b3a079af1599faf20888bd2027199135e0fc5234aa10cd1e885",
+      "bleuart/IR/ir_wave_store.c": "7e22776d34f2a962637319f9242657f8eb0bdcb5f43a7173d6876152ea1b3b74",
+      "bleuart/src/task_keyscan.c": "6b3a667858ae77547f02b7805b731e214282f5b41a332d1d7daae7cd69082036"
+    },
+    "tests": "24 groups passed; 73 C units analyzed; existing 11 raw SDK/FreeRTOS diagnostics",
+    "policy": "KEY15 never learns or sends IR; learned codes only on IR route; KEY1 remains TV-targeted",
+    "hardware_tested": false
+  },
+  "tv_combo_revision": {
+    "date": "2026-10-22",
+    "source_sha256": "e29e773408c0d45de77caf99321c5ce4799f6a8306b67290c74b41e028c51eb1",
+    "backup": "backups/IR_tv_bond_isolation_20261022.zip",
+    "policy": "TV pair IR-only; TV unpair skipped without TV context; no STB bond/advertising/PM mutation; STB pair/unpair unchanged",
+    "host_test_groups": 24,
+    "build": "0 errors, 2 pre-existing warnings",
+    "hardware_tested": false
+  },
+  "temporary_silent_timeout": {
+    "date": "2026-10-22",
+    "milliseconds": 300000,
+    "restore_milliseconds": 60000,
+    "document": "暂时改动文档.md",
+    "source_sha256": "9e9ab28fd75a039fa34d1803a8244c054c13065565e3ecf16511021149a0f3f9",
+    "validation": "12 APP regression groups passed; full build 0 errors, 2 pre-existing warnings; no on-board timing test"
+  },
+  "learn_feedback_wake_revision": {
+    "date": "2026-10-22",
+    "source_sha256": {
+      "bleuart/src/task_keyscan.c": "7b13df98e33c6364cf0c4afb517a1da1c3c52fe7fc7384369aba959ffb13c25d",
+      "bleuart/IR/ir_learn.c": "90366f16eb523bf7d5de9d77ed100b984848c9ee12f4a8ff9e5ecc7f03b7c7d0",
+      "bleuart/IR/irc.c": "e4ce31d4cb2d74fbf062d86788d4397db93c9d18d73c8131669175e3a1d92b5a"
+    },
+    "backups": [
+      "backups/IR_learn_led_logs_20261022.zip",
+      "backups/IR_wake_restore_20261022.zip"
+    ],
+    "tv_power_led": "red 100ms then off; solid at learning entry after 5000ms",
+    "learning_logs": "key-number result; one retry summary at capture end, no per-retry print",
+    "wake_fix": "irc_init always restores PB4 AF2 and IRC clock/registers instead of skipping due to retained s_ok",
+    "host_test_groups": 24,
+    "static_translation_units": 73,
+    "build": "0 errors, 2 pre-existing warnings",
+    "hardware_tested": false
+  },
+  "combo_release_revision": {
+    "date": "2026-10-22",
+    "source_sha256": "60028268dfa40af699e7ec184731e29546ec8a79350c3ee88820501b0031c3f9",
+    "backup": "backups/IR_combo_release_filter_20261022.zip",
+    "release_confirm_ms": 100,
+    "policy": "Require valid pair at trigger; tolerate short incomplete snapshots; confirmed release cancels; late recovery restarts hold; preserve third-key exclusion",
+    "diagnostic": "Cancellation prints KEYDATA0/1 once; true hardware dropout cause not established",
+    "host_test_groups": 24,
+    "static_translation_units": 73,
+    "build": "0 errors, 2 pre-existing warnings",
+    "hardware_tested": false
+  },
+  "combo_remap_led_revision": {
+    "date": "2026-10-22",
+    "source_sha256": {
+      "bleuart/src/combo_key.c": "bbe92cff334397d3c996586b967426b5e7960068625df06ce8976505165b2a4d",
+      "bleuart/src/task_keyscan.c": "4a52311d2ad567de2bfd4bfc03081eccb54cef4774362cd9339ea059b0648d02",
+      "bleuart/src/ble_adv.c": "5324b1ae1fd787672c1bfd3be8e29aa676fccd77366f83835f69848ed78748d3",
+      "bleuart/inc/task_keyscan.h": "83a69da08c592b9d2f23970c0d05a343e8a3ce0ec3131f84ad70fb6720aa18dc"
+    },
+    "backup": "backups/IR_combo_remap_led_20261022.zip",
+    "stb_pair": [
+      14,
+      5
+    ],
+    "stb_unpair": [
+      9,
+      5
+    ],
+    "tv_user_switch": [
+      12,
+      9
+    ],
+    "retired_combos": [
+      [
+        14,
+        2
+      ],
+      [
+        9,
+        2
+      ],
+      [
+        12,
+        10
+      ]
+    ],
+    "red_cleanup": "clear ordinary/wake red at combo takeover and all-released suppression exit; idle/released-debounce cleanup; preserve special blue/learning indicators",
+    "host_test_groups": 24,
+    "build": "0 errors, 2 pre-existing warnings",
+    "hardware_tested": false
+  },
+  "temporary_connected_timeouts_20261023": {
+    "source_sha256": "dbf689130f6725474bbbb3accaace951dddb6d8a4d033e907586b1fc82cd7f9f",
+    "work_to_standby_ms": 300000,
+    "restore_work_to_standby_ms": 30000,
+    "total_idle_to_sleep_ms": 1800000,
+    "restore_total_idle_to_sleep_ms": 90000,
+    "document": "暂时改动文档.md",
+    "validation": "12 APP regression groups passed; full build 0 errors, 2 pre-existing warnings",
+    "hardware_timing_tested": false
+  },
+  "cloudpolicy_heartbeat_log_20261023": {
+    "format": "CloudPolicy updated: interval=100 count=20 heartbeat=1800s",
+    "meaning": "Effective period after successful Tag11 parsing; 0s disabled; omitted heartbeat field preserves prior period",
+    "backup": "backups/cloudpolicy_heartbeat_log_20261023.zip",
+    "validation": "12 APP regression groups passed; build 0 errors, 2 pre-existing warnings",
+    "source_sha256": {
+      "bleuart/cat1/cat1/heartbeat.h": "1b0049e41c75323a886409e5059e75b41d7192513e012faf1c0604f6f7393371",
+      "bleuart/cat1/cat1/heartbeat.c": "6dd5102feb3429060df9e288cc00d235dc8bda74bd47c4cc48d853f7667c35ae",
+      "bleuart/cat1/cat1/rc_cat1_bridge.c": "3315c3aff56154025b1152fdac981238daa46f4448f04f3a0889b9bbe3c256e1"
+    }
+  },
+  "voice_heap_review_20261023": {
+    "source_sha256": {
+      "bleuart/inc/app_gatt_safe.h": "da7919b6e6f4c1c609017ddb4c1b267abbc3827a70ad5bb233eb908623973033",
+      "bleuart/inc/app_heap.h": "d92d221d7c0f41204a73e74e612ea8da2082f4047458740e33dfcfb2bd5526f6",
+      "bleuart/src/blecomm.c": "68975ccec424d60de57fa24c718a9ceaaf55d38aacf8c546fc2d8001866c5988",
+      "cs/src/ble_dtss.c": "b9afc034a331add6808ff1d78f30f2aad136986725fc63bd1a8c8b48b8e25ba0",
+      "bleuart/src/ble_hid_kbd.c": "8034a1e1b2584ce92c7be5896b5274c4b1497b77287417d60ebd7ac61123392c",
+      "bleuart/src/ble_bas.c": "68fea03a489249e805ef9c23ebc3d79971cd3e40d7ec9158e8bb6f5bcb551339",
+      "bleuart/cat1/cat1/ble_rc_svc.c": "719880ea6a5ad415196cf06fcb5aa6ec7b8fc4bd232e2f385a7e5af5b4d71ea2",
+      "bleuart/src/app_encoder_sbc.c": "3b5836fc12e7a41cd50976ec9968442360870bcd0f9702087949560a59d4386b",
+      "bleuart/src/app_encoder_sbc.h": "806453de9f3875883da0a627625f4dba019b38d9c1c68b54b2be3e6ae2008f8e",
+      "bleuart/src/app_audio_pcm.c": "bedb510db61b156e8db7789eb38d4a957af9fcaadeaf7fac203830993a8afea3",
+      "bleuart/src/task_keyscan.c": "eebe8c1ffc14365ea12b9ffdcb1d19dd5009316e33f5241851bac4d8a9a6fee2",
+      "bleuart/IR/ir_wave_store.c": "8aae4eac2a98244c2ce956487936e73cadb8704b0e92f4d41a9f4461f2a1ef5c",
+      "bleuart/IR/ir_rc6.c": "1c24a2f035368ea7182ddea8fa01d89fb8da4142636923c43659e68b91507b1f",
+      "bleuart/IR/ir_learn.c": "0003f4937b9c611cb8b6d65aa85adbe2274f44a6705e9769811ecf90727597b0",
+      "bleuart/IR/ir_key_map.c": "0045dad8e61236bcdaa10aec1e64550f7613d57311c482945f51a42a04311dd4",
+      "bleuart/cat1/cat1/remote_reports.c": "11256787925ec2c4b066c818978f2fe0625dfb5082807adccfe1cf3d59f66068"
+    },
+    "backup": "backups/voice_heap_review_20261023.zip",
+    "findings": "SDK notification always returns zero; notification and FSM nodes have unchecked allocations; actual original heap exhaustion source not completely determined",
+    "protection": "Preflight direct SDK submission under preserved IRQ mask; serialized app heap; 8ms voice pacing; encoder readiness; proper CCCD disable; per-session diagnostics",
+    "tests": "25 host groups pass; 73 C units analyzed; 0 build errors, 2 pre-existing warnings",
+    "hardware_tested": false,
+    "limits": "Preflight does not protect all subsequent async SDK allocations; sustained overload drops voice frames; no forced peer subscription"
+  },
+  "voice_reconnect_review_20261023": {
+    "source_sha256": {
+      "cs/src/ble_dtss.c": "01dfe3ba1d1e30ec8815c4eb0cf76873fdb420c06b3a1a65043769ed24cbbf32",
+      "cs/inc/ble_dtss.h": "a62f84a9491641672bf28ff1f3cc081eb0f711ec654eb68600300dc8a234e436",
+      "bleuart/src/app_voice_ctrl.c": "f89549578c8e75c1268b666620cd603cae1b631f148d6e601a3ee67d203164e5",
+      "tools/test_voice_transport.py": "9c137929d086bae27fcf526f0df1d2112031568a8f7b23e5c5a22336b28dbad8",
+      "tools/tests/test_voice_control.c": "00370d5553a4ba2b84c1985a2add3e27378dfbb386132cdd33bbbde9b61b1458"
+    },
+    "backup": "backups/voice_reconnect_review_20261023.zip",
+    "checks": "Disconnect clears both voice channels/control cache; queued STOP clears old START; SBC and ADC reinitialize at next Start; chr0 notification and chr2 indication must belong to current peer before capture",
+    "changes": "Gate capture on both current-peer subscriptions, log missing channel once per rejected START, stop capture on cancellation, ignore other-peer subscription callbacks",
+    "tests": "25 host groups pass including real callbacks reconnect/channel order/old-peer events and voice START gating; 73 C units, 11 pre-existing raw static diagnostics; build 0 errors, 2 pre-existing warnings",
+    "binary_sha256": "25fea64bccd1011f86f65c9357e2f5f138c4eb49de394116a25ad4c77e45dac7",
+    "hardware_tested": false,
+    "limits": "No forced subscriptions or fake capability request. Host must restore channels. A rejected key START is not held for later replay; release and press again after ready. Original heap exhaustion root cause remains unresolved."
+  },
+  "battery_sampling_revision_20261023": {
+    "source_sha256": {
+      "bleuart/src/bat_adc.c": "f190e74b5ed6152c98b1d2bf2d761ae365227a56792a595057303d8d21a01f37",
+      "bleuart/inc/bat_adc.h": "9b39f0e5fc185cca41f10abfce995e5b1e0aaf456e07159b70dd7a8063fc9f64",
+      "bleuart/src/task_ble.c": "2aac1e645ac1597e8e41ef1eec53367b298d60b649d80479ce195cca34bdb15a",
+      "bleuart/src/ble_bas.c": "27b48cfd279be22330f41899b924db679be5d6abeb0e95f0fc4e6168da01acf1",
+      "bleuart/cat1/cat1/rc_cat1_bridge.c": "a9d369d66cf17de3d520bd0a6a85b775df19d541008c30bf21df6169b07bb465",
+      "bleuart/cat1/cat1/remote_reports.c": "55ef411c757b260b2c9f9c2143172b071cdd98525b74f0fe2fa5a05b0b4af549",
+      "tools/test_battery.py": "b6318335f26634338ea0e5f7435369fe06144e7657bc819d30b7e3bb86c6f29e"
+    },
+    "backup": "backups/battery_sampling_20261023.zip",
+    "policy": "Cache-only readers; BLE main-task sampler, >=60000ms between valid updates, never powers LTE; 200ms LTE settle and 100ms quiet window; voice/IR/AT/OTA defer sampling",
+    "sampling": "All updates use 3 groups separated by >=20ms; each group discards first conversion, trims min/max from 8 valid measurements; publishes median of group voltages; incomplete sets discarded on busy/power reset; failed group retries after >=1s",
+    "filter": "Q8 percent, 1/16 EMA per elapsed minute capped at 64 steps for missed LTE-off time, 2 percentage-point display hysteresis; endpoints can settle to 0/100; original 3300..4200mV linear range/divider and protocol unchanged",
+    "cache": "Initial 100 until first complete valid set; cached level/EMA/rate limit survive modem restart and retained-RAM sleep; MCU reset initializes from new samples",
+    "tests": "25 host regression groups passed; real sampler/filter source exercised for cache reads/rate/settling/trim/median/failures/retry/guards/wake/wrap/slow drift/endpoints; 73 C units static analysis, 11 pre-existing diagnostics; build 0 errors, 2 original warnings",
+    "binary_sha256": "bd9a886d32a40de05943f1505eb4b0266b91fb3c48387f9db479603a55d70ee4",
+    "hardware_tested": false,
+    "limits": "AT idle is only a software proxy for a quieter load, not RF idle detection. First report may still be initial 100 if no safe sample window exists. 60s is a minimum update interval, not a forced wake schedule. Elapsed EMA approximates past minutes with newest sample; battery curve/ADC calibration need board measurements. No guarantee of identical readings on every reset."
+  },
+  "firmware_version": "02010000",
+  "ota_test_package_02020000_20261023": {
+    "firmware": "IR_Project_02020000.bin",
+    "from_version": "02010000",
+    "target_version": "02020000",
+    "ota_version_bcd": "0x0202",
+    "bytes": 185260,
+    "chunk_bytes": 512,
+    "packets": 362,
+    "last_chunk_bytes": 428,
+    "checksum16": "0xBF4E",
+    "checksum16_decimal": 48974,
+    "checksum_algorithm": "sum of actual image bytes modulo 65536; NOT CRC16, do not include padded tail",
+    "app1_load_address": "0x01004000",
+    "app2_download_address": "0x01036000",
+    "app2_inclusive_end": "0x010633AB",
+    "server_data": "106.53.179.53:8888",
+    "server_ota": "106.53.179.53:8889",
+    "sha256": "588ca981ac04ee87538bcfd79c8b28f65628f8860ddf08a1bcaa5149dd11c48f",
+    "validation": "Build 0 errors, 2 original warnings; 12 APP/OTA regression groups passed; only 2 version-literal bytes changed versus 02010000 image; vectors and image length checked",
+    "device_tested": false,
+    "folder": "artifacts/OTA_02020000_20261023",
+    "source_sha256": "b88648779d2a13a77788c5a55aa8b36c67fb30a4dfafb95c90e0a0fd74dd6475",
+    "previous_version_backup": "backups/ota_before_02020000_20261023.zip",
+    "previous_binary_differences": [
+      104075,
+      128307
+    ]
+  },
+  "battery_hardware_feedback_20261023": {
+    "reboot_levels": [
+      57,
+      57,
+      57,
+      56,
+      57
+    ],
+    "reboot_vbat_mv": [
+      3815,
+      3810,
+      3810,
+      3804,
+      3815
+    ],
+    "server_matches_disp": true,
+    "voice_during_cat1_upload": "user confirmed passed",
+    "sleep_wake_cache": "user confirmed passed",
+    "scope": "User-reported hardware results; not absolute voltage/SOC calibration"
+  },
+  "tag01_dates_fix_20261023": {
+    "source_sha256": {
+      "bleuart/cat1/cat1/remote_reports.c": "563f2ce40bca4476f1ec054802e7eaa4de644d2d944cb0a660459cbd145c569e",
+      "bleuart/cat1/cat1/remote_reports.h": "d8d2ea388b81f056f95731fe3ef1ca41a776fa99b4dcc582b7adb781f9498f92",
+      "bleuart/cat1/cat1/rc_cat1_bridge.c": "a9752aea0a3eaf9028d74ea1bfe19f2071887c07893c2d07ff1ea92f2a6d8b76",
+      "bleuart/cat1/cat1/rc_trans_assembly.c": "66d01672fea6dccc36e0b325b6c74423038506eae736bf10bc8069d7cf1b4b80",
+      "bleuart/cat1/cat1/rc_trans_assembly.h": "f65ddf5df3b1d8b36d97f2ab9d8b358da37b3106ccc3a26e8db45087dc548ef5",
+      "tools/tests/test_reports.c": "d612b602d75916184aab86d16c70a762b0012a03096ea529a458096dcb11dc0c",
+      "tools/tests/test_aes.c": "505527d5fa32cd8a963e12b6968a20fd7112af9ca675e819835e591ac8891f9c",
+      "tools/tests/captured_tag01_fixture.h": "c1c88d33c3b5a12837454377dc99ae3877f85ee2cc8335d4619592b4f7dc307a"
+    },
+    "backup": "backups/tag01_dates_before_fix_20261023.zip",
+    "root_cause": "Captured STB RC-TRANS PackIndex 0x1D contains DataID4=20 26 01 01 10 08 and DataID5=20 36 01 01 10 08: YYYYMMDDhhmm truncated to 6B instead of YYMMDDhhmmss. Original local builder was correct; relay had no semantic guard.",
+    "fix": "Normalize owned assembly before AES: recover only an invalid date matching same-field first 12 configured ASCII digits, using full RC-READ seconds; remove non-applicable/unconfigured dates, validate calendar/BCD/TLV bounds and duplicates atomically; reject unknown malformed data with PARAM_ERROR; queue also validates",
+    "memory": "No extra heap allocations or static RAM buffers. Existing owned assembly compacted in place after complete validation; unrelated TLVs unchanged. RC-READ remains 14 ASCII date bytes.",
+    "tests": "25 host groups passed. Captured 186B mixed-TLV layout replays as 179B with 7 unrelated TLVs preserved; nonzero seconds recovery, both length conventions, idempotence, invalid/leap dates, status 0/1/2, all-zero omission, atomic rejection and 560B AES round trip covered. 73 C units static analysis, 11 existing diagnostics. Build 0 errors, 2 original warnings.",
+    "firmware_version": "02010000",
+    "binary_sha256": "8e1a2d22bbec0f9044ddf17796727a279b83306db57992499bdee289a3ca860e",
+    "hardware_tested": false,
+    "limits": "Configured release/expiry dates unchanged, not inferred from current time. Historical server records not rewritten. Other valid-looking but semantically wrong dates cannot be identified safely. Old 02020000 OTA package predates this fix; must not use it to validate the fix."
+  },
+  "ota_datefix_package_20261023": {
+    "firmware": "IR_Project_02020000_datefix.bin",
+    "from_version": "02010000",
+    "target_version": "02020000",
+    "ota_version_bcd": "0x0202",
+    "contains": "Tag01 date normalization, state-conditional date fields, calendar/TLV validation and all previous battery/voice/IR changes",
+    "bytes": 186712,
+    "chunk_bytes": 512,
+    "packets": 365,
+    "last_chunk_bytes": 344,
+    "checksum16_hex": "0xD440",
+    "checksum16_decimal": 54336,
+    "checksum_algorithm": "16-bit sum of actual file bytes, no padded tail, not CRC16",
+    "app1_load_address": "0x01004000",
+    "app2_download_address": "0x01036000",
+    "app2_inclusive_end": "0x01063957",
+    "sha256": "d62886df9e3a1baea42a1b456f63a7a43c35ad65581735b982a38c196e05432d",
+    "validation": "12 APP/OTA groups re-run passed; version-only delta of 2 bytes relative to date-fixed 02010000, which passed all 25 host groups and 73-unit static analysis; build 0 errors, 2 original warnings",
+    "hardware_ota_tested": false,
+    "folder": "artifacts/OTA_02020000_datefix_20261023",
+    "previous_fixed_02010000_backup": "backups/tag01_fixed_02010000_before_ota_20261023.zip",
+    "source_version_header_sha256": "b88648779d2a13a77788c5a55aa8b36c67fb30a4dfafb95c90e0a0fd74dd6475"
+  },
+  "ota_hardware_feedback_20261023": {
+    "log_path": "C:\\Users\\hmzl556\\.codex\\attachments\\7207db34-a56c-4f58-8300-7f6c2d8e9356\\已粘贴的文本.txt",
+    "log_sha256": "37bcd7cec7be2f53e6ace9801e52ebbdbea03fa273c50dd3e5be380dc0fa9a07",
+    "start_version": "02010000",
+    "installed_version": "02020000",
+    "image_bytes": 185260,
+    "packets": 362,
+    "checksum16": "0xBF4E",
+    "consecutive_chunks_1_to_362": true,
+    "verify_ok": true,
+    "bootloader_copy_ok": true,
+    "new_app_started": true,
+    "new_app_tag01_uplink_and_reply": true,
+    "bond_recovered_and_encryption_ok": true,
+    "voice_subscriptions_and_capability_after_upgrade": true,
+    "voice_recognition_tested_in_this_log": false,
+    "ir_store_before_after": "A=1 B=1 selected=0106e000 seq=8 mask=0; no learned slots to verify content preservation",
+    "ota_busy_reject_count": 91,
+    "ota_retry_or_pause_lines": [],
+    "malloc_fail": 0,
+    "hardfault": 0,
+    "scope": "Normal-power OTA path passed for original 362-packet image. This is NOT the newer 365-packet date-fixed package; no date-fix hardware validation inferred. Deferred Bootloader failure/power-cut recovery remains untested."
+  },
+  "retain_both_dates_user_confirmed_20261023": {
+    "approval": "User explicitly confirmed restoring both time fields, retaining date conversion/validation, no other functionality or version change.",
+    "files": [
+      "bleuart/cat1/cat1/remote_reports.c",
+      "tools/tests/test_reports.c"
+    ],
+    "source_sha256": {
+      "bleuart/cat1/cat1/remote_reports.c": "da71374c3c4d126eedf36ec011261ff62cb95af7c029be824b5a0a3cf850f3f4",
+      "tools/tests/test_reports.c": "16e1b87453f6234d6dec509d9b31d35caf3c1da7b4eb416ce96ba9050794346e"
+    },
+    "behavior": "Both configured date fields retained for terminal states 0/1/2, in local Tag01 and STB relay. Default Tag01 Value restored to 50B/9 fields. Known truncation repair and calendar/TLV checks preserved. Existing all-zero unconfigured-date policy unchanged.",
+    "tests": "25 host groups passed; status 0/1/2 preserve both fields, replay retains all 186 bytes including both corrected dates and unrelated tags. 73 C units static analysis, 11 existing raw diagnostics; build 0 errors, 2 original warnings.",
+    "firmware_version": "02010000",
+    "version_header_unchanged": true,
+    "binary_bytes": 186636,
+    "binary_sha256": "6dc3d8f8542f3353c1417784c8006fdbd9a522a679d928443df7ac6f9c13ba04",
+    "hardware_tested": false,
+    "backup": "backups/retain_both_dates_before_20261023.zip",
+    "ota_package_regenerated": false
+  },
+  "ota_led_ownership_20261023": {
+    "approval": "User confirmed OTA-only LED1 red ownership fix, without changing key behavior or other indicators.",
+    "source_sha256": {
+      "bleuart/src/task_keyscan.c": "52604e9dca369583841e51a111f6586a42886afa8adc54822264f22ac7fa943e",
+      "tools/tests/test_keys.c": "d444da1836de937f62b6b299f12ff4db9bf66a3cee8aa6be7c1a071319ffb1c4",
+      "tools/test_ir.py": "a03ac616b0d87b574a43ae727951f4c4b6bae70c1ab79d42abe023da25d75070"
+    },
+    "backup": "backups/ota_led_ownership_before_20261023.zip",
+    "change": "All task_keyscan LED1 red writes routed through a helper that does nothing during udp_ota_session_busy. Key handling text identical after reversing LED call substitutions. OTA blink constants/routine, blue LED and version header unchanged.",
+    "timing": "Existing 100ms toggle = nominal 100ms ON + 100ms OFF while downloading; software scheduling may delay ticks.",
+    "tests": "25 host groups passed; actual OTA blink routine interleaved with actual key scanner over 600 simulated 1ms iterations including idle/press/release, guard on/off and normal-mode restoration; 73 C units static analysis, 11 original diagnostics; build 0 errors, 2 original warnings.",
+    "firmware_version": "02010000",
+    "binary_bytes": 186612,
+    "binary_sha256": "b90993ec135706fb90e09d468f977f00aa405be7bd337f4e071f6810e4ead9d3",
+    "hardware_led_tested": false,
+    "limits": "No changes to post-reboot 3s completion indication or OTA key behavior; no new OTA package/version generated."
+  },
+  "cat1_baud_sync_20261023": {
+    "scope": "User selected optimized CAT1 baud sync integration: normal 115200 fast pass, fallback to verified 9600 then IPR and mandatory 115200 AT verification; no fixed 5s wait.",
+    "source_sha256": {
+      "bleuart/cat1/cat1/cat1_skt_udp.c": "28f3c0f921f4628ce4957c16cb1d709848bc0ac4829acec80aa7f4fb23038a31",
+      "bleuart/cat1/cat1/cat1_usart1.c": "6605d5416824068ba85f312e4ca49db1932ac74329e0c2af19154e0241082c86",
+      "bleuart/cat1/cat1/cat1_usart1.h": "b253f5eb501035c73755f191ee319488a81365c06a52e9ac8b2c1e6ce0016836",
+      "tools/test_base_merge.py": "0d2b83e35aeabdaaa2ed9b9ec86b812aa40db748606c00a663775bca18891715",
+      "tools/tests/test_at_urc.c": "f54f10ff62215b9bf429791fc607f67b08a77b478ac6d32095f0ba303233c77d",
+      "tools/tests/test_baud_sync.c": "10b8253e06860b3f2bff052dd5914c64555454a2220250bbfba629d68a5f3682",
+      "tools/test_baud_driver.py": "e9ef2de4762aeb60400503dbcbf5f5976db1df613c5d351ae1a1bc45ff773a4d"
+    },
+    "backup": "backups/cat1_baud_sync_before_20261023.zip",
+    "placement": "cat1_skt_udp_setup_step before CSCON, after existing 2000ms modem boot delay; re-armed on setup reset",
+    "parameters_ms": {
+      "settle": 100,
+      "run_probe_timeout": 300,
+      "boot_probe_timeout": 1000,
+      "ipr_reply_timeout": 300,
+      "max_rounds": 3
+    },
+    "timing": "Mock immediate 5ms reply: 115200 passes at105ms. 9600 old/new reply cases finish within1s. No response bounded to4500ms per attempt, then existing3s setup retry and120s setup deadline. Actual timings require hardware.",
+    "dma": "Setup-only UART setter preserves PRIMASK, only DMA_CH2 RX reconfigured; DMA_CH1 and shared NVIC unchanged; 8N1 retained. AT timeout waits yield via main loop; short TX still uses existing bounded polling.",
+    "tests": "27 host groups passed: 11 IR +13 APP including baud sync + battery +voice +UART driver. Covers fast path,9600,old/new reply baud,IPR ERROR and misleading OK,slow boot,garbage,no response,reset,clock wrap,8N1,RX ring reset,DMA ownership and nested IRQ mask. 73 C units static analysis,11 original diagnostics; build0 errors,2 original warnings.",
+    "firmware_version": "02010000",
+    "binary_bytes": 187640,
+    "binary_sha256": "c95281257bba113317b468c554a49bddac026d359e851f174951c7060f74fc80",
+    "hardware_tested": false,
+    "limits": "Does not use MCU Flash one-time flag, nor add AT&W. Modem persistence and first-use9600/wake/OTA need board tests. No separate OTA artifact regenerated.",
+    "superseded_by": "cat1_baud_fallback_only_20261023"
+  },
+  "ota_led_hardware_feedback_20261023": "User confirmed red LED normal after ownership fix.",
+  "cat1_baud_fallback_only_20261023": {
+    "approval": "User explicitly requested normal 115200 main path first, fallback to 9600 provisioning only when there is no response, with no added normal-path probe/settle delay.",
+    "source_sha256": {
+      "bleuart/cat1/cat1/cat1_skt_udp.c": "2b719a3da5ddcfdcb7ade4c28583f0c99c8bc02c4d8f7dd2640d07773c65daca",
+      "tools/tests/test_baud_sync.c": "3664ca547bd7ed37e0212ba3c37545e5df092b451c1a8b613a43789e2546882d"
+    },
+    "backup": "backups/cat1_baud_fallback_only_before_20261023.zip",
+    "behavior": "First setup command remains original AT+CSCON=1 immediately after unchanged 2000ms boot wait. No extra AT or100ms wait. Complete OK/ERROR/CME ERROR retains115200 and existing CSCON handling. Only no valid terminal reply at original3000ms timeout starts9600 recovery. Verified115200 recovery restarts normal CSCON; no normal setup commands sent while recovery unresolved.",
+    "strict_timeout_scope": "Only initial CSCON reachability overrides legacy allow_error empty-timeout acceptance. Other diagnostic handling unchanged.",
+    "fallback": "9600 AT confirmed before IPR; mandatory115200 AT verification; existing bounded3-round recovery, restored MCU115200 on failure,3s setup retry/120s overall deadline retained. Waits cooperative; existing short UART TX polling unchanged.",
+    "tests": "27 host groups passed. Normal5ms reply advances setup in5ms with0 probes/0 IPR; reset repeats normal path; validERROR/CME responses do not change baud;9600 old/new IPR reply,misleadingOK,slow boot,silence/garbage,clock wrap,driver DMA ownership all covered.73 C units static analysis,11 original diagnostics;build0 errors,2 original warnings.",
+    "firmware_version": "02010000",
+    "binary_bytes": 187804,
+    "binary_sha256": "a2a7e8532df86c225efb4d6c3605c7117831718c266915c3f48db17649880096",
+    "hardware_tested": false,
+    "limits": "No added sync delay on healthy115200 path does not remove original boot/network/AT response times. Slow boot/supply faults can also trigger fallback; only9600 AT success permits IPR. No separate OTA package generated."
+  }
+}

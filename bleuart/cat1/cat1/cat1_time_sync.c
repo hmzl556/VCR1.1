@@ -3,6 +3,7 @@
  * @brief CAT1 AT+CCLK? 网络时间锚定，按需推算 YYMMDDhhmmss BCD。
  */
 #include "cat1_time_sync.h"
+#include "co_printf.h"
 #include "br_timer.h"
 
 #include <string.h>
@@ -334,6 +335,7 @@ int cat1_time_get_bcd6_offset(uint8_t out[6], int8_t offset_hours)
 	int32_t offset_sec;
 
 	if (out == NULL || s_valid == 0u) {
+		/* 锚点无效(CCLK 未同步成功): 调用方回退占位时间 */
 		return -1;
 	}
 

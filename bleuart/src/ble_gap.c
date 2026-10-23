@@ -147,7 +147,7 @@ typedef struct {
 } ble_conn_param_store_t;
 
 // 最近一次合规的连接参数（默认从持久化或内置值恢复）
-static ble_conn_param_store_t g_last_good_params = {0}; 
+static ble_conn_param_store_t g_last_good_params = {0};
 
 static uint32_t ble_conn_param_checksum(const ble_conn_param_store_t *p)
 {
@@ -242,45 +242,32 @@ static void ble_conn_params_apply(peer_t peer, const ble_conn_param_store_t *par
 #define CCCD_RETRY_INTERVAL_MS  500
 #define CCCD_RETRY_MAX          6
 
+static uint32_t s_cccd_retry_tid = BR_TIMER_INVALID_HANDLER;
+static uint8_t s_cccd_retry_count, s_connection_generation;
+
 static void cccd_retry_handle(uint8_t event, void *arg)
 {
-	static uint8_t retry_cnt = 0;
-
-	(void)event;
-	(void)arg;
-
-	if (g_peer == NULL || peer_bonded_count() == 0) {
-		retry_cnt = 0;
-		return;
-	}
-
-	if (hid_kbd_is_any_cccd_enabled()) {
-		co_printf("[CCCD] STB enabled after %ums\r\n", CCCD_RETRY_INTERVAL_MS * retry_cnt);
-		retry_cnt = 0;
-		return;
-	}
-
-	retry_cnt++;
-	if (retry_cnt >= CCCD_RETRY_MAX) {
-		co_printf("[CCCD] STB did not enable after %ums, forcing...\r\n",
-		          CCCD_RETRY_INTERVAL_MS * CCCD_RETRY_MAX);
-		hid_kbd_force_cccd_enable(g_peer);
-		retry_cnt = 0;
-	} else {
-		sdk_timer_add(CCCD_RETRY_INTERVAL_MS, 0, cccd_retry_handle, NULL);
-	}
+    (void)arg;
+    if (event != s_connection_generation || g_peer == NULL) return;
+    s_cccd_retry_tid = BR_TIMER_INVALID_HANDLER;
+    if (!peer_bonded_count() || hid_kbd_is_any_cccd_enabled()) {
+        s_cccd_retry_count = 0u;
+        return;
+    }
+    if (++s_cccd_retry_count >= CCCD_RETRY_MAX) {
+        hid_kbd_force_cccd_enable(g_peer);
+        s_cccd_retry_count = 0u;
+    } else s_cccd_retry_tid = sdk_timer_add(CCCD_RETRY_INTERVAL_MS,
+                         s_connection_generation, cccd_retry_handle, NULL);
 }
 
 static void conn_parm_updata_handle(uint8_t event,void *arg)
 {
-	// 连接成功后触发参数更新：使用最近一次合规参数
-	ble_conn_params_apply(g_peer, &g_last_good_params);
-	conn_update_timer_id = BR_TIMER_INVALID_HANDLER;
-
-	// 启动 CCCD 自旋检查：每 500ms 检查 STB 是否已写 CCCD，最多等 3s
-	if (peer_bonded_count() > 0 && g_peer != NULL) {
-		cccd_retry_handle(0, NULL);
-	}
+    (void)arg;
+    if (event != s_connection_generation || g_peer == NULL) return;
+    conn_update_timer_id = BR_TIMER_INVALID_HANDLER;
+    ble_conn_params_apply(g_peer, &g_last_good_params);
+    if (peer_bonded_count()) cccd_retry_handle(event, NULL);
 }
 
 // 连接参数更新完成回调，成功时保存参数，失败时保持之前的好参数不变
@@ -292,7 +279,7 @@ static void ble_gap_peer_bonded(gap_event_t ev, void *ctx, peer_inf_update_t *ar
     {
         uint32_t hdr_sz = sizeof(ble_bonding_store_hdr_t);
         uint32_t total_sz = hdr_sz + arg->inf_sz;
-        uint8_t buf[sizeof(ble_bonding_store_hdr_t) + BLE_BONDING_MAX_DATA_SZ];
+        uint8_t buf[sizeof(ble_bonding_store_hdr_t) + BLE_BONDING_MAX_DATA_SZ] = {0};
 
         ble_bonding_store_hdr_t *hdr = (ble_bonding_store_hdr_t *)buf;
         hdr->magic = BLE_BONDING_STORE_MAGIC;
@@ -303,11 +290,15 @@ static void ble_gap_peer_bonded(gap_event_t ev, void *ctx, peer_inf_update_t *ar
         // 获取对端身份地址，回连广播白名单过滤使用
         uint8_t addr_type = ADDR_TYPE_PUBLIC;
         bd_addr_t addr = {0};
-        if (smp_get_ident_addr(arg->peer, &addr_type, addr)) {
+        if (smp_get_ident_addr(arg->peer, &addr_type, addr) ||
+            peer_addr_get(arg->peer, &addr_type, addr)) {
             hdr->peer_addr_type = addr_type;
             memcpy(hdr->peer_addr, addr, 6);
             co_printf("peer ident addr: type=%d %02X:%02X:%02X:%02X:%02X:%02X",
                 addr_type, addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]);
+        } else {
+            co_printf("bonding address unavailable, not persisted");
+            return;
         }
 
         memcpy(buf + hdr_sz, arg->inf, arg->inf_sz);
@@ -318,9 +309,10 @@ static void ble_gap_peer_bonded(gap_event_t ev, void *ctx, peer_inf_update_t *ar
         }
         hdr->checksum = sum;
 
-        Qflash_Erase_Sector(BLE_BONDING_STORE_ADDR);
-        Qflash_Write(BLE_BONDING_STORE_ADDR, buf, total_sz);
-        co_printf("bonding info saved to flash");
+        if (Qflash_Erase_Sector(BLE_BONDING_STORE_ADDR) != FlashOperationSuccess ||
+            Qflash_Write(BLE_BONDING_STORE_ADDR, buf, total_sz) != FlashOperationSuccess) {
+            co_printf("bonding flash write failed");
+        } else co_printf("bonding info saved to flash");
     }
 }
 
@@ -334,6 +326,16 @@ static void ble_gap_peer_recover_cmpl(gap_event_t ev, void *ctx, peer_recover_cm
 
 void ble_gap_connected(gap_event_t ev, void *ctx, gap_conn_cmpl_t *arg)
 {
+    if (arg == NULL || arg->result != GAP_HCI_STATUS_OK || arg->peer == NULL) {
+        co_printf("[GAP  ] failed connection ignored\r\n");
+        return;
+    }
+    if (pm_state_get() == PM_STATE_SLEEP) {
+        le_conn_destory(arg->peer);
+        return;
+    }
+    ++s_connection_generation;
+    s_cccd_retry_count = 0u;
 	//app_usart_dma_enable(ENABLE);
 	co_printf("conn complete, %08X, %02X", (uint32_t)arg->peer, arg->result);
 	bleConnectOk = 0xa6;	// 连接成功标志，语音notify需要！！！！！！
@@ -344,7 +346,7 @@ void ble_gap_connected(gap_event_t ev, void *ctx, gap_conn_cmpl_t *arg)
 	// 通知电源管理状态机：连接建立，由配对/回连态切换到工作态
 	pm_notify_connected();
 	// 连接后延时触发参数更新，避免刚连接时立即修改导致失败
-	conn_update_timer_id = sdk_timer_add(3000, 0, conn_parm_updata_handle, NULL); // 符合GY/T 407-2024 条款5.1.2.3
+	conn_update_timer_id = sdk_timer_add(3000, s_connection_generation, conn_parm_updata_handle, NULL); // 符合GY/T 407-2024 条款5.1.2.3
 }
 
 void ble_gap_disconnected(gap_event_t ev, void *ctx, gap_disc_cmpl_t *arg)
@@ -352,6 +354,12 @@ void ble_gap_disconnected(gap_event_t ev, void *ctx, gap_disc_cmpl_t *arg)
 	(void)ev;
 	(void)ctx;
 
+    ++s_connection_generation;
+    s_cccd_retry_count = 0u;
+    if (s_cccd_retry_tid != BR_TIMER_INVALID_HANDLER) {
+        (void)sdk_timer_del(s_cccd_retry_tid);
+        s_cccd_retry_tid = BR_TIMER_INVALID_HANDLER;
+    }
 	//app_usart_dma_enable(DISABLE);
 	// 断开后清理定时器
 	if (conn_update_timer_id != BR_TIMER_INVALID_HANDLER) {
@@ -365,6 +373,7 @@ void ble_gap_disconnected(gap_event_t ev, void *ctx, gap_disc_cmpl_t *arg)
 	 * 注意：此调用必须在 bleConnectOk/g_peer 清零之前执行，
 	 *       因为 pm_notify_disconnected 内部需要查询 peer_bonded_count()。
 	 */
+	g_peer = NULL; /* Do not update connection parameters through a dead peer. */
 	pm_notify_disconnected();
 
 	//ble_adv_start_by_bonding();
@@ -389,12 +398,17 @@ void ble_gap_process_disconnect_pending(void)
 		return;
 	}
 	s_disconnect_work_pending = 0U;
-	task_keyscan_reset_on_ble_disconnect();
+    {
+        uint16_t wake_key = key_receive;
+        task_keyscan_reset_on_ble_disconnect();
+        if (pm_state_get() == PM_STATE_SLEEP) key_receive = wake_key;
+    }
 	hid_kbd_on_disconnect();
 	rc_trans_reset();
 	rc_cat1_cancel_pending();
 	ble_rc_svc_on_disconnect();
 	ble_bas_on_disconnect();
+    if (pm_state_get() == PM_STATE_SLEEP) return;
 
 	// 解配进行中时跳过广播重启，由 combo_key 状态机处理后续
 	if (combo_key_unpair_in_progress()) {
@@ -526,9 +540,10 @@ int ble_gap_init(void)
     // 尝试从Flash恢复绑定信息，使机顶盒能基于之前的配对自动重连
     {
         uint32_t hdr_sz = sizeof(ble_bonding_store_hdr_t);
-        uint8_t bond_buf[sizeof(ble_bonding_store_hdr_t) + BLE_BONDING_MAX_DATA_SZ];
+        uint8_t bond_buf[sizeof(ble_bonding_store_hdr_t) + BLE_BONDING_MAX_DATA_SZ] = {0};
 
-        Qflash_Read(BLE_BONDING_STORE_ADDR, bond_buf, hdr_sz);
+        if (Qflash_Read(BLE_BONDING_STORE_ADDR, bond_buf, hdr_sz) != FlashOperationSuccess)
+            memset(bond_buf, 0, sizeof(bond_buf));
         ble_bonding_store_hdr_t *bond_hdr = (ble_bonding_store_hdr_t *)bond_buf;
 
         if (bond_hdr->magic == BLE_BONDING_STORE_MAGIC
@@ -537,7 +552,8 @@ int ble_gap_init(void)
             && bond_hdr->data_sz <= BLE_BONDING_MAX_DATA_SZ) {
 
             // 读取完整数据
-            Qflash_Read(BLE_BONDING_STORE_ADDR, bond_buf, hdr_sz + bond_hdr->data_sz);
+            if (Qflash_Read(BLE_BONDING_STORE_ADDR, bond_buf, hdr_sz + bond_hdr->data_sz) != FlashOperationSuccess)
+                bond_hdr->magic = 0u;
 
             // 校验和验证
             uint32_t sum = 0;
@@ -546,7 +562,7 @@ int ble_gap_init(void)
             }
             
             // 校验和验证通过才恢复绑定信息，避免错误数据导致连接问题
-            if (sum == bond_hdr->checksum) {
+            if (bond_hdr->magic == BLE_BONDING_STORE_MAGIC && sum == bond_hdr->checksum) {
                 co_printf("bonding found, recovering %d bytes...", (int)bond_hdr->data_sz);
                 peer_recover(bond_buf + hdr_sz, bond_hdr->data_sz, NULL, NULL);
                 co_printf("bonding info recovered OK");
@@ -623,8 +639,7 @@ void ble_gap_led_indicate(void)
 }
 
 // 清除 Flash 中的配对与绑定信息（恢复出厂设置时调用）
-// 注：BLE_BONDING_STORE_ADDR(0x01069000) 处于固件代码区，不能直接 Erase_Sector
-// 会毁掉 BLE 协议栈代码。改为写 0 到 header magic 字段使其失效。
+// 绑定位于独立0x01069000扇区；写0使magic失效，避免解配时整扇区擦除。
 void ble_gap_clear_bonding_info(void)
 {
     peer_t peer;

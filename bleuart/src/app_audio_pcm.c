@@ -113,7 +113,7 @@ static void DMA_Configuration(void)
 	DMA_EnableChannel(DMA_CH1, ENABLE);
 }
 
-// 仅关 DMA 中断：外设中断屏蔽 + NVIC，不改时钟、不关 DMA 通道、不关 ADC
+// 只屏蔽DMA_CH1的外设中断，不关闭多个通道共用的NVIC入口。
 static void Audio_Pcm_CaptureIrqDisable(void)
 {
 	if (g_audio_capture_hw_on == 0U) {
@@ -121,9 +121,8 @@ static void Audio_Pcm_CaptureIrqDisable(void)
 	}
 
 	__disable_irq();
-	NVIC_DisableIRQ(DMA_Channel1_2_3_4_IRQn);
-	NVIC_ClearPendingIRQ(DMA_Channel1_2_3_4_IRQn);
 	DMA_ConfigInt(DMA_CH1, DMA_INT_HTX | DMA_INT_TXC | DMA_INT_ERR, DISABLE);
+    DMA_ClrIntPendingBit(DMA_INT_GLB1 | DMA_INT_HTX1 | DMA_INT_TXC1 | DMA_INT_ERR1, DMA);
 	__enable_irq();
 
 	g_audio_capture_hw_on = 0U;
@@ -203,6 +202,7 @@ void Audio_Pcm_Start(void)
 	}
 
 	Encoder_Sbc_Enable();
+    if(!Encoder_Sbc_IsReady()){co_printf("[VOICE] start blocked: encoder unavailable\r\n");return;}
 	Audio_Pcm_CaptureEnable();  // 内含 Audio_Pcm_PlatformInit
 
 	bleResetVoiceSbcSeq();  // 语音包序列号/时间戳从 0 开始

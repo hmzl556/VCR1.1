@@ -4,6 +4,8 @@
 #include "rc_cat1_bridge.h"
 #include "co_printf.h"
 #include "udp_ota.h"
+#include "gmem.h"
+#include "pm_state.h"   /* pm_state_get / PM_STATE_STANDBY */
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -32,11 +34,7 @@ static uint32_t s_asm_last_ms;
  */
 static uint32_t rc_trans_now_ms(void)
 {
-    if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING)
-    {
-        return (uint32_t)xTaskGetTickCount() * (uint32_t)portTICK_PERIOD_MS;
-    }
-    return 0u;
+    return app_now_ms();
 }
 
 static void rc_trans_touch_activity(void)
@@ -240,7 +238,7 @@ void rc_trans_poll(void)
 {
     uint32_t now_ms;
 
-    if (!s_asm_active || s_assembled_ready || s_asm_last_ms == 0u)
+    if (!s_asm_active || s_assembled_ready)
     {
         return;
     }
@@ -263,7 +261,7 @@ void rc_trans_note_upload_ok(uint32_t pack_index)
     s_have_last_ok = 1u;
 }
 
-const uint8_t *rc_trans_get_assembled(uint16_t *len)
+uint8_t *rc_trans_get_assembled(uint16_t *len)
 {
     if (!s_assembled_ready || len == NULL)
     {
@@ -303,6 +301,12 @@ int rc_trans_on_write(peer_t peer, const uint8_t *val, uint16_t len)
         rc_trans_fail(peer, RC_RESULT_BUSY_REJECT, RC_PACK_INDEX_NONE);
         return -1;
     }
+
+    /*
+     * 收到 RC-TRANS → 通知 PM 有对端数据活动。
+     * 待机态下会退出到工作态, CAT1 由主循环检测 s_pending_tlv 后上电。
+     */
+    pm_activity_notify(PM_ACTIVITY_PEER_DATA);
 
     rc_trans_log_rx(val, len);
 

@@ -4,6 +4,7 @@
  */
 #include "udp_bootload.h"
 #include "qflash.h"
+#include "iwdg.h"
 #include <string.h>
 
 /** Flash 单次关中断写入粒度；片间 pump 以接收异步 +SKTRECV */
@@ -36,7 +37,7 @@ static int udp_bootload_addr_in_app2(uint32_t addr, uint32_t len)
 		return 0;
 	}
 	end = addr + len - 1u;
-	if (addr < FLASH_APP2_START || end >= (FLASH_APP2_START + FLASH_APP2_SIZE)) {
+	if (addr < FLASH_APP2_START || end < addr || end >= (FLASH_APP2_START + FLASH_APP2_SIZE)) {
 		return -1;
 	}
 	return 0;
@@ -54,6 +55,7 @@ static int udp_bootload_erase_range(uint32_t start, uint32_t len)
 		if (Qflash_Erase_Sector(addr) != FlashOperationSuccess) {
 			return -1;
 		}
+		IWDG_ReloadKey(); /* Feed only after a sector made forward progress. */
 		cat1_skt_udp_pump_urc();
 	}
 	return 0;
@@ -93,6 +95,7 @@ int udp_bootload_prepare_backup(const BOOTLOAD_PARA_STRUCT *para)
 static int udp_bootload_write_buf(uint32_t abs_addr, uint16_t len)
 {
 	uint32_t offset;
+    uint8_t check[UDP_FLASH_SUBWRITE];
 
 	for (offset = 0u; offset < (uint32_t)len; offset += UDP_FLASH_SUBWRITE) {
 		uint32_t sub = (uint32_t)len - offset;
@@ -104,6 +107,8 @@ static int udp_bootload_write_buf(uint32_t abs_addr, uint16_t len)
 		    != FlashOperationSuccess) {
 			return -1;
 		}
+        if (Qflash_Read(abs_addr + offset, check, sub) != FlashOperationSuccess ||
+            memcmp(check, s_flash_wr_buf + offset, sub)) return -1;
 		cat1_skt_udp_pump_urc();
 	}
 	return 0;
@@ -176,14 +181,16 @@ int udp_bootload_write_chunk(uint32_t abs_addr, const uint8_t *data, uint16_t le
  */
 int udp_bootload_write_cfg(const BOOTLOAD_PARA_STRUCT *para)
 {
-	BOOTLOAD_PARA_STRUCT cfg;
+	BOOTLOAD_PARA_STRUCT cfg, check;
 
-	if (para == NULL) {
+	if (para == NULL || para->prog_store_addr != FLASH_APP2_START ||
+        para->prog_write_addr != FLASH_APP1_START || !para->prog_length ||
+        para->prog_length > FLASH_APP1_SIZE || para->prog_length > FLASH_APP2_SIZE) {
 		return -1;
 	}
 
 	memcpy(&cfg, para, sizeof(cfg));
-	cfg.prog_success_flag = OTA_UPGRADE_FLAG;
+	cfg.prog_success_flag = 0xffffffffu;
 
 	if (Qflash_Erase_Sector(FLASH_OTA_CFG_START) != FlashOperationSuccess) {
 		return -1;
@@ -192,6 +199,10 @@ int udp_bootload_write_cfg(const BOOTLOAD_PARA_STRUCT *para)
 	                 (uint8_t *)&cfg, (uint32_t)sizeof(cfg)) != FlashOperationSuccess) {
 		return -1;
 	}
+    if (udp_bootload_read_para(&check) != 0 || memcmp(&cfg, &check, sizeof(cfg))) return -1;
+    cfg.prog_success_flag = OTA_UPGRADE_FLAG;
+    if (Qflash_Write(FLASH_OTA_CFG_START + 16u, (uint8_t *)&cfg.prog_success_flag, 4u) != FlashOperationSuccess ||
+        udp_bootload_read_para(&check) != 0 || memcmp(&cfg, &check, sizeof(cfg))) return -1;
 	return 0;
 }
 
@@ -299,65 +310,108 @@ void udp_bootload_clear_done_marker(void)
 	                   (uint8_t *)&marker, (uint32_t)sizeof(marker));
 }
 
+/* Append-only 32-byte records inside the existing OTA configuration sector.
+ * Each record has a CRC and a last-written commit word. NOR writes only clear
+ * bits: overwriting written_seq in place cannot persist successive checkpoints.
+ * The bootloader parameter (+0) and completion marker (+0x100) stay unchanged.
+ */
+#define CP_COMMIT 0x43504a31u
+#define CP_RECORD_BYTES 32u
+#define CP_RECORD_COUNT ((FLASH_OTA_CFG_SIZE - FLASH_OTA_CHECKPOINT_OFFSET) / CP_RECORD_BYTES)
+typedef struct {
+    OTA_CHECKPOINT_STRUCT cp;
+    uint32_t crc;
+    uint32_t reserved[2];
+    uint32_t commit;
+} checkpoint_record_t;
+typedef char cp_size_check[(sizeof(checkpoint_record_t) == CP_RECORD_BYTES) ? 1 : -1];
+
+static uint32_t checkpoint_crc(const OTA_CHECKPOINT_STRUCT *cp)
+{
+    const uint8_t *p = (const uint8_t *)cp;
+    uint32_t crc = 0xffffffffu;
+    unsigned i, bit;
+    for (i = 0u; i < sizeof(*cp); ++i) {
+        crc ^= p[i];
+        for (bit = 0u; bit < 8u; ++bit)
+            crc = (crc >> 1) ^ ((crc & 1u) ? 0xedb88320u : 0u);
+    }
+    return ~crc;
+}
+
+static int checkpoint_fields_valid(const OTA_CHECKPOINT_STRUCT *cp)
+{
+    if (!cp || cp->version == 0u || cp->total_packets == 0u ||
+        cp->total_packets > FLASH_APP2_SIZE / OTA_CHUNK_SIZE ||
+        cp->written_seq >= cp->total_packets) return 0;
+    if (cp->written_seq > 0u &&
+        (!cp->prog_length || cp->prog_length > FLASH_APP2_SIZE ||
+         (cp->prog_length + OTA_CHUNK_SIZE - 1u) / OTA_CHUNK_SIZE != cp->total_packets)) return 0;
+    return 1;
+}
+
+static int checkpoint_cfg_erasable(void)
+{
+    BOOTLOAD_PARA_STRUCT para;
+    if (udp_bootload_read_para(&para) != 0) return 0;
+    /* Never erase a committed image that the bootloader must install. */
+    return para.prog_success_flag != OTA_UPGRADE_FLAG;
+}
+
 int udp_bootload_write_checkpoint(const OTA_CHECKPOINT_STRUCT *cp)
 {
-	OTA_CHECKPOINT_STRUCT out;
-
-	if (cp == NULL || cp->version == 0u || cp->total_packets == 0u) {
-		return -1;
-	}
-	if (cp->written_seq >= cp->total_packets) {
-		return -1;
-	}
-	if (cp->written_seq > 0u
-	    && (cp->prog_length == 0u || cp->prog_length > FLASH_APP2_SIZE)) {
-		return -1;
-	}
-
-	memcpy(&out, cp, sizeof(out));
-	out.magic = OTA_CHECKPOINT_MAGIC;
-	if (Qflash_Write(FLASH_OTA_CHECKPOINT_ADDR,
-	                 (uint8_t *)&out, (uint32_t)sizeof(out)) != FlashOperationSuccess) {
-		return -1;
-	}
-	return 0;
+    checkpoint_record_t rec, check;
+    uint32_t i, j, addr = 0u;
+    if (!checkpoint_fields_valid(cp)) return -1;
+    for (i = 0u; i < CP_RECORD_COUNT; ++i) {
+        uint32_t candidate = FLASH_OTA_CHECKPOINT_ADDR + i * CP_RECORD_BYTES;
+        const uint8_t *bytes = (const uint8_t *)&check;
+        if (Qflash_Read(candidate, (uint8_t *)&check, sizeof(check)) != FlashOperationSuccess) return -1;
+        for (j = 0u; j < sizeof(check) && bytes[j] == 0xffu; ++j) {}
+        if (j == sizeof(check)) { addr = candidate; break; }
+    }
+    if (!addr) {
+        /* A rollover can lose resume progress on power failure, but cannot
+         * commit an incomplete image: the next download then starts fresh. */
+        if (!checkpoint_cfg_erasable() || Qflash_Erase_Sector(FLASH_OTA_CFG_START) != FlashOperationSuccess) return -1;
+        addr = FLASH_OTA_CHECKPOINT_ADDR;
+    }
+    memset(&rec, 0xff, sizeof(rec));
+    rec.cp = *cp;
+    rec.cp.magic = OTA_CHECKPOINT_MAGIC;
+    rec.crc = checkpoint_crc(&rec.cp);
+    if (Qflash_Write(addr, (uint8_t *)&rec, sizeof(rec) - 4u) != FlashOperationSuccess) return -1;
+    if (Qflash_Read(addr, (uint8_t *)&check, sizeof(check)) != FlashOperationSuccess ||
+        memcmp(&rec, &check, sizeof(rec) - 4u)) return -1;
+    rec.commit = CP_COMMIT;
+    if (Qflash_Write(addr + sizeof(rec) - 4u, (uint8_t *)&rec.commit, 4u) != FlashOperationSuccess) return -1;
+    if (Qflash_Read(addr, (uint8_t *)&check, sizeof(check)) != FlashOperationSuccess || memcmp(&rec, &check, sizeof(rec))) return -1;
+    return 0;
 }
 
 uint8_t udp_bootload_read_checkpoint(OTA_CHECKPOINT_STRUCT *cp)
 {
-	OTA_CHECKPOINT_STRUCT in;
-
-	if (cp == NULL) {
-		return 0u;
-	}
-	if (Qflash_Read(FLASH_OTA_CHECKPOINT_ADDR,
-	                (uint8_t *)&in, (uint32_t)sizeof(in)) != FlashOperationSuccess) {
-		return 0u;
-	}
-	if (in.magic != OTA_CHECKPOINT_MAGIC) {
-		return 0u;
-	}
-	if (in.version == 0u || in.total_packets == 0u) {
-		return 0u;
-	}
-	if (in.written_seq >= in.total_packets) {
-		return 0u;
-	}
-	if (in.written_seq > 0u
-	    && (in.prog_length == 0u || in.prog_length > FLASH_APP2_SIZE)) {
-		return 0u;
-	}
-	memcpy(cp, &in, sizeof(*cp));
-	return 1u;
+    checkpoint_record_t rec;
+    uint32_t i;
+    uint8_t found = 0u;
+    if (!cp) return 0u;
+    for (i = 0u; i < CP_RECORD_COUNT; ++i) {
+        if (Qflash_Read(FLASH_OTA_CHECKPOINT_ADDR + i * CP_RECORD_BYTES,
+                        (uint8_t *)&rec, sizeof(rec)) != FlashOperationSuccess) return 0u;
+        if (rec.commit == CP_COMMIT && rec.cp.magic == OTA_CHECKPOINT_MAGIC &&
+            checkpoint_fields_valid(&rec.cp) && rec.crc == checkpoint_crc(&rec.cp)) {
+            *cp = rec.cp;
+            found = 1u;
+        }
+    }
+    return found;
 }
 
 void udp_bootload_clear_checkpoint(void)
 {
-	OTA_CHECKPOINT_STRUCT zero;
-
-	memset(&zero, 0, sizeof(zero));
-	(void)Qflash_Write(FLASH_OTA_CHECKPOINT_ADDR,
-	                   (uint8_t *)&zero, (uint32_t)sizeof(zero));
+    /* A successful write_cfg already erased the journal. Keep its install
+     * flag intact. During a failed/fresh download only this OTA sector clears. */
+    if (checkpoint_cfg_erasable()) (void)Qflash_Erase_Sector(FLASH_OTA_CFG_START);
 }
 
 int udp_bootload_run_bootloader(void)
@@ -370,12 +424,12 @@ int udp_bootload_run_bootloader(void)
 	if (para.prog_success_flag != OTA_UPGRADE_FLAG) {
 		return -1;
 	}
-	if (Qflash_Erase_Sector(FLASH_OTA_CFG_START) != FlashOperationSuccess) {
-		return -2;
-	}
-	if (udp_bootload_copy_app2_to_app1(&para) != 0) {
-		return -3;
-	}
+    if (udp_bootload_copy_app2_to_app1(&para) != 0) {
+        return -3; /* Keep the install flag so a reboot can retry. */
+    }
+    if (Qflash_Erase_Sector(FLASH_OTA_CFG_START) != FlashOperationSuccess) {
+        return -2;
+    }
 	if (udp_bootload_write_done_marker() != 0) {
 		return -4;
 	}

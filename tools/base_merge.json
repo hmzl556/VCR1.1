@@ -1,0 +1,192 @@
+{
+  "files": [
+    {
+      "path": "bleuart\\cat1\\cat1\\cat1_skt_udp.c",
+      "incoming_sha256": "2aa51062d2fdc8fd75c870183c6456a487412a3b51e3fdfc5017594bcbe51eaa",
+      "result_sha256": "f731cb96dcfe4c6daf0d9142dcdbb5580636ea0b5091e69a02c8498cf220010e",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\cat1\\cat1\\cat1_skt_udp.h",
+      "incoming_sha256": "fd3acabae64dc48c9ab9bcedffaaf0895f7cb311f96c3ac75fab18e2746ee900",
+      "result_sha256": "2610bbd9fa42673bdc0efed270a4cbb072fe523fbe934d7345072855290c7a5b",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\cat1\\cat1\\cat1_time_sync.c",
+      "incoming_sha256": "daf773c874e8213f844b1f496b6d613becae621311b5c7f96ef96602ddf446e4",
+      "result_sha256": "e31901348726a86c6cf34e5700864cce962f459e5e37eb8db868ee587ed1767c",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\cat1\\cat1\\heartbeat.c",
+      "incoming_sha256": "b4745165d1ea45f81ded2ae49e25c16148cb5db9c0fbdcff4f6af1088ba02fd7",
+      "result_sha256": "c5a668f735a2b72d09d59835478bb0f1b5614fdfe387ff1a951c368e6f4e8a5f",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\cat1\\cat1\\heartbeat.h",
+      "incoming_sha256": "1296408f9069ca17808b4d6bcc92b453cc5dcfc49f5f499b9db3c0de63439742",
+      "result_sha256": "123f8104d8b2de3d7a9d0694e93d2e99046b00d4773742790679607fe46b3762",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\cat1\\cat1\\rc_cat1_bridge.c",
+      "incoming_sha256": "77a641370851a5982dfec14ff42c7022194e82571ff2ddecd827d6f086b78ef4",
+      "result_sha256": "6b716bdc76965a92a62ceed3f8a84cb059798cf5845648ae7671a45bfd4ce23a",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\cat1\\cat1\\rc_cat1_bridge.h",
+      "incoming_sha256": "eb6a5e72cabaf91fce84a91e2ebdc22e2cc76d400c6e65e3b2b6af8bfb720a4d",
+      "result_sha256": "522ac7d34246bd76695df7af26c6e3316e125dd4060e87e899fd062a5f0b860b",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\cat1\\cat1\\rc_protocol.h",
+      "incoming_sha256": "6a5f488809809462d68cbf74f07da8736f01d5b01ba59eaac5755966907ff0e1",
+      "result_sha256": "ca43aee121bc7c99e4f8eb37a96ef77c16039841a89c4c55123487c2a337497a",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\cat1\\cat1\\rc_trans_assembly.c",
+      "incoming_sha256": "f03dd394f8794c98e9da5b5ca0290b336ec535d53510a22f1be1a186c4c9229e",
+      "result_sha256": "28271d290598b3a7160ba45bd70d78d0fbda769c79407deb4b10e1f658aa5ab8",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\cat1\\cat1\\remote_reports.c",
+      "incoming_sha256": "b44336a45de7ffafe38b13f6fef3cf65b6d60f659812a195a8d89134206cf853",
+      "result_sha256": "c93b255919046c204b2132d8ec4ad0bbe94edbbb92c13574b0d19ead3730aaff",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\cat1\\cat1\\remote_reports.h",
+      "incoming_sha256": "2bb9ad4271645ef933826e2b1189fd01b2c891a6336357db1818b536ed542674",
+      "result_sha256": "07a72c67b9ae6ee929e3172944716626868f755f3ca1295b4798269536d659a2",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\inc\\app_keyscan.h",
+      "incoming_sha256": "c2f92be380c90b917bebece0cc894915b32f4e2dd4f39bbc8c5e6e9e3098a1ab",
+      "result_sha256": "dbe85a72802547c339458d730b44b046c88fc850117238af31817afeb0bf6a59",
+      "text_merge_conflicts_reviewed": true
+    },
+    {
+      "path": "bleuart\\inc\\bat_adc.h",
+      "incoming_sha256": "e7cc8de32b99b160dc3f4f45d6ca9507a9205b1d7865b8a8c2717bb5eeab1251",
+      "result_sha256": "e3f33ee1580944a7f3be4654cb98ba0fa4d44469a0fe8255b9fe0d4e7936ca48",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\inc\\task_keyscan.h",
+      "incoming_sha256": "bf763f652ec31773a6a7a6d1b2c6d591699e436c1a1cae4bd37d113d1f50fa07",
+      "result_sha256": "093b4b6a0e6a5547c86bb34dd26f12efd558bdf461088fa16ebb3596f2c47d40",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\pmu\\inc\\pm_config.h",
+      "incoming_sha256": "0bcf5ab52483256b683595b241640f5e4ddbfdc50f52545f409da96f843db7a3",
+      "result_sha256": "0a739a719ec86cabc000703947a45f820cc35591ac7b87e00cfd1cf4ad7a31a4",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\pmu\\inc\\pm_state.h",
+      "incoming_sha256": "bf03be17c916938f8d6b0dffb3fc4e7f57cbcbac711ef871908df0a8f2d1986a",
+      "result_sha256": "d3f8aa52937be01a34406f7ef88186abefe208bd71eed0f2bf22f9c5095be7a1",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\pmu\\src\\pm_sleep.c",
+      "incoming_sha256": "380d7b88cd31a3950da8e1172dee0f154a5ffde4a5bcb8b6d186d6d838019b35",
+      "result_sha256": "509d76b3cc55958644a8c74957913f55450786cd0624db382d08649c9eb4ff3a",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\pmu\\src\\pm_standby.c",
+      "incoming_sha256": "2ffdf27a8da6798f50f9de2a0057632b3dbed48875462f6c00f883493afa0e27",
+      "result_sha256": "2019273cd8bc83a96db95ee5a469137995f77ca828c84667f28c11865658026a",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\pmu\\src\\pm_state.c",
+      "incoming_sha256": "593bf0cf5d56bc03a130116c19f9da93a48e162edacebadc43c7fe1186d88726",
+      "result_sha256": "2585c7b8a946c2597f4bee0f53fc19ff7ae266d68ecd8379c90355130911408a",
+      "text_merge_conflicts_reviewed": true
+    },
+    {
+      "path": "bleuart\\prj\\ble_dtss.uvprojx",
+      "incoming_sha256": "993a715d03561e008b3b7d19645456cdb49ab683163a4df3b343f621218ea535",
+      "result_sha256": "4d5f28ce0aab02f348bc252755754b717a89f650b9bfe031a76d5b1248c47f6b",
+      "text_merge_conflicts_reviewed": true
+    },
+    {
+      "path": "bleuart\\prj\\startup_br1601x.s",
+      "incoming_sha256": "7efde082563dbf9d59a628786c2260a43b65b8023d2db5122625b46a542ebe16",
+      "result_sha256": "bbdc02091ae194181802fc4dc29635d95dc6a161dc7f0cfcec5c9de34bd976d6",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\src\\app_audio_pcm.c",
+      "incoming_sha256": "6fd12573e18e1369d689235223f462121e5baab00322dfb4d232d12360d8ef1e",
+      "result_sha256": "cd431513f0a4f1232e36971fef52a51dddfb1992d55c84c0dc1c3ba78e72aca5",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\src\\app_keyscan.c",
+      "incoming_sha256": "0aa877aef881f58b19e3c45a6e8dd6cbdf0b12bb275e2c64f528f7e736da93f8",
+      "result_sha256": "0e2aabe7d7e1e10b4a3bd66d2258ae5a4a0190a10b878a2985af039af74fa45c",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\src\\ble_adv.c",
+      "incoming_sha256": "6d00d6a80fc694cfe88b6e9792120cd522c6b03ac891a6c72610325a47079d28",
+      "result_sha256": "a59d7cb7374d1ad1daa2afc16d2d834fa062c5e99c74b0c87e7af4eaa39bd27f",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\src\\ble_gap.c",
+      "incoming_sha256": "aff6ca134ca6e537c450169f12ee0ecdc83867079a029fba82f9d9b1cf703ca8",
+      "result_sha256": "e4529708f91d5505e5a2506f3e20551ab192f5f193c59d316cf0f254ad00e6dc",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bleuart\\src\\combo_key.c",
+      "incoming_sha256": "641239967aebb45db385c12567a2a84c7eeb9154f52fb5dcfd07ad0506aa959e",
+      "result_sha256": "30522722ee6b66d182a56fce94a33d644e0b6256695ef9700ba4eecdb0bbf5eb",
+      "text_merge_conflicts_reviewed": true
+    },
+    {
+      "path": "bleuart\\src\\main.c",
+      "incoming_sha256": "15b27ff24bf222cec3d6d04e9a5f05d1af5456799de26e19205492247c610578",
+      "result_sha256": "ff66c4fea002d201d7d09607e4f65ebdb00ae3e1379722f1e15bb4a91387c020",
+      "text_merge_conflicts_reviewed": true
+    },
+    {
+      "path": "bleuart\\src\\task_ble.c",
+      "incoming_sha256": "004bbe83b4c9977400c36ac17c1555aa1ad84464d9be5aef5e045651531c6e35",
+      "result_sha256": "f7a44b928a2272700aed2016bc5b00bede9c6a154c760b935a7228fc4269df0f",
+      "text_merge_conflicts_reviewed": true
+    },
+    {
+      "path": "bleuart\\src\\task_keyscan.c",
+      "incoming_sha256": "f4332f15de46dc8297019f4327ae50d2de90ee488f72881d3e05f04dbb6bf352",
+      "result_sha256": "bb293867bdaa8a604b68da5d2497f34552af1d9880460b715ddc21d7fcb55abc",
+      "text_merge_conflicts_reviewed": true
+    },
+    {
+      "path": "bsp\\driver\\inc\\pwr.h",
+      "incoming_sha256": "d14e9153fc8449a33c661dc84e025000a1ea043a7caa02a26ee6c382a4d98e9b",
+      "result_sha256": "5f2211784bb066b9d6d04905207a4cab4a4bfea6ef7c640cdfce711995dafae3",
+      "text_merge_conflicts_reviewed": false
+    },
+    {
+      "path": "bsp\\driver\\src\\pwr.c",
+      "incoming_sha256": "ff537d82cb985ee7444382a2211bb496621aa6ea715e259ab66945217eb44738",
+      "result_sha256": "2ffb4eb7d0d1646edbe7758eb582c5ca270b2a2b886c66fe94b30d82fb51d147",
+      "text_merge_conflicts_reviewed": false
+    }
+  ],
+  "preserved_hardware": "USART1 PA4/PA5; PB4/PB5 IR; KEY18 PB9--PA6",
+  "preserved_layout": "raw A 0x0106B000, B 0x0106E000; APP1 0x01004000"
+}

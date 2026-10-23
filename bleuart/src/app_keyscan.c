@@ -91,26 +91,21 @@ void KEYSCAN_Configuration(uint8_t key_mask, uint8_t mode, uint8_t dts, uint8_t 
 	KEYSCAN_Enable(ENABLE);
 }
 
-//键盘扫描初始化函数
+/*
+ * KEY_44 在自动扫描模式下为 44 键，在低功耗扫描模式下为 20 键。
+ * 两者共用 MASK=1（8 IO：PA0,PA1,PA2,PA3,PA6,PB8,PB9,PB10），
+ * 硬件根据 MODE 位自动切换扫描方式和键数上限。
+ */
+#define KEY_20 KEY_44
+
+// 键盘扫描初始化 — 低功耗模式：按键 EXTI 触发唤醒，扫一轮后回休眠
 void ble_keyscan_init(void)
 {
-/* 	co_printf("\nThis is KEYSCAN demo in 17 key mode with 8 GPIO!\n");
-	co_printf("Connect each other PA0, PA2, PA1, PB10, PB9, PB8, PA6, PA3\n");
-	co_printf("Or connect one of then to GND or VCC as one key pressed. \n");
-	co_printf("-------PA0-----PA2-----PA1-----PB10----PB9-----PB8-----PA6----|\n");
-	co_printf("PA0-----------------------------------------------------------|\n");
-	co_printf("PA2---KEY_1---------------------------------------------------|\n");
-	co_printf("PA1---KEY_2---KEY_3-------------------------------------------|\n");
-	co_printf("PB10------------------KEY_17----------------------------------|\n");
-	co_printf("PB9-----------KEY_5---KEY_7---KEY_4---------------------------|\n");
-	co_printf("PB8---KEY_16--KEY_10--KEY_9---KEY_11--KEY_6-------------------|\n");
-	co_printf("PA6-----------KEY_12--KEY_14--KEY_13----------KEY_15----------|\n");
-	co_printf("PA3---------------------------------------------------KEY_8---|\n");
- */
-	//                      44        自动扫描           中断触发        消抖时间  扫描时间   使能
-	KEYSCAN_Configuration(KEY_44,MODE_FIXED_INTV/* MODE_PRESS_TRIG */, DTS_10MS, WTS_0MS, INT_EN);
+	//                      44        自动扫描     消抖时间  扫描时间   使能
+	KEYSCAN_Configuration(KEY_44,MODE_FIXED_INTV, DTS_10MS, WTS_32MS, INT_EN);
+	//                      8 IO / 20键  低功耗扫描 消抖时间  扫描时间   中断使能
+	//KEYSCAN_Configuration(KEY_20, MODE_PRESS_TRIG, DTS_10MS, WTS_0MS, INT_EN);
 }
-
 // 轮询当前键号：无键返回 0，与 IRQ 内解析方式一致
 uint8_t app_keyscan_read_key_id(void)
 {
@@ -126,6 +121,14 @@ uint8_t app_keyscan_read_key_id(void)
 		}
 	}
 	return 0;
+}
+
+/* Matrix activity includes simultaneous keys that have no single-key ID. */
+bool app_keyscan_any_pressed(void)
+{
+    uint32_t data[5] = {0};
+    KEYSCAN_ReadKeyData(data);
+    return (data[0] | data[1]) != 0u;
 }
 
 //键盘扫描中断服务函数
@@ -184,6 +187,7 @@ void KEYSCAN_IRQHandler(void)
     {
         extern volatile uint16_t key_receive;
 
+        //co_printf("KEYSCAN_KEY%d pressed\r\n", num);
         key_receive = (uint16_t)num;
     }
 }

@@ -63,24 +63,26 @@ uint16_t ota_prog_checksum16(const uint8_t *data, uint32_t len)
  * @param  len         Flash 长度
  * @return 累加和（自然 uint16 溢出截断）
  */
+int ota_prog_checksum16_flash_checked(uint32_t flash_addr, uint32_t len, uint16_t *out)
+{
+    uint8_t buf[256];
+    uint32_t off = 0u, i, chunk;
+    uint16_t sum = 0u;
+    if (!out || !len || flash_addr > 0xffffffffu - (len - 1u)) return -1;
+    while (off < len) {
+        chunk = len - off;
+        if (chunk > sizeof(buf)) chunk = sizeof(buf);
+        if (Qflash_Read(flash_addr + off, buf, chunk) != FlashOperationSuccess) return -1;
+        for (i = 0u; i < chunk; ++i) sum = (uint16_t)(sum + buf[i]);
+        off += chunk;
+    }
+    *out = sum;
+    return 0;
+}
+
 uint16_t ota_prog_checksum16_flash(uint32_t flash_addr, uint32_t len)
 {
-	uint8_t buf[256];
-	uint32_t off = 0u;
-	uint16_t sum = 0u;
-
-	while (off < len) {
-		uint32_t chunk = len - off;
-		uint32_t i;
-
-		if (chunk > (uint32_t)sizeof(buf)) {
-			chunk = (uint32_t)sizeof(buf);
-		}
-		(void)Qflash_Read(flash_addr + off, buf, chunk);
-		for (i = 0u; i < chunk; i++) {
-			sum = (uint16_t)(sum + buf[i]);
-		}
-		off += chunk;
-	}
-	return sum;
+    uint16_t sum = 0u;
+    (void)ota_prog_checksum16_flash_checked(flash_addr, len, &sum);
+    return sum;
 }

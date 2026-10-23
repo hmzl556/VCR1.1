@@ -1,0 +1,12 @@
+heartbeat: unchanged period, standby deferral, OTA/CAT1 exclusion, setup protection, queue-full retry, disable, clock wrap PASS
+CAT1 RX: interleaved CSCON/ECSONMI, full ICCID/CCLK/ECSORF/CME lines, incomplete ICCID retention PASS
+standby: KEYSCAN pins retained, V1.2 UART/IR independent park/restore, clocks, SDK timer and sleep locks PASS
+PM: SILENT/bond sync, IR/OTA/CAT1/heartbeat sleep guards, standby exit before sleep, retained-stack wake and reconnect PASS
+reports: Tag01/Tag0A lengths, 20-byte ASCII ICCID, battery, Tag11 heartbeat-only acceptance, malformed update atomicity PASS
+sleep: key/heartbeat wake, BLE stack retained, V1.2 UART/IR restore, KEYSCAN preserved, DMA_CH2 pending cleanup PASS
+SDK tick: slot zero, 100000 OTA arms, single timer, pause/stale callbacks, 10000 ticks, allocation retry PASS
+OTA safety: short/truncated/BCD frames, append-only checkpoints, 36 torn writes, rollover, read failures, chunk readback, install flag last PASS
+BLE lifecycle: failed connect, 100 reconnects, slot-zero timer cleanup, stale CCCD callbacks, sleep disconnect preserves wake key PASS
+voice control: STOP survives full queue, OTA/IR/disconnect reject stale START, STOP always works PASS
+AES/report boundary: NIST AES-128 vector, 1..560-byte PKCS round trips, bad padding/caps, actual 597-byte full-size RC-TRANS PASS
+OTA integrated flow: complete 400-chunk image, reset/resume at chunk 8, duplicate/out-of-order rejection, PAUSE/retry, IR-bank preservation, final read failure forbids install PASS

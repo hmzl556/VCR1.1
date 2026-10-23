@@ -68,6 +68,8 @@ static int ota_decode_length(const uint8_t *p, uint16_t *len_out)
 		return -1;
 	}
 
+	if ((p[0] >> 4) > 9u || (p[0] & 15u) > 9u ||
+        (p[1] >> 4) > 9u || (p[1] & 15u) > 9u) return -1;
 	v = (uint16_t)(((p[0] >> 4) & 0x0Fu) * 1000u
 	             + (p[0] & 0x0Fu) * 100u
 	             + ((p[1] >> 4) & 0x0Fu) * 10u
@@ -133,6 +135,11 @@ int ota_frame_parse_downlink(const uint8_t *frame, uint16_t frame_len,
 		return -1;
 	}
 
+    /* Verify the complete fixed header before accessing any data fields. */
+    if (body_len < 8u + OTA_DOWNLINK_HDR_SIZE) {
+        s_parse_fail_reason = OTA_PARSE_FAIL_HDR_ONLY_LEN;
+        return -1;
+    }
 	data = frame + 11;
 	data_len = (uint16_t)(body_len - 1u - 6u - 1u);
 	crc_raw = ota_frame_get_crc(frame + 3, (uint32_t)body_len);

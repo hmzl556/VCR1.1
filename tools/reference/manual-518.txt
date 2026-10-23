@@ -1,0 +1,34 @@
+                                                            BR1601A0X/B0X 用户手册 
+   518 / 532  
+0：红外传输信号正常输出 
+1：红外传输信号反向输出 
+4 
+Reserved 
+始终读为0。 
+3 
+IR_TX_START 
+IR 传输控制位。 
+0：IR 传输结束（自动清空CODE 或REPEAT FIFO） 
+1：IR 传输启动命令 
+注：写完CODE 或REPEAT FIFO 数据后，写1 启动传输； 
+查询到CODE 或REPEAT FIFO 字数为0 后，写0 传输
+结束； 
+2 
+IR_ENABLE 
+IR 模块使能选择 
+0：不开启IR 模块，此时内部FIFO 指针处于复位值 
+1：开启IR 模块使能 
+1 
+IR_REP_FIFO_RESET 
+REPEAT FIFO 清空 
+0：不对REPEAT FIFO 进行清空操作 
+1：IR_TX_START 有效时，清空REPEAT FIFO 
+0 
+IR_CODE_FIFO_RESET 
+CODE FIFO 清空 
+0：不对CODE FIFO 进行清空操作 
+1：IR_TX_START 有效时，清空CODE FIFO 
+20.5.7. IRC 状态寄存器（IR_STATUS） 
+偏移地址：0x14 
+复位值：0x0000 0000 
+Barrot Confidential

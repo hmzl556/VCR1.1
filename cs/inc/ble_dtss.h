@@ -56,6 +56,11 @@ void ble_dtss_on_disconnect(void);
 /** STB 未写 CCCD 时强制打开语音 chr0/chr2 发送通道（与 HID force 一致） */
 void ble_dtss_force_cccd_enable(peer_t peer);
 
+#define BLE_DTSS_DATA_READY (0x01U)
+#define BLE_DTSS_CTRL_READY (0x02U)
+/** 当前连接的真实订阅状态；不沿用旧连接，也不强制打开 CCCD。 */
+uint8_t ble_dtss_ready_channels(void);
+
 /** 语音 chr0 是否已订阅（bleSendEn==0xA6 且句柄有效） */
 int ble_dtss_is_subscribed(void);
 

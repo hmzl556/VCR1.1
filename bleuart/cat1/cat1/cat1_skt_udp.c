@@ -56,6 +56,11 @@ static uint8_t  s_sock_id = 255u;
 static char     s_modem_line[CAT1_AT_LINE_MAX];
 static char     s_ecsonmi_line[CAT1_ECSONMI_LINE_MAX];
 static char     s_modem_rsp[CAT1_MODEM_RSP_CAP];
+
+/* ICCID (SIM卡号) 捕获: AT+ECICCID 响应原文(实测可含字母), 供心跳 Tag0x0A 使用 */
+static uint8_t  s_iccid_raw[20];
+static uint8_t  s_iccid_len;
+static uint8_t  s_iccid_valid;
 static unsigned s_urc_line_len;
 static uint8_t  s_ota_uplink_wait;
 static uint8_t  s_recv_allow = 1u;
@@ -97,6 +102,24 @@ static unsigned          s_at_line_len;
 static setup_phase_t s_setup_phase;
 static uint32_t      s_cgatt_wait_start_ms; /* 首次 CGATT=0 时刻；0=未进入等待 */
 static uint32_t      s_cgatt_next_ms;       /* 下次允许发 CGATT? 的时刻 */
+
+/* Fallback only: start normal 115200 CSCON immediately after existing boot
+ * delay. Enter this recovery path only if that first command has no valid
+ * response. All fallback timer waits return to the BLE task. */
+#define CAT1_BAUD_SETTLE_MS       100U
+#define CAT1_BAUD_RUN_WAIT_MS     300U
+#define CAT1_BAUD_BOOT_WAIT_MS   1000U
+#define CAT1_BAUD_IPR_WAIT_MS     300U
+#define CAT1_BAUD_ROUNDS            3U
+
+enum {
+    BAUD_SYNC_INIT = 0, BAUD_SYNC_RUN_SETTLE, BAUD_SYNC_RUN_WAIT,
+    BAUD_SYNC_BOOT_SETTLE, BAUD_SYNC_BOOT_WAIT, BAUD_SYNC_IPR_WAIT,
+    BAUD_SYNC_VERIFY_SETTLE, BAUD_SYNC_VERIFY_WAIT, BAUD_SYNC_DONE,
+    BAUD_SYNC_FAIL
+};
+static uint8_t s_baud_phase, s_baud_round;
+static uint32_t s_baud_started_ms, s_baud_changed_ms;
 
 static void cat1_ecso_issue_ecsorf(void);
 static void cat1_ecso_try_start_ecsorf_read(void);
@@ -529,7 +552,13 @@ static uint8_t cat1_skt_udp_feed_char(char c)
 				s_urc_line_len = 0u;
 				return 1u;
 			}
-			/* 非 ECSONMI 的 + 行：交回命令解析（+CME ERROR 等） */
+			/* +CSCON URC: 0=idle/PSM-ready, 1=connected */
+			if (strncmp(s_ecsonmi_line, "+CSCON:", 7) == 0) {
+				co_printf("[CAT1 URC] %s\r\n", s_ecsonmi_line);
+				s_urc_line_len = 0u;
+				return 1u;
+			}
+			/* other + lines: spill to cmd response */
 			if (s_urc_line_len < sizeof(s_urc_spill)) {
 				memcpy(s_urc_spill, s_ecsonmi_line, s_urc_line_len);
 				s_urc_spill_len = (uint8_t)s_urc_line_len;
@@ -544,15 +573,18 @@ static uint8_t cat1_skt_udp_feed_char(char c)
 		return 0u;
 	}
 
-	/* 前缀必须逐步匹配 +ECSONMI:，否则吐回已缓存字节 */
-	if (s_urc_line_len < 9u && c != s_ecsonmi_pref[s_urc_line_len]) {
-		if (s_urc_line_len > 0u && s_urc_line_len < sizeof(s_urc_spill)) {
-			memcpy(s_urc_spill, s_ecsonmi_line, s_urc_line_len);
-			s_urc_spill_len = (uint8_t)s_urc_line_len;
-		}
-		s_urc_line_len = 0u;
-		return 0u; /* 当前字节由命令行接收 */
-	}
+    /* Buffer only the two URCs. Ordinary +ECICCID/+CCLK/+ECSORF and
+     * +CME ERROR lines must stream to the AT parser, including long bodies.
+     * A 12-byte prefix spill cannot hold a complete 20-byte ICCID line. */
+    if(s_urc_line_len<9u){
+        uint8_t ecso=(c==s_ecsonmi_pref[s_urc_line_len]);
+        uint8_t cscon=s_urc_line_len<7u ? c=="+CSCON:"[s_urc_line_len] :
+            strncmp(s_ecsonmi_line,"+CSCON:",7u)==0;
+        if(!ecso && !cscon){
+            if(s_urc_line_len){memcpy(s_urc_spill,s_ecsonmi_line,s_urc_line_len);s_urc_spill_len=(uint8_t)s_urc_line_len;}
+            s_urc_line_len=0;return 0u;
+        }
+    }
 
 	if (s_urc_line_len + 1u < sizeof(s_ecsonmi_line)) {
 		s_ecsonmi_line[s_urc_line_len++] = c;
@@ -947,6 +979,15 @@ static cat1_modem_result_t cat1_modem_check_timeout(void)
 	cat1_ecsorf_try_retry_after_delay();
 
 	if (cat1_ms_elapsed(s_at_start_ms) >= s_at_total_wait_ms) {
+        /* The first normal CSCON also checks UART reachability. The legacy
+         * optional-diagnostic rule accepts an empty timeout; here silence
+         * must trigger recovery. Complete OK/ERROR replies finish earlier. */
+        if (s_setup_phase == SETUP_PHASE_CSCON && s_baud_phase == BAUD_SYNC_INIT &&
+            s_at_got_ok == 0U) {
+            cat1_ecsonmi_pending_clear();
+            cat1_modem_finish(CAT1_MODEM_FAIL);
+            return CAT1_MODEM_FAIL;
+        }
 		if (s_recv_pending != 0u) {
 			cat1_modem_finish(CAT1_MODEM_OK);
 			return CAT1_MODEM_OK;
@@ -1146,6 +1187,89 @@ static void cat1_send_at_line(char *line)
 	usart1_at_send(line, (unsigned)sizeof(s_modem_line));
 }
 
+static void cat1_baud_issue(const char *cmd, uint32_t timeout_ms)
+{
+    strncpy(s_modem_line, cmd, sizeof(s_modem_line)-1U);
+    s_modem_line[sizeof(s_modem_line)-1U] = '\0';
+    s_urc_line_len = 0U;
+    cat1_send_at_line(s_modem_line);
+    cat1_modem_begin_wait(s_modem_rsp, (unsigned)sizeof(s_modem_rsp), 0U, 0U);
+    s_at_total_wait_ms = timeout_ms;
+}
+
+static int cat1_baud_fail(void)
+{
+    (void)USART1_CAT1_SetBaudrate(115200U);
+    s_baud_phase = BAUD_SYNC_FAIL;
+    co_printf("[CAT1] baud sync failed (115200/9600)\r\n");
+    return CAT1_SETUP_FAIL;
+}
+
+static int cat1_baud_retry(void)
+{
+    if (++s_baud_round >= CAT1_BAUD_ROUNDS) return cat1_baud_fail();
+    if (USART1_CAT1_SetBaudrate(115200U) != 0) return cat1_baud_fail();
+    s_baud_changed_ms = sdk_timer_get_current_ms();
+    s_baud_phase = BAUD_SYNC_RUN_SETTLE;
+    return CAT1_SETUP_BUSY;
+}
+
+static int cat1_baud_sync_step(void)
+{
+    cat1_modem_result_t mr;
+    uint32_t now = sdk_timer_get_current_ms();
+    if (s_baud_phase == BAUD_SYNC_DONE) return CAT1_SETUP_OK;
+    if (s_baud_phase == BAUD_SYNC_FAIL) return CAT1_SETUP_FAIL;
+    if (s_baud_phase == BAUD_SYNC_INIT) {
+        s_baud_started_ms = s_baud_changed_ms = now;
+        s_baud_round = 0U;
+        if (USART1_CAT1_SetBaudrate(9600U) != 0) return cat1_baud_fail();
+        s_baud_phase = BAUD_SYNC_BOOT_SETTLE;
+        return CAT1_SETUP_BUSY;
+    }
+    if (s_baud_phase == BAUD_SYNC_RUN_SETTLE || s_baud_phase == BAUD_SYNC_BOOT_SETTLE ||
+        s_baud_phase == BAUD_SYNC_VERIFY_SETTLE) {
+        if ((uint32_t)(now-s_baud_changed_ms) < CAT1_BAUD_SETTLE_MS) return CAT1_SETUP_BUSY;
+        if (s_baud_phase == BAUD_SYNC_RUN_SETTLE) {
+            cat1_baud_issue("AT",CAT1_BAUD_RUN_WAIT_MS);
+            s_baud_phase = BAUD_SYNC_RUN_WAIT;
+        } else if (s_baud_phase == BAUD_SYNC_BOOT_SETTLE) {
+            cat1_baud_issue("AT",CAT1_BAUD_BOOT_WAIT_MS);
+            s_baud_phase = BAUD_SYNC_BOOT_WAIT;
+        } else {
+            cat1_baud_issue("AT",CAT1_BAUD_BOOT_WAIT_MS);
+            s_baud_phase = BAUD_SYNC_VERIFY_WAIT;
+        }
+        return CAT1_SETUP_BUSY;
+    }
+    mr = cat1_modem_step();
+    if (mr == CAT1_MODEM_BUSY) return CAT1_SETUP_BUSY;
+    if (s_baud_phase == BAUD_SYNC_RUN_WAIT || s_baud_phase == BAUD_SYNC_VERIFY_WAIT) {
+        if (mr == CAT1_MODEM_OK) {
+            s_baud_phase = BAUD_SYNC_DONE;
+            co_printf("[CAT1] baud 115200 ready, sync=%u ms\r\n",
+                      (unsigned)(now-s_baud_started_ms));
+            return CAT1_SETUP_OK;
+        }
+        if (s_baud_phase == BAUD_SYNC_VERIFY_WAIT) return cat1_baud_retry();
+        if (USART1_CAT1_SetBaudrate(9600U) != 0) return cat1_baud_fail();
+        s_baud_changed_ms = now;
+        s_baud_phase = BAUD_SYNC_BOOT_SETTLE;
+    } else if (s_baud_phase == BAUD_SYNC_BOOT_WAIT) {
+        if (mr != CAT1_MODEM_OK) return cat1_baud_retry();
+        co_printf("[CAT1] baud 9600 confirmed, set 115200\r\n");
+        cat1_baud_issue("AT+IPR=115200",CAT1_BAUD_IPR_WAIT_MS);
+        s_baud_phase = BAUD_SYNC_IPR_WAIT;
+    } else if (s_baud_phase == BAUD_SYNC_IPR_WAIT) {
+        /* IPR may answer at either old/new baud: only the following AT at
+         * 115200 proves success. An IPR OK alone is never sufficient. */
+        if (USART1_CAT1_SetBaudrate(115200U) != 0) return cat1_baud_fail();
+        s_baud_changed_ms = now;
+        s_baud_phase = BAUD_SYNC_VERIFY_SETTLE;
+    } else return cat1_baud_fail();
+    return CAT1_SETUP_BUSY;
+}
+
 static void cat1_setup_log_rsp(const char *tag)
 {
 	if (s_modem_rsp[0] != '\0') {
@@ -1185,7 +1309,7 @@ static int cat1_setup_parse_ecsocr_id(void)
 
 static int cat1_setup_issue_cscon(void)
 {
-	strncpy(s_modem_line, "AT+CSCON=0", sizeof(s_modem_line) - 1u);
+	strncpy(s_modem_line, "AT+CSCON=1", sizeof(s_modem_line) - 1u);
 	s_modem_line[sizeof(s_modem_line) - 1u] = '\0';
 	cat1_send_at_line(s_modem_line);
 	cat1_modem_begin_wait(s_modem_rsp, (unsigned)sizeof(s_modem_rsp), 1u, 0u);
@@ -1221,6 +1345,75 @@ static int cat1_setup_issue_iccid(void)
 	cat1_modem_begin_wait(s_modem_rsp, (unsigned)sizeof(s_modem_rsp), 1u, 0u);
 	s_setup_phase = SETUP_PHASE_ICCID;
 	return CAT1_SETUP_BUSY;
+}
+
+/**
+ * @brief  从 AT+ECICCID 响应中提取 20 位 SIM 卡号并转 BCD10 存储
+ * @note   响应不完整时保留旧值; 心跳 Tag0x0A 通过 cat1_iccid_get_raw 读取
+ */
+static void cat1_iccid_capture_from_rsp(const char *rsp)
+{
+	const char *p;
+	uint8_t digits[20];
+	uint8_t nd = 0u;
+	uint8_t i;
+
+	if (rsp == NULL) {
+		return;
+	}
+	p = strstr(rsp, "ECICCID");
+	if (p == NULL) {
+		co_printf("[CAT1] ICCID rsp has no ECICCID\r\n");
+		return;
+	}
+	/*
+	 * ★ 必须跳过关键字 "ECICCID" 本身(7字符): 关键字里的 E/C/C/C/D
+	 * 也是合法十六进制字符, 从关键字开头收集会把它们当卡号收进去
+	 * (实测上报 ECCCD898604F41525D20 — 头部多了 ECCCD, 尾部少 5 位)。
+	 * 跳过后从冒号后的卡号原文开始收集。
+	 */
+	p += 7u;
+	/*
+	 * 卡号原文可含字母(实测含 F/D): 原样保存。
+	 * 传输编码待与服务器协商: BCD10 带不了字母, 拟改 HEX,
+	 * 协商确定前 Tag0x0A 的 SIM 字段暂填 0。
+	 * 此处只收 [0-9A-Fa-f] 字符, 最长 20。
+	 */
+	while (*p != '\0' && *p != '\r' && *p != '\n' && nd < 20u) {
+		char c = *p;
+
+		if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')
+		    || (c >= 'a' && c <= 'f')) {
+			digits[nd++] = (uint8_t)c;
+		}
+		p++;
+	}
+	if (nd < 18u) {
+		co_printf("[CAT1] ICCID capture incomplete (%u chars)\r\n", (unsigned)nd);
+		return;   /* 不完整: 保留旧值 */
+	}
+	memcpy(s_iccid_raw, digits, nd);
+	s_iccid_len = nd;
+	s_iccid_valid = 1u;
+	co_printf("[CAT1] ICCID captured raw (%u chars): ", (unsigned)nd);
+	for (i = 0u; i < nd; i++) {
+		co_printf("%c", (char)s_iccid_raw[i]);
+	}
+	co_printf("\r\n");
+}
+
+/**
+ * @brief  读取 SIM 卡号原文 (setup 阶段 AT+ECICCID 捕获, 可含字母)
+ * @return 0=成功; -1=尚未捕获
+ */
+int cat1_iccid_get_raw(uint8_t out[20], uint8_t *out_len)
+{
+	if (s_iccid_valid == 0u || out == NULL || out_len == NULL) {
+		return -1;
+	}
+	memcpy(out, s_iccid_raw, s_iccid_len);
+	*out_len = s_iccid_len;
+	return 0;
 }
 
 static int cat1_setup_issue_cgatt(void)
@@ -1302,7 +1495,7 @@ static void cat1_setup_on_diag_done(setup_phase_t phase, uint8_t ok)
 {
 	switch (phase) {
 	case SETUP_PHASE_CSCON:
-		cat1_setup_log_rsp("AT+CSCON=0");
+		cat1_setup_log_rsp("AT+CSCON=1");
 		s_setup_phase = SETUP_PHASE_CEREG;
 		break;
 	case SETUP_PHASE_CEREG:
@@ -1314,6 +1507,7 @@ static void cat1_setup_on_diag_done(setup_phase_t phase, uint8_t ok)
 		s_setup_phase = SETUP_PHASE_ICCID_PENDING;
 		break;
 	case SETUP_PHASE_ICCID:
+		cat1_iccid_capture_from_rsp(s_modem_rsp);
 		cat1_setup_log_rsp("AT+ECICCID");
 		s_setup_phase = SETUP_PHASE_FREQ_PENDING;
 		break;
@@ -1358,11 +1552,28 @@ int cat1_skt_udp_setup_step(void)
 		return CAT1_SETUP_FAIL;
 	}
 
+    if (s_baud_phase != BAUD_SYNC_INIT && s_baud_phase != BAUD_SYNC_DONE) {
+        int baud_rc = cat1_baud_sync_step();
+        if (baud_rc == CAT1_SETUP_FAIL) s_setup_phase = SETUP_PHASE_FAIL;
+        if (baud_rc != CAT1_SETUP_OK) return baud_rc;
+        /* Verified 115200: restart normal setup, including CSCON. */
+        s_setup_phase = SETUP_PHASE_IDLE;
+    }
+
 	if (cat1_modem_is_busy() != 0u) {
 		mr = cat1_modem_step();
 		if (mr == CAT1_MODEM_BUSY) {
 			return CAT1_SETUP_BUSY;
 		}
+        if (mr == CAT1_MODEM_FAIL && s_setup_phase == SETUP_PHASE_CSCON &&
+            s_baud_phase == BAUD_SYNC_INIT) {
+            co_printf("[CAT1] 115200 no response, try 9600\r\n");
+            return cat1_baud_sync_step();
+        }
+        /* A recognized OK/ERROR reply proves the current UART rate. Keep
+         * existing CSCON error-tolerant behavior instead of changing baud. */
+        if (mr == CAT1_MODEM_OK && s_setup_phase == SETUP_PHASE_CSCON &&
+            s_baud_phase == BAUD_SYNC_INIT) s_baud_phase = BAUD_SYNC_DONE;
 		if (mr == CAT1_MODEM_FAIL) {
 			if (s_setup_phase == SETUP_PHASE_CSCON || s_setup_phase == SETUP_PHASE_CEREG
 			    || s_setup_phase == SETUP_PHASE_CSQ || s_setup_phase == SETUP_PHASE_ICCID
@@ -1574,6 +1785,8 @@ void cat1_skt_udp_setup_reset(void)
 {
 	/* 不清时间锚点：墙钟与 socket 无关；仅 rc_cat1_init 清零，AT+CCLK 成功才更新 */
 	if (cat1_modem_is_busy() == 0u) {
+        s_baud_phase = BAUD_SYNC_INIT;
+        s_baud_round = 0U;
 		s_setup_phase = SETUP_PHASE_IDLE;
 		s_sock_id = 255u;
 		cat1_ecsonmi_pending_clear();

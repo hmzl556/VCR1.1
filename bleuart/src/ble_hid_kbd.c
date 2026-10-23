@@ -1,3 +1,4 @@
+#include "app_gatt_safe.h"
 #include <string.h>
 #include "gap.h"
 #include "gatt.h"
@@ -541,7 +542,7 @@ void hid_kbd_send_report(peer_t peer, uint8_t rpt_id, uint8_t rpt_type, const ui
             len = sizeof(g_hid_report_in_consumer_buf);
         }
         memcpy(g_hid_report_in_consumer_buf, data, len);
-        gatt_rst_t ret = gatts_chr_val_notif(peer, g_hid_report_in_consumer_chr,
+        gatt_rst_t ret = app_gatt_notify(peer, g_hid_report_in_consumer_chr,
                                              g_hid_report_in_consumer_buf, len);
         co_printf("[HID  ] HID Report IN (Consumer) notify ret=%d\n", ret);
         return;
@@ -553,7 +554,7 @@ void hid_kbd_send_report(peer_t peer, uint8_t rpt_id, uint8_t rpt_type, const ui
             len = sizeof(g_hid_report_in_buf);
         }
         memcpy(g_hid_report_in_buf, data, len);
-        gatt_rst_t ret = gatts_chr_val_notif(peer, g_hid_report_in_chr, g_hid_report_in_buf, len);
+        gatt_rst_t ret = app_gatt_notify(peer, g_hid_report_in_chr, g_hid_report_in_buf, len);
         co_printf("[HID  ] HID Report IN notify ret=%d\n", ret);
         {
             extern volatile uint32_t g_last_ble_ms;
@@ -568,7 +569,7 @@ void hid_kbd_send_report(peer_t peer, uint8_t rpt_id, uint8_t rpt_type, const ui
             len = sizeof(g_hid_boot_in_report);
         }
         memcpy(g_hid_boot_in_report, data, len);
-        gatt_rst_t ret = gatts_chr_val_notif(peer, g_hid_boot_in_chr, g_hid_boot_in_report,
+        gatt_rst_t ret = app_gatt_notify(peer, g_hid_boot_in_chr, g_hid_boot_in_report,
                                              sizeof(g_hid_boot_in_report));
         co_printf("[HID  ] HID Boot IN notify ret=%d\n", ret);
     }

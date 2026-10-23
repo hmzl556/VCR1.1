@@ -6,19 +6,22 @@
  *
  * 状态机概览：
  *
- *   上电 ─→ PAIRING（无绑定） 或  RECONNECTING（有绑定）
- *     │              │                       │
- *     │        配对成功               连接成功/超时→SLEEP
- *     │              ↓                       ↓
- *     │         WORKING ←──按键/数据── STANDBY
- *     │           │    \────无业务──→/   │    │
- *     │      断连(有绑定)           无业务超时  │
- *     │           ↓                       ↓
- *     └──→ RECONNECTING              SLEEP
- *                │                       │
- *           超时无连接              按键/RTC唤醒
- *                ↓                       ↓
- *             SLEEP              PAIRING/RECONNECTING
+ *   上电(无绑定)                    上电(有绑定)
+ *        ↓                               ↓
+ *     SILENT ──超时无按键──→ SLEEP    RECONNECTING
+ *        │                      │         │
+ *   KEY14+KEY3 组合键      按键唤醒   连接成功/超时→SLEEP
+ *        │                 (无绑定)        ↓
+ *        ↓                      │      WORKING ←──按键/数据── STANDBY
+ *    PAIRING ←─────────────────┘        │    \────无业务──→/    │
+ *        │                         断连(有绑定)           无业务超时
+ *   配对成功/超时                        ↓                       ↓
+ *        ↓                         RECONNECTING              SLEEP
+ *     WORKING                            │                       │
+ *                                   超时无连接              按键/RTC唤醒
+ *                                        ↓                  /          \
+ *                                     SLEEP          有绑定→RECONNECTING
+ *                                                    无绑定→SILENT
  */
 
 #ifndef _PM_STATE_H_
@@ -38,7 +41,7 @@ extern "C" {
 
 /**
  * @brief  电源管理状态枚举
- * @note   五个显式状态，覆盖遥控器全生命周期
+ * @note   六个显式状态，覆盖遥控器全生命周期
  */
 typedef enum {
     PM_STATE_PAIRING      = 0,  /* 配对态：可发现可连接广播，等待新设备配对     */
@@ -46,6 +49,7 @@ typedef enum {
     PM_STATE_WORKING      = 2,  /* 工作态：已连接，全功能运行，小连接间隔        */
     PM_STATE_STANDBY      = 3,  /* 待机态：已连接但无业务，大连接间隔省电        */
     PM_STATE_SLEEP        = 4,  /* 休眠态：无连接无广播，Sleep 模式极低功耗      */
+    PM_STATE_SILENT       = 5,  /* 静默态：CPU运行无广播，等待组合键触发配对/回连 */
 } pm_state_t;
 
 /*===========================================================================
@@ -72,7 +76,7 @@ typedef enum {
 /**
  * @brief  电源状态机初始化
  * @note   在系统启动时调用一次（建议在 app_rtos_init() 之后）。
- *         初始化状态为 PAIRING（后续由绑定检查结果修正）。
+ *         初始化状态：有绑定→RECONNECTING，无绑定→SILENT。。
  *         同时配置 RTC 唤醒定时器以备休眠态使用。
  */
 void pm_state_init(void);
@@ -122,7 +126,7 @@ void pm_notify_disconnected(void);
  * @brief  BLE 栈初始化完成后调用，修正 PM 初始状态
  * @note   必须在 myBleStartAdv() 成功后调用一次。
  *         因为 pm_state_init() 在 BLE 栈启动前调用，此时 peer_bonded_count()
- *         返回 0（绑定数据尚未从 Flash 恢复），导致初始状态固定为 PAIRING。
+ *         返回 0（绑定数据尚未从 Flash 恢复），导致初始状态固定为 SILENT。
  *         本函数在 BLE 栈就绪后重新检查绑定，若实际有绑定则修正为 RECONNECTING。
  */
 void pm_state_sync_after_ble_init(void);
@@ -131,9 +135,11 @@ void pm_state_sync_after_ble_init(void);
  * @brief  每主循环周期调用一次
  * @note   在 BLE 任务主循环（task_ble_entry）开头调用。
  *         检查以下超时条件并执行状态转换：
- *         1. WORKING 空闲超时 → STANDBY
- *         2. STANDBY 空闲超时 → SLEEP
- *         3. RECONNECTING 超时 → SLEEP
+ *         1. SILENT 超时 → SLEEP
+ *         2. PAIRING 超时 → SLEEP
+ *         3. WORKING 空闲超时 → STANDBY
+ *         4. STANDBY 空闲超时 → SLEEP
+ *         5. RECONNECTING 超时 → SLEEP
  *         调用频率：约 10ms 一次（与主循环周期一致）
  */
 void pm_state_process(void);
@@ -142,7 +148,7 @@ void pm_state_process(void);
  * @brief  休眠唤醒入口
  * @note   CPU 从 Sleep 模式唤醒后调用（在 main.c 或启动代码中）。
  *         判断唤醒原因（KEYSCAN vs RTC），恢复外设，
- *         并根据绑定状态启动配对广播或回连广播。
+ *         并根据绑定状态进入静默态或回连态。
  */
 void pm_wakeup_entry(void);
 
@@ -166,6 +172,13 @@ const char* pm_state_name(pm_state_t state);
  * @return 距离上次活动的毫秒数
  */
 uint32_t pm_get_idle_ms(void);
+
+/**
+ * @brief  补偿低功耗期间的时间流逝
+ * @param  elapsed_ms  流逝的毫秒数（从空闲计时器中减去）
+ * @note   供 Standby 模式唤醒后调用，使超时检测能正确工作
+ */
+void pm_activity_compensate_time(uint32_t elapsed_ms);
 
 #ifdef __cplusplus
 }

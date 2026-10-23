@@ -1,3 +1,4 @@
+#include "app_gatt_safe.h"
 #include "ble_bas.h"
 #include "bat_adc.h"
 #include "ble_gap.h"
@@ -47,7 +48,7 @@ static void bas_level_cbk(gatt_event_t event, void *context, void *param)
 		gatt_chr_val_read_req_t *in = (gatt_chr_val_read_req_t *)param;
 		uint8_t val;
 
-		s_bas_level = bat_get_level_percent(); /* 即时采样或按规则返回 */
+		s_bas_level = bat_get_level_percent(); /* 读取统一电量缓存，不触碰语音 ADC */
 		val = s_bas_level;
 		gatts_chr_val_read_rsp(in->peer, in->chr, GATT_OK, &val, 1U);
 		co_printf("[BAS  ] level read = %u%%\r\n", (unsigned)val);
@@ -76,7 +77,7 @@ static void bas_level_cbk(gatt_event_t event, void *context, void *param)
 }
 
 /**
- * @brief  立即采样并通过 Notify 上报当前电量
+ * @brief  通过 Notify 上报统一缓存的电量
  */
 static void bas_notify_now(void)
 {
@@ -98,7 +99,7 @@ static void bas_notify_now(void)
 
 	s_bas_level = bat_get_level_percent();
 	val = s_bas_level;
-	(void)gatts_chr_val_notif(peer, s_bas_level_chr, &val, 1U);
+	(void)app_gatt_notify(peer, s_bas_level_chr, &val, 1U);
 	co_printf("[BAS  ] notify level = %u%%\r\n", (unsigned)val);
 }
 

@@ -1,3 +1,4 @@
+#include "app_gatt_safe.h"
 #include <string.h>
 #include "ble_rc_svc.h"
 #include "ble_gap.h"
@@ -367,7 +368,7 @@ void ble_rc_svc_status_notify(peer_t peer, const rc_status_t *st)
     }
     if (peer != NULL && s_chr_status != NULL)
     {
-        gatts_chr_val_notif(peer, s_chr_status, buf, RC_STATUS_LEN);
+        app_gatt_notify(peer, s_chr_status, buf, RC_STATUS_LEN);
     }
 }
 
@@ -389,7 +390,7 @@ void ble_rc_svc_key_notify(peer_t peer, uint8_t key_type, uint8_t action, uint16
     }
     if (peer != NULL && s_chr_key_notify != NULL)
     {
-        gatts_chr_val_notif(peer, s_chr_key_notify, buf, RC_KEY_NOTIFY_LEN);
+        app_gatt_notify(peer, s_chr_key_notify, buf, RC_KEY_NOTIFY_LEN);
     }
 }
 

@@ -39,6 +39,14 @@
 #define APP_CLOUD_POLICY_MAGIC       0x5243504Cu   /* 'RCPL' */
 #define APP_CLOUD_POLICY_VER         1u
 
+/* Waveform learning A/B: three 4KB sectors per bank, directly after cloud
+ * policy. Legacy NEC banks are removed; no migration from previous addresses.
+ * Existing keys must be learned again after installing this layout. */
+#define FLASH_IR_RAW_START (FLASH_USER_CFG_START + FLASH_USER_CFG_SIZE) /* 0x0106B000 */
+#define FLASH_IR_RAW_BACKUP (FLASH_IR_RAW_START + FLASH_IR_RAW_BANK_SIZE) /* 0x0106E000 */
+#define FLASH_IR_RAW_BANK_SIZE 0x3000u
+#define FLASH_UNALLOCATED_START (FLASH_IR_RAW_BACKUP + FLASH_IR_RAW_BANK_SIZE) /* 0x01071000 */
+
 #define OTA_UPGRADE_FLAG           0x12345678u
 #define OTA_SUCCESS_FLAG           OTA_UPGRADE_FLAG
 #define OTA_BOOT_DONE_MARKER       OTA_UPGRADE_FLAG

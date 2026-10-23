@@ -71,6 +71,8 @@ void Encoder_Sbc_Disable(void)
 	}
 }
 
+int Encoder_Sbc_IsReady(void){return g_sbc_inited?1:0;}
+
 void Encoder_Sbc_ProcessPcmBlock(const __IO int16_t* data, uint16_t count)
 {
 	uint16_t i;

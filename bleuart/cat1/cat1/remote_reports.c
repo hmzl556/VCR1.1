@@ -1,3 +1,4 @@
+#include "app_heap.h"
 /**
  * @file remote_reports.c
  * @brief UDP 上报：STB TLV 透传 + RC 本地直报 Tag0x01/0x10。
@@ -7,6 +8,9 @@
 #include "ble_rc_svc.h"
 #include "rc_protocol.h"
 #include "cat1_time_sync.h"
+#include "cat1_skt_udp.h"   /* cat1_iccid_get_raw — 心跳 Tag0x0A SIM 卡号 */
+#include "bat_adc.h"        /* bat_get_level_percent — 统一电量缓存    */
+#include "heartbeat.h"      /* heartbeat_set_period_s — Tag11 数据ID6  */
 #include "udp_ota.h"
 #include "br1601x.h"
 #include "co_printf.h"
@@ -14,6 +18,7 @@
 #include "task.h"
 
 #include <string.h>
+#include <stdlib.h>
 
 #ifndef REMOTE_REPORT_FIXED_TIME_BCD // 2000 0101 000000
 #define REMOTE_REPORT_FIXED_TIME_BCD  { 0x00u, 0x01u, 0x01u, 0x00u, 0x00u, 0x00u }
@@ -127,12 +132,151 @@ static int remote_value_append(uint8_t *buf, uint16_t *len, uint16_t max_len,
     return 0;
 }
 
+/* Wire dates are exactly YYMMDDhhmmss, six BCD bytes (years 2000..2099). */
+static int remote_date6_valid(const uint8_t p[6])
+{
+    uint8_t v[6], i, days;
+    static const uint8_t mdays[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
+    for (i = 0U; i < 6U; ++i) {
+        if ((p[i] & 15U) > 9U || (p[i] >> 4) > 9U) return 0;
+        v[i] = (uint8_t)((p[i] >> 4) * 10U + (p[i] & 15U));
+    }
+    if (v[1] < 1U || v[1] > 12U || v[3] > 23U || v[4] > 59U || v[5] > 59U) return 0;
+    days = mdays[v[1] - 1U];
+    if (v[1] == 2U && v[0] % 4U == 0U) ++days;
+    return v[2] >= 1U && v[2] <= days;
+}
+
+static int remote_all_zero(const uint8_t *p, uint8_t n, uint8_t zero)
+{
+    uint8_t i;
+    for (i = 0U; i < n; ++i) if (p[i] != zero) return 0;
+    return 1;
+}
+
+/* 1=present, 0=unconfigured, -1=invalid; reject century truncation. */
+static int remote_ascii_date6(const uint8_t *ascii, uint8_t out[6])
+{
+    if (remote_all_zero(ascii, 14U, '0')) return 0;
+    if (ascii[0] != '2' || ascii[1] != '0' ||
+        rc_ascii_digits_to_bcd(ascii + 2U, 12U, out, 6U) != 0 ||
+        !remote_date6_valid(out)) return -1;
+    return 1;
+}
+
+/* Known STB bug: it packs YYYYMMDDhhmm, dropping seconds. Repair ONLY
+ * when all six received bytes match the same field in authoritative RC-READ.
+ * Seconds come from that full configured date, never from a guessed 00. */
+static int remote_recover_date(uint8_t id, const uint8_t *bad, uint8_t out[6])
+{
+    const uint8_t *read = ble_rc_svc_get_read();
+    const uint8_t *ascii;
+    uint8_t prefix[6];
+    if (!read) return 0;
+    ascii = read + (id == 4U ? RC_READ_OFF_DEVICE_ACTIVE_TIME : RC_READ_OFF_DEVICE_INACTIVE_TIME);
+    return remote_ascii_date6(ascii, out) == 1 &&
+           rc_ascii_digits_to_bcd(ascii, 12U, prefix, 6U) == 0 && !memcmp(bad, prefix, 6U);
+}
+
+static uint8_t remote_tag01_width(uint8_t id)
+{
+    static const uint8_t widths[9] = {3,1,2,1,6,6,1,20,1};
+    return id < 9U ? widths[id] : 0U;
+}
+
+static int remote_tag01_status(const uint8_t *v, uint16_t n, uint8_t *status)
+{
+    uint16_t pos = 0U, seen = 0U;
+    uint8_t id, w;
+    *status = 0xFFU;
+    while (pos < n) {
+        id = v[pos++]; w = remote_tag01_width(id);
+        if (!w || w > n - pos || (seen & (1U << id))) return -1;
+        seen |= (uint16_t)(1U << id);
+        if (id == 3U) { if (v[pos] > 2U) return -1; *status = v[pos]; }
+        pos = (uint16_t)(pos + w);
+    }
+    return 0;
+}
+
+static int remote_validate_tlv(const uint8_t *plain, uint16_t n, uint8_t repair)
+{
+    uint16_t pos = 2U, len, end, k, declared;
+    uint8_t tag, id, w, status, fixed[6];
+    if (!plain || n < 5U || n > RC_UDP_AES_PLAIN_DATA_MAX) return -1;
+    declared = (uint16_t)(((uint16_t)plain[0] << 8) | plain[1]);
+    /* Existing STB implementations use both total-size conventions. */
+    if (declared != n && declared != n - 2U) return -1;
+    while (pos < n) {
+        if ((uint16_t)(n - pos) < 3U) return -1;
+        tag = plain[pos]; len = (uint16_t)(((uint16_t)plain[pos+1U] << 8) | plain[pos+2U]);
+        pos = (uint16_t)(pos + 3U);
+        if (len > n - pos) return -1;
+        end = (uint16_t)(pos + len);
+        if (tag == 1U) {
+            if (remote_tag01_status(plain + pos, len, &status) != 0) return -1;
+            for (k = pos; k < end; k = (uint16_t)(k + w)) {
+                id = plain[k++]; w = remote_tag01_width(id);
+                if (id == 4U || id == 5U) {
+                    if (status == 0xFFU) return -1;
+                    if (repair && remote_all_zero(plain+k,6U,0U)) continue;
+                    if (!remote_date6_valid(plain+k) && (!repair || !remote_recover_date(id,plain+k,fixed))) {
+                        co_printf("[RC   ] Tag01 invalid date id=%u\r\n", (unsigned)id);
+                        return -1;
+                    }
+                }
+            }
+        }
+        pos = end;
+    }
+    return 0;
+}
+
+/* Two passes: no mutation if any field/container is malformed. Work in the
+ * owned assembled buffer, keeping unrelated TLVs byte-identical; no new heap. */
+int remote_normalize_tlv_blob(uint8_t *plain, uint16_t *length)
+{
+    uint16_t n, rd = 2U, wr = 2U, len, next, k, out_start, declared;
+    uint8_t tag, status = 0xFFU, id, w, fixed[6], changes = 0U;
+    if (!length || remote_validate_tlv(plain, *length, 1U) != 0) return REMOTE_QUEUE_PARAM;
+    n = *length;
+    declared = (uint16_t)(((uint16_t)plain[0] << 8) | plain[1]);
+    while (rd < n) {
+        tag = plain[rd]; len = (uint16_t)(((uint16_t)plain[rd+1U] << 8) | plain[rd+2U]);
+        next = (uint16_t)(rd + 3U + len);
+        if (tag != 1U) { memmove(plain+wr,plain+rd,3U+len); wr = (uint16_t)(wr+3U+len); }
+        else {
+            (void)remote_tag01_status(plain+rd+3U,len,&status);
+            out_start = wr; wr = (uint16_t)(wr+3U);
+            for (k = (uint16_t)(rd+3U); k < next;) {
+                id = plain[k++]; w = remote_tag01_width(id);
+                if ((id == 4U || id == 5U) && remote_all_zero(plain+k,6U,0U)) {
+                    ++changes; k = (uint16_t)(k+w); continue;
+                }
+                plain[wr++] = id;
+                if ((id == 4U || id == 5U) && !remote_date6_valid(plain+k)) {
+                    (void)remote_recover_date(id,plain+k,fixed); memcpy(plain+wr,fixed,6U); ++changes;
+                } else memmove(plain+wr,plain+k,w);
+                wr = (uint16_t)(wr+w); k = (uint16_t)(k+w);
+            }
+            plain[out_start] = 1U; len = (uint16_t)(wr-out_start-3U);
+            plain[out_start+1U] = (uint8_t)(len>>8); plain[out_start+2U] = (uint8_t)len;
+        }
+        rd = next;
+    }
+    len = declared == n ? wr : (uint16_t)(wr-2U);
+    plain[0] = (uint8_t)(len>>8); plain[1] = (uint8_t)len; *length = wr;
+    if (changes) co_printf("[RC   ] Tag01 time normalized=%u\r\n", (unsigned)changes);
+    return REMOTE_QUEUE_OK;
+}
+
 /**
  * @brief  从 RC-READ 组装 Tag0x01 Value（与 BLE RC-READ 复用，见 PDF↔MD 字段映射）
  * @note   DataID0←DeviceRegionId(6B ASCII→3B BCD)；1←DeviceModel；
  *         2←DeviceSWVersion(前 4 位 ASCII→2B BCD)；3←DeviceStatus；
  *         4←DeviceActiveTime(14B ASCII→6B BCD)；5←DeviceInactiveTime；
  *         6←DeviceTransmissionNetwork。默认值改 rc_protocol.h 的 RC_READ_VAL_*。
+ *         协议 V1.2 新增: 7←SIM卡号(20B ASCII 原文)；8←电量(1B)。
  * @return 0 成功；-1 失败
  */
 static int remote_build_tag01_value(uint8_t *value, uint16_t *value_len)
@@ -143,9 +287,14 @@ static int remote_build_tag01_value(uint8_t *value, uint16_t *value_len)
     uint8_t sw[2];
     uint8_t active[6];
     uint8_t inactive[6];
+    int active_present, inactive_present;
     uint8_t model;
     uint8_t status;
     uint8_t network;
+    uint8_t iccid_raw[20];
+    uint8_t iccid_len = 0u;
+    uint8_t iccid_field[20];
+    uint8_t batt;
 
     if (value == NULL || value_len == NULL || rc_read == NULL)
     {
@@ -160,48 +309,61 @@ static int remote_build_tag01_value(uint8_t *value, uint16_t *value_len)
     {
         return -1;
     }
-    if (rc_ascii_digits_to_bcd(rc_read + RC_READ_OFF_DEVICE_ACTIVE_TIME + 2u, 12u, active, 6u) != 0)
-    {
-        return -1;
-    }
-    if (rc_ascii_digits_to_bcd(rc_read + RC_READ_OFF_DEVICE_INACTIVE_TIME + 2u, 12u, inactive, 6u) != 0)
-    {
-        return -1;
-    }
     model = rc_read[RC_READ_OFF_DEVICE_MODEL];
     status = rc_read[RC_READ_OFF_DEVICE_STATUS];
+    if (status > 2U) return -1;
+    active_present = remote_ascii_date6(rc_read + RC_READ_OFF_DEVICE_ACTIVE_TIME, active);
+    inactive_present = remote_ascii_date6(rc_read + RC_READ_OFF_DEVICE_INACTIVE_TIME, inactive);
+    if (active_present < 0 || inactive_present < 0) return -1;
     network = rc_read[RC_READ_OFF_DEVICE_TRANSMISSION_NETWORK];
 
-    /* Value 固定 27B（7×DataID+Value） */
-    if (remote_value_append(value, &len, 27u, 0x00u, region, 3u) != 0)
+    /*
+     * 协议 V1.2: DataID7 SIM卡号 BYTE[20] ASCII (20位数字或字母,
+     * 无补位; 未捕获时补 0), DataID8 电量 BYTE[1]。
+     */
+    memset(iccid_field, 0x00u, sizeof(iccid_field));
+    (void)cat1_iccid_get_raw(iccid_raw, &iccid_len);
+    if (iccid_len > 20u) {
+        iccid_len = 20u;
+    }
+    memcpy(iccid_field, iccid_raw, iccid_len);
+    batt = bat_get_level_percent();
+
+    /* User-confirmed: retain both configured dates regardless of status (50B).
+     * Unconfigured all-zero dates retain the prior omission policy. */
+    if (remote_value_append(value, &len, 50u, 0x00u, region, 3u) != 0)
     {
         return -1;
     }
-    if (remote_value_append(value, &len, 27u, 0x01u, &model, 1u) != 0)
+    if (remote_value_append(value, &len, 50u, 0x01u, &model, 1u) != 0)
     {
         return -1;
     }
-    if (remote_value_append(value, &len, 27u, 0x02u, sw, 2u) != 0)
+    if (remote_value_append(value, &len, 50u, 0x02u, sw, 2u) != 0)
     {
         return -1;
     }
-    if (remote_value_append(value, &len, 27u, 0x03u, &status, 1u) != 0)
+    if (remote_value_append(value, &len, 50u, 0x03u, &status, 1u) != 0)
     {
         return -1;
     }
-    if (remote_value_append(value, &len, 27u, 0x04u, active, 6u) != 0)
+    if (active_present && remote_value_append(value, &len, 50u, 0x04u, active, 6u) != 0)
     {
         return -1;
     }
-    if (remote_value_append(value, &len, 27u, 0x05u, inactive, 6u) != 0)
+    if (inactive_present && remote_value_append(value, &len, 50u, 0x05u, inactive, 6u) != 0)
     {
         return -1;
     }
-    if (remote_value_append(value, &len, 27u, 0x06u, &network, 1u) != 0)
+    if (remote_value_append(value, &len, 50u, 0x06u, &network, 1u) != 0)
     {
         return -1;
     }
-    if (len != 27u)
+    if (remote_value_append(value, &len, 50u, 0x07u, iccid_field, 20u) != 0)
+    {
+        return -1;
+    }
+    if (remote_value_append(value, &len, 50u, 0x08u, &batt, 1u) != 0)
     {
         return -1;
     }
@@ -266,13 +428,17 @@ static int remote_queue_tag_tlv(uint8_t tag, const uint8_t *value, uint16_t valu
     plain[3] = (uint8_t)((value_len >> 8) & 0xFFu);
     plain[4] = (uint8_t)(value_len & 0xFFu);
     memcpy(plain + 5u, value, value_len);
-    if (remote_frame_build(plain, plain_len, s_queue[s_q_tail].buf,
-                           CAT1_UDP_MAX_UDP_PDU, &frame_len) != 0)
     {
-        return REMOTE_QUEUE_ERR;
+        int rc;
+        uint8_t *frame = app_heap_alloc(CAT1_UDP_MAX_UDP_PDU);
+        if (!frame) return REMOTE_QUEUE_ERR;
+        rc = remote_frame_build(plain, plain_len, frame, CAT1_UDP_MAX_UDP_PDU, &frame_len);
+        is_tag10 = (tag == 0x10u) ? 1u : 0u;
+        if (!rc) rc = remote_queue_push(frame, frame_len, 0u, RC_PACK_INDEX_NONE, is_tag10);
+        else rc = REMOTE_QUEUE_ERR;
+        app_heap_free(frame);
+        return rc;
     }
-    is_tag10 = (tag == 0x10u) ? 1u : 0u;
-    return remote_queue_push(s_queue[s_q_tail].buf, frame_len, 0u, RC_PACK_INDEX_NONE, is_tag10);
 }
 
 /**
@@ -307,7 +473,7 @@ int remote_get_local_sw_version_bcd(uint16_t *out_ver)
  */
 int remote_queue_tag01_status(void)
 {
-    uint8_t value[27u];
+    uint8_t value[64];
     uint16_t value_len;
 
     if (remote_build_tag01_value(value, &value_len) != 0)
@@ -350,6 +516,76 @@ int remote_queue_tag10_key(uint8_t key_code)
         return REMOTE_QUEUE_ERR;
     }
     return REMOTE_QUEUE_OK;
+}
+
+/**
+ * @brief  组装 Tag0x0A 心跳 Value (5G遥控器数据采集规范 V1.2):
+ *         DataID0 操作时间 BCD6 + DataID1 SIM卡号 BCD10 + DataID2 电量 1B
+ * @return 0 成功；-1 失败
+ */
+static int remote_build_tag0A_value(uint8_t *value, uint16_t *value_len)
+{
+    uint16_t len = 0u;
+    uint8_t time_bcd[6];
+    uint8_t iccid_raw[20];
+    uint8_t iccid_len = 0u;
+    uint8_t iccid_field[20];
+    uint8_t batt;
+
+    if (value == NULL || value_len == NULL)
+    {
+        return -1;
+    }
+    remote_fill_report_time_bcd6(time_bcd);
+    batt = bat_get_level_percent();
+
+    /*
+     * 协议 V1.2: DataID1 SIM卡号 BYTE[20] ASCII 原文 (20位数字或字母,
+     * 无补位; 未捕获时补 0)。
+     */
+    memset(iccid_field, 0x00u, sizeof(iccid_field));
+    (void)cat1_iccid_get_raw(iccid_raw, &iccid_len);
+    if (iccid_len > 20u) {
+        iccid_len = 20u;
+    }
+    memcpy(iccid_field, iccid_raw, iccid_len);
+
+    /* Value 固定 30B: (DataID+时间 7B) + (DataID+SIM 21B) + (DataID+电量 2B) */
+    if (remote_value_append(value, &len, 30u, 0x00u, time_bcd, 6u) != 0)
+    {
+        return -1;
+    }
+    if (remote_value_append(value, &len, 30u, 0x01u, iccid_field, 20u) != 0)
+    {
+        return -1;
+    }
+    if (remote_value_append(value, &len, 30u, 0x02u, &batt, 1u) != 0)
+    {
+        return -1;
+    }
+    if (len != 30u)
+    {
+        return -1;
+    }
+    *value_len = len;
+    return 0;
+}
+
+/**
+ * @brief  心跳直报 Tag0x0A (heartbeat 模块到期触发, 不经 STB);
+ *         返回值见 REMOTE_QUEUE_*
+ */
+int remote_queue_tag0A_heartbeat(void)
+{
+    uint8_t value[64];
+    uint16_t value_len = 0u;
+
+    if (remote_build_tag0A_value(value, &value_len) != 0)
+    {
+        co_printf("[RC   ] Tag0A build fail\r\n");
+        return REMOTE_QUEUE_ERR;
+    }
+    return remote_queue_tag_tlv(0x0Au, value, value_len);
 }
 
 #define REMOTE_FRAME_FIXED_TAIL  21u   // 0x6868 头至 data field 前 19B + 校验 1B + 0x16 1B 中的「头+尾固定」
@@ -504,34 +740,16 @@ static int remote_frame_build(const uint8_t *plain, uint16_t plain_len,
  */
 static uint8_t remote_queue_drop_tag10_locked(void)
 {
-    remote_frame_t kept[REMOTE_REPORT_QUEUE_DEPTH];
-    uint8_t kept_n = 0u;
-    uint8_t drop_n = 0u;
-    uint8_t i;
-
-    for (i = 0u; i < s_q_count; i++)
-    {
-        uint8_t idx = (uint8_t)((s_q_head + i) % REMOTE_REPORT_QUEUE_DEPTH);
-
-        if (s_queue[idx].is_tag10 != 0u)
-        {
-            if (drop_n < 255u)
-            {
-                drop_n++;
-            }
-        }
-        else if (kept_n < REMOTE_REPORT_QUEUE_DEPTH)
-        {
-            kept[kept_n++] = s_queue[idx];
-        }
+    uint8_t kept_n = 0u, drop_n = 0u, i;
+    /* Compact toward head in FIFO order, without a 1.2KB stack copy. */
+    for (i = 0u; i < s_q_count; ++i) {
+        uint8_t src = (uint8_t)((s_q_head + i) % REMOTE_REPORT_QUEUE_DEPTH);
+        uint8_t dst = (uint8_t)((s_q_head + kept_n) % REMOTE_REPORT_QUEUE_DEPTH);
+        if (s_queue[src].is_tag10) ++drop_n;
+        else { if (src != dst) s_queue[dst] = s_queue[src]; ++kept_n; }
     }
-    for (i = 0u; i < kept_n; i++)
-    {
-        s_queue[i] = kept[i];
-    }
-    s_q_head = 0u;
-    s_q_tail = kept_n;
     s_q_count = kept_n;
+    s_q_tail = (uint8_t)((s_q_head + kept_n) % REMOTE_REPORT_QUEUE_DEPTH);
     return drop_n;
 }
 
@@ -633,16 +851,20 @@ int remote_queue_tlv_blob(const uint8_t *plain, uint16_t plain_len,
     {
         return REMOTE_QUEUE_ERR;
     }
-    if (remote_frame_build(plain, plain_len, s_queue[s_q_tail].buf,
-                           CAT1_UDP_MAX_UDP_PDU, &frame_len) != 0)
+    if (remote_validate_tlv(plain, plain_len, 0U) != 0) return REMOTE_QUEUE_PARAM;
     {
-        return REMOTE_QUEUE_ERR;
+        int rc;
+        uint8_t *frame = app_heap_alloc(CAT1_UDP_MAX_UDP_PDU);
+        if (!frame) return REMOTE_QUEUE_ERR;
+        rc = remote_frame_build(plain, plain_len, frame, CAT1_UDP_MAX_UDP_PDU, &frame_len);
+        if (!rc) {
+            if (rc_trans_pack_index != RC_PACK_INDEX_NONE)
+                rc = remote_queue_push_rc_trans(frame, frame_len, rc_trans_pack_index);
+            else rc = remote_queue_push(frame, frame_len, 0u, RC_PACK_INDEX_NONE, 0u);
+        } else rc = REMOTE_QUEUE_ERR;
+        app_heap_free(frame);
+        return rc;
     }
-    if (rc_trans_pack_index != RC_PACK_INDEX_NONE)
-    {
-        return remote_queue_push_rc_trans(s_queue[s_q_tail].buf, frame_len, rc_trans_pack_index);
-    }
-    return remote_queue_push(s_queue[s_q_tail].buf, frame_len, 0u, RC_PACK_INDEX_NONE, 0u);
 }
 
 /**
@@ -750,46 +972,27 @@ uint8_t remote_report_queue_count(void)
 
 uint8_t remote_report_abort_rc_trans(uint32_t *packs_out, uint8_t packs_cap)
 {
-    remote_frame_t kept[REMOTE_REPORT_QUEUE_DEPTH];
-    uint8_t kept_n = 0u;
-    uint8_t abort_n = 0u;
-    uint8_t i;
-
+    uint8_t kept_n = 0u, abort_n = 0u, i;
     taskENTER_CRITICAL();
-    for (i = 0u; i < s_q_count; i++)
-    {
-        uint8_t idx = (uint8_t)((s_q_head + i) % REMOTE_REPORT_QUEUE_DEPTH);
-
-        if (s_queue[idx].rc_trans_notify != 0u)
-        {
-            if (packs_out != NULL && abort_n < packs_cap)
-            {
-                packs_out[abort_n] = s_queue[idx].pack_index;
-            }
-            if (abort_n < 255u)
-            {
-                abort_n++;
-            }
-        }
-        else if (kept_n < REMOTE_REPORT_QUEUE_DEPTH)
-        {
-            kept[kept_n++] = s_queue[idx];
-        }
+    for (i = 0u; i < s_q_count; ++i) {
+        uint8_t src = (uint8_t)((s_q_head + i) % REMOTE_REPORT_QUEUE_DEPTH);
+        uint8_t dst = (uint8_t)((s_q_head + kept_n) % REMOTE_REPORT_QUEUE_DEPTH);
+        if (s_queue[src].rc_trans_notify) {
+            if (packs_out && abort_n < packs_cap) packs_out[abort_n] = s_queue[src].pack_index;
+            ++abort_n;
+        } else { if (src != dst) s_queue[dst] = s_queue[src]; ++kept_n; }
     }
-    for (i = 0u; i < kept_n; i++)
-    {
-        s_queue[i] = kept[i];
-    }
-    s_q_head = 0u;
-    s_q_tail = kept_n;
     s_q_count = kept_n;
+    s_q_tail = (uint8_t)((s_q_head + kept_n) % REMOTE_REPORT_QUEUE_DEPTH);
     taskEXIT_CRITICAL();
+    return !packs_out ? abort_n : (abort_n < packs_cap ? abort_n : packs_cap);
+}
 
-    if (packs_out == NULL)
-    {
-        return abort_n;
-    }
-    return (abort_n < packs_cap) ? abort_n : packs_cap;
+void remote_report_clear_queue(void)
+{
+    taskENTER_CRITICAL();
+    s_q_head = s_q_tail = s_q_count = 0u;
+    taskEXIT_CRITICAL();
 }
 
 /**
@@ -838,6 +1041,7 @@ int remote_report_poll(uint8_t *out, size_t buflen, uint16_t *outlen,
 }
 
 #define REMOTE_TAG_11  0x11u
+#define REMOTE_TAG_0A  0x0Au   /* 心跳数据 (5G遥控器数据采集规范 V1.2) */
 
 /**
  * @brief  将 UploadIntervalSec 写入 CloudUploadPolicy 前 4 字节（大端）
@@ -867,11 +1071,14 @@ static void remote_cloud_policy_set_item_count(uint8_t policy[6], uint16_t item_
 static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value_len, uint8_t cloud_policy[6])
 {
     uint16_t pos;
+    uint8_t next_policy[6], capture_value=0u;
     uint8_t got_interval;
     uint8_t got_count;
     uint8_t got_key_capture;
     uint8_t got_ota_sw;
     uint8_t got_ota_pkts;
+    uint8_t got_heartbeat;
+    uint16_t heartbeat_period_s=0u;
     uint16_t ota_sw_version;
     uint16_t ota_total_packets;
 
@@ -880,11 +1087,13 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
         return -1;
     }
 
+    memcpy(next_policy, cloud_policy, sizeof(next_policy));
     got_interval = 0u;
     got_count = 0u;
     got_key_capture = 0u;
     got_ota_sw = 0u;
     got_ota_pkts = 0u;
+    got_heartbeat = 0u;
     ota_sw_version = 0u;
     ota_total_packets = 0u;
     pos = 0u;
@@ -917,7 +1126,7 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
 
                     pos += 1u;
                     got_key_capture = 1u;
-                    remote_set_key_capture_enable(cap_val);
+                    capture_value = cap_val;
                 }
 #else
                 pos += 1u;
@@ -929,7 +1138,7 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
                 {
                     return -1;
                 }
-                remote_cloud_policy_set_interval(cloud_policy,
+                remote_cloud_policy_set_interval(next_policy,
                     (uint32_t)(((uint32_t)value_bytes[pos] << 8) | value_bytes[pos + 1u]));
                 got_interval = 1u;
                 pos += 2u;
@@ -939,7 +1148,7 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
                 {
                     return -1;
                 }
-                remote_cloud_policy_set_item_count(cloud_policy,
+                remote_cloud_policy_set_item_count(next_policy,
                     (uint16_t)(((uint16_t)value_bytes[pos] << 8) | value_bytes[pos + 1u]));
                 got_count = 1u;
                 pos += 2u;
@@ -964,15 +1173,32 @@ static int remote_parse_tag11_payload(const uint8_t *value_bytes, uint16_t value
                 got_ota_pkts = 1u;
                 pos += 2u;
                 break;
+            case 0x06u:
+                /* 心跳间隔 (秒, 2B BE; 0=关闭) — 热更新 heartbeat 周期 */
+                if (remain < 2u)
+                {
+                    return -1;
+                }
+                heartbeat_period_s=(uint16_t)(((uint16_t)value_bytes[pos] << 8)
+                    | value_bytes[pos + 1u]);
+                got_heartbeat = 1u;
+                pos += 2u;
+                break;
             default:
                 return -1;
         }
     }
 
-    if (got_interval == 0u && got_count == 0u && got_key_capture == 0u)
+    if (got_interval == 0u && got_count == 0u && got_key_capture == 0u
+        && got_heartbeat == 0u && got_ota_sw == 0u && got_ota_pkts == 0u)
     {
         return -1;
     }
+
+    if (got_ota_sw != got_ota_pkts) return -1;
+    memcpy(cloud_policy, next_policy, sizeof(next_policy));
+    if (got_key_capture) remote_set_key_capture_enable(capture_value);
+    if(got_heartbeat)heartbeat_set_period_s(heartbeat_period_s);
 
     /* 仅当 Tag11 含 DataID 0x04/0x05 时才触发 OTA 任务（纯策略应答不启动升级） */
     if (got_ota_sw != 0u || got_ota_pkts != 0u) {

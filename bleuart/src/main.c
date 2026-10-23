@@ -23,10 +23,11 @@
 #include "app_rtos.h"
 #include "pm_state.h"       /* 电源管理状态机 — 休眠/待机态控制 */
 #include "combo_key.h"      /* 组合键管理器（配对/解配）           */
+#include "heartbeat.h"      /* 服务器心跳定时器                     */
 #include "iwdg.h"           /* IWDG 独立看门狗                     */
 #include "irc.h"            /* IRC 红外发送驱动                     */
-#include "ir_learn.h"       /* 红外学习（TIM3 捕获解码）            */
-#include "ir_learn_store.h" /* 学习键值落库                          */
+#include "task_keyscan.h"
+#include "ir_learn.h"       /* 红外波形学习（TIM3 捕获）            */
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -70,25 +71,43 @@ int ble_stack_init(void)
 	return 0;					// 返回 0 表示 BLE 栈初始化成功
 }
 
-// SDK 定时器回调函数，每 8ms 被调用一次
+/* One owned SDK timer, including valid slot zero. SDK callbacks run from
+ * cs_schedule(), serialized with the BLE task. A generation rejects callbacks
+ * already queued when pause deleted their timer. */
+static uint8_t s_sdk_timer_paused;
+static uint8_t s_sdk_timer_generation;
+static uint32_t s_sdk_hdl = BR_TIMER_INVALID_HANDLER;
+
 void callBakSdkTimer(uint8_t ev, void *arg)
 {
-	(void)ev;
-	(void)arg;
-
-	setSdkTimer(8U);			// 重新设置定时器，确保每 8ms 调用一次此回调函数
-
-	// 如果 FreeRTOS 调度器正在运行，调用 xTaskIncrementTick 来更新系统时间和触发任务切换
-	if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) {
-		(void)xTaskIncrementTick();
-	}
+    (void)arg;
+    if (s_sdk_timer_paused || s_sdk_hdl == BR_TIMER_INVALID_HANDLER ||
+        ev != s_sdk_timer_generation) return;
+    s_sdk_hdl = BR_TIMER_INVALID_HANDLER;
+    setSdkTimer(8U);
+    if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING)
+        (void)xTaskIncrementTick();
 }
 
-// 设置 SDK 定时器，单位为毫秒
 void setSdkTimer(uint16_t ms)
 {
-	// 定时器接口，设置一个定时器在 ms 毫秒后触发，触发时调用 callBakSdkTimer 函数
-	sdk_timer_add(ms, 2, callBakSdkTimer, NULL);
+    if (s_sdk_timer_paused || s_sdk_hdl != BR_TIMER_INVALID_HANDLER) return;
+    ++s_sdk_timer_generation;
+    s_sdk_hdl = sdk_timer_add(ms, s_sdk_timer_generation, callBakSdkTimer, NULL);
+}
+
+void sdk_timer_pause(void)
+{
+    uint32_t hdl = s_sdk_hdl;
+    s_sdk_timer_paused = 1u;
+    s_sdk_hdl = BR_TIMER_INVALID_HANDLER;
+    if (hdl != BR_TIMER_INVALID_HANDLER) (void)sdk_timer_del(hdl);
+}
+
+void sdk_timer_resume(void)
+{
+    s_sdk_timer_paused = 0u;
+    setSdkTimer(8U);
 }
 
 // 初始化 BLE 栈与 GATT/GAP（不启动广播），供 OTA 会话并行 HID 使用
@@ -119,36 +138,10 @@ uint8_t myBleStartAdv(void)
 }
 
 static StaticTask_t s_ble_tcb;			// BLE 任务控制块
-static StackType_t s_ble_stack[512];	// 512 字节的任务栈空间，根据实际需求调整大小
-
-/**
- * @brief  红外学习结果回调
- * @param  evt  学习事件
- * @param  user 学习到的 NEC 用户码（DONE 时有效）
- * @param  cmd  学习到的 NEC 数据码（DONE 时有效）
- * @note   学习成功后把结果保存到目标按键的 NV 存储（学习值优先）。
- */
-static void ir_learn_result(ir_learn_evt_t evt, uint8_t user, uint8_t cmd)
-{
-	switch (evt) {
-	case IR_LEARN_EVT_DONE:
-		co_printf("[IR   ] learn result user=0x%02X cmd=0x%02X\r\n",
-		          (unsigned)user, (unsigned)cmd);
-		(void)ir_learn_store_save(ir_learn_get_target(), user, cmd);
-		break;
-	case IR_LEARN_EVT_FAILED:
-		co_printf("[IR   ] learn failed\r\n");
-		break;
-	case IR_LEARN_EVT_TIMEOUT:
-		co_printf("[IR   ] learn timeout\r\n");
-		break;
-	case IR_LEARN_EVT_CANCELED:
-		co_printf("[IR   ] learn canceled\r\n");
-		break;
-	default:
-		break;
-	}
-}
+/* Linker reports 1944 bytes on the existing OTA call chain, before unknown
+ * indirect calls/context overhead. Reserve 3KiB rather than the old 2KiB. */
+#define BLE_TASK_STACK_WORDS 768u
+static StackType_t s_ble_stack[BLE_TASK_STACK_WORDS];
 
 // 主函数，程序入口点
 int main(void)
@@ -156,7 +149,7 @@ int main(void)
 	delay_n_10us(50U * 100U);	// 上电后延时 50ms，等待电源稳定
 	initialGmem();				// 初始化全局内存与变量
 	initialGpio();				// 初始化 GPIO，主要是 LED
-	delay_n_10us(2000U * 100U); // 上电后延时 2000ms，预留SWD烧录窗口，之后PA4/PA5切为USART1
+	delay_n_10us(2000U * 100U); // 保留新板PA4/PA5切换USART1前的SWD下载窗口
 	co_log_init();				// 初始化日志模块，后续可使用 co_printf 输出日志
 
 	/*
@@ -172,18 +165,19 @@ int main(void)
 
 	co_printf("\r\n\r\nInitialization complete, starting FreeRTOS...\r\n");
 	co_printf("[BR REMOTE] SW version: %s\r\n", RC_READ_VAL_DEVICE_SW_VERSION);
-	co_printf("C heap %u bytes\r\n", (unsigned)((char *)&__heap_limit - (char *)&__heap_base));
+	co_printf("C heap %u bytes\r\n", (unsigned)((uintptr_t)&__heap_limit - (uintptr_t)&__heap_base));
 
 	ble_keyscan_init();			// 初始化按键扫描模块
 	irc_init();				// 初始化 IRC 红外发送
-	ir_learn_init(ir_learn_result);	// 初始化红外学习（PB5 = TIM3_CH2）
+	ir_learn_init(task_keyscan_ir_learn_result);	// 初始化红外学习（PB5 = TIM3_CH2）
 	rc_cat1_init();				// 初始化 Cat.1 模块
 	app_rtos_init();			// 初始化 RTOS
 
 	pm_state_init();			// 初始化电源管理状态机
 	combo_key_init();			// 初始化组合键管理器
+	heartbeat_init();			// 初始化服务器心跳定时器
 
-	(void)xTaskCreateStatic(task_ble_entry, "ble", 512, NULL, 3, s_ble_stack, &s_ble_tcb);
+	(void)xTaskCreateStatic(task_ble_entry, "ble", BLE_TASK_STACK_WORDS, NULL, 3, s_ble_stack, &s_ble_tcb);
 	vTaskStartScheduler();		// 启动 FreeRTOS 调度器
 
 	for (;;) {

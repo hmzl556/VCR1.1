@@ -1,7 +1,7 @@
 /**
  * @file    pm_state.c
  * @brief   电源管理状态机核心实现
- * @note    此文件是 PMU 模块的核心，实现五状态机（配对/回连/工作/待机/休眠）
+ * @note    此文件是 PMU 模块的核心，实现六状态机（静默/配对/回连/工作/待机/休眠）
  *          的全部状态转换逻辑。
  *
  * 时间基准：app_now_ms()（sdk_timer 单调毫秒计数）。
@@ -22,13 +22,22 @@
 #include "gap.h"        /* peer_bonded_count() 绑定数量查询 */
 #include "rc_cat1_bridge.h"
 #include "udp_ota.h"
+#include "cat1_skt_udp.h"
+#include "heartbeat.h"
+#include "task_keyscan.h"
+#include "ble_adv.h"    /* ble_adv_start_by_bonding() — 唤醒后复用栈重启广播 */
+
+extern volatile uint8_t g_audio_pcm_enabled;
+extern void sdk_timer_pause(void);   /* main.c: 删 8ms 定时器让 WFI 深睡 */
+extern void sdk_timer_resume(void);  /* main.c: 恢复 8ms 定时器 (FreeRTOS tick) */
+extern volatile bool g_pairing_active; /* ble_gap.c: 组合键配对广播标志 */
 
 /*===========================================================================
  * 一、内部静态变量
  *===========================================================================*/
 
-/** @brief 当前电源状态，初始为配对态（后续由绑定检查修正） */
-static pm_state_t   g_pm_state              = PM_STATE_PAIRING;
+/** @brief 当前电源状态，初始为静默态（后续由 pm_state_init 根据绑定修正） */
+static pm_state_t   g_pm_state              = PM_STATE_SILENT;
 
 /** @brief 最后一次业务活动发生的时间戳（app_now_ms 值） */
 static uint32_t     g_pm_last_activity_ms   = 0U;
@@ -38,6 +47,9 @@ static uint32_t     g_pm_reconnect_start_ms = 0U;
 
 /** @brief 进入配对态的时间戳，用于配对超时判断 */
 static uint32_t     g_pm_pairing_start_ms   = 0U;
+
+/** @brief 进入静默态的时间戳，用于静默超时判断 */
+static uint32_t     g_pm_silent_start_ms    = 0U;
 
 /** @brief 进入休眠态前记录唤醒原因：0=未定义, 1=按键, 2=RTC */
 static uint8_t      g_pm_wake_reason        = 0U;
@@ -72,22 +84,8 @@ static void pm_refresh_activity(void)
  */
 static uint32_t pm_idle_duration_ms(void)
 {
-    uint32_t now_ms = app_now_ms();
-
-    /*
-     * 防护：若 now_ms 意外小于 g_pm_last_activity_ms（可能原因：
-     * ① g_pm_last_activity_ms 未在关键路径被刷新  ② 变量被异常改写）
-     * 减法会下溢得到一个极大值（~49 天），导致立即误触发超时。
-     * 此处检测下溢并返回 0，同时印出警告便于调试。
-     */
-    if (now_ms < g_pm_last_activity_ms) {
-        PM_LOG("WARN: idle timer underflow! now=%lu last_act=%lu",
-               (unsigned long)now_ms, (unsigned long)g_pm_last_activity_ms);
-        /* 修复：将时间戳拉到当前值，恢复计时器 */
-        g_pm_last_activity_ms = now_ms;
-        return 0U;
-    }
-    return (now_ms - g_pm_last_activity_ms);
+    /* Unsigned subtraction remains correct across the 32-bit ms wrap. */
+    return app_now_ms() - g_pm_last_activity_ms;
 }
 
 /*===========================================================================
@@ -150,6 +148,10 @@ static void pm_enter_sleep(void)
 
     PM_LOG("Enter SLEEP state - prep sleep mode");
 
+    /* 配对会话随休眠结束: 清除组合键配对标志, 否则唤醒后广播重启
+     * 会误发配对广播 (实测: 配对态进休眠, 唤醒后直接回到配对广播) */
+    g_pairing_active = false;
+
     /*
      * pm_sleep_enter() handles all sleep-mode hardware operations:
      *   1. Stop BLE advertising
@@ -164,13 +166,31 @@ static void pm_enter_sleep(void)
 
     /*
      * 休眠唤醒后：CAT1 UART/模组状态已在 sleep 流程中关闭，需重新初始化；
-     * pm_wakeup_entry() 按绑定关系切到 PAIRING/RECONNECTING 并刷新 PM 计时。
-     * bleAdvStat 已在 sleep 中清零，主循环会 myBleStartAdv() 重建 BLE。
+     * pm_wakeup_entry() 按绑定关系切到 SILENT/RECONNECTING 并刷新 PM 计时。
+     * bleAdvStat 保持 0xa6 (见 pm_sleep.c): 复用现有 BLE 栈重启广播,
+     * 不重建栈 (重建=二次 malloc → HardFault)。
      */
     rc_cat1_init();
     pm_wakeup_entry();
+    /* 恢复 8ms sdk 定时器 (FreeRTOS tick): 休眠入口已暂停, 否则唤醒后
+     * tick 一直冻结 (vTaskDelay 等会挂死) */
+    sdk_timer_resume();
+    ble_adv_start_by_bonding();
 
     (void)wake_reason;
+}
+
+/**
+ * @brief  进入静默态的操作
+ * @note   上电/唤醒后无绑定时进入。CPU 运行但不发任何 BLE 广播，
+ *         等待用户按 KEY14+KEY3 组合键触发配对或超时进入休眠。
+ *         计时器从进入此刻开始，与后续配对态的计时器独立。
+ */
+static void pm_enter_silent(void)
+{
+    PM_LOG("Enter SILENT state - waiting for combo key");
+    g_pm_silent_start_ms = app_now_ms();
+    pm_refresh_activity();
 }
 
 /**
@@ -210,13 +230,17 @@ static void pm_enter_reconnecting(void)
  */
 void pm_state_init(void)
 {
+    extern volatile bool g_pairing_active;
+
     /* 根据绑定状态决定初始状态 */
     if (pm_has_bonding()) {
         g_pm_state = PM_STATE_RECONNECTING;
         PM_LOG("PM init: bonded, start=RECONNECTING");
     } else {
-        g_pm_state = PM_STATE_PAIRING;
-        PM_LOG("PM init: no bond, start=PAIRING");
+        /* 无绑定: 上电后进静默态, 等 KEY14+KEY3 组合键触发配对 */
+        g_pm_state = PM_STATE_SILENT;
+        g_pm_silent_start_ms = app_now_ms();
+        PM_LOG("PM init: no bond, start=SILENT");
     }
 
     /* 初始化活动时间戳为当前时刻，避免立即触发超时 */
@@ -226,19 +250,20 @@ void pm_state_init(void)
 /**
  * @brief  BLE 栈初始化完成后的状态同步
  * @note   pm_state_init() 调用时 BLE 栈尚未启动，peer_bonded_count() 返回 0，
- *         导致初始状态始终为 PAIRING。本函数在 myBleStartAdv() 之后调用，
+ *         导致初始状态始终为 SILENT。本函数在 myBleStartAdv() 之后调用，
  *         此时绑定数据已从 Flash 恢复到 RAM，可正确判断。
- *         仅当"PM认为是PAIRING但实际有绑定"时才修正为 RECONNECTING。
+ *         仅当"PM认为是SILENT或PAIRING但实际有绑定"时才修正为 RECONNECTING。
  */
 void pm_state_sync_after_ble_init(void)
 {
     /*
      * pm_state_init() 先于 BLE 栈初始化，此时 peer_bonded_count() 必为 0，
-     * 因此初始状态固定为 PAIRING。BLE 栈就绪后，绑定已从 Flash 恢复，
+     * 因此初始状态固定为 SILENT。BLE 栈就绪后，绑定已从 Flash 恢复，
      * 若实际有绑定，需通过正规状态转换切换到 RECONNECTING，
      * 确保 pm_enter_reconnecting() 被调用（初始化回连计时器+刷新活动时间戳）。
      */
-    if (g_pm_state == PM_STATE_PAIRING && pm_has_bonding()) {
+    if ((g_pm_state == PM_STATE_SILENT || g_pm_state == PM_STATE_PAIRING)
+        && pm_has_bonding()) {
         pm_state_transition(PM_STATE_RECONNECTING);
         PM_LOG("PM sync after BLE init: corrected to RECONNECTING");
     }
@@ -263,9 +288,10 @@ void pm_state_transition(pm_state_t new_state)
     pm_state_t old_state = g_pm_state;
 
     /* OTA 会话期间禁止进入待机/休眠（combo/工厂复位等可能绕过 process 直接 transition） */
-    if (udp_ota_session_busy() != 0u
+    if ((udp_ota_session_busy() != 0u || task_keyscan_ir_busy() || g_audio_pcm_enabled ||
+         rc_cat1_has_work() || heartbeat_needs_cat1_poll())
         && (new_state == PM_STATE_STANDBY || new_state == PM_STATE_SLEEP)) {
-        PM_LOG("OTA session busy, reject transition to %s",
+        PM_LOG("OTA/IR busy, reject transition to %s",
                pm_state_name(new_state));
         return;
     }
@@ -283,11 +309,16 @@ void pm_state_transition(pm_state_t new_state)
     switch (old_state) {
         case PM_STATE_STANDBY:
             /*
-             * 从待机态退出：目标为 WORKING 时恢复外设；
-             * 目标为 SLEEP 时跳过（马上要关外设睡觉，不需要恢复）
+             * 无论目标是 WORKING 还是 SLEEP 都完整退出待机:
+             * - 目标 SLEEP 时不恢复的话, pm_clk_off 门控掉的
+             *   TIM1/SPI1/SPI2/USART1 时钟会一直缺到休眠唤醒之后,
+             *   BLE 栈重建时挂死 → 看门狗复位 (实测: 每次休眠后自动重启);
+             * - 进 SLEEP 前需再次暂停 sdk 定时器: WFI 有 pending 定时器
+             *   会被每 8ms 唤醒 (休眠瞬间自动唤醒的根源)。
              */
-            if (new_state != PM_STATE_SLEEP) {
-                pm_exit_standby();
+            pm_exit_standby();
+            if (new_state == PM_STATE_SLEEP) {
+                sdk_timer_pause();
             }
             break;
         /* 其他状态当前无需特殊退出操作 */
@@ -300,6 +331,9 @@ void pm_state_transition(pm_state_t new_state)
 
     /* ----- 进入新状态 ----- */
     switch (new_state) {
+        case PM_STATE_SILENT:
+            pm_enter_silent();
+            break;
         case PM_STATE_PAIRING:
             pm_enter_pairing();
             break;
@@ -317,8 +351,8 @@ void pm_state_transition(pm_state_t new_state)
             break;
         default:
             /* 非法状态，回退 */
-            PM_LOG("ERROR: invalid state %d, fallback PAIRING", (int)new_state);
-            g_pm_state = PM_STATE_PAIRING;
+            PM_LOG("ERROR: invalid state %d, fallback SILENT", (int)new_state);
+            g_pm_state = PM_STATE_SILENT;
             break;
     }
 }
@@ -330,6 +364,8 @@ void pm_activity_notify(pm_activity_t activity)
 {
     /* 首先刷新活动时间戳（无论当前状态，推迟进入待机/休眠） */
     pm_refresh_activity();
+    if(g_pm_state==PM_STATE_SILENT && activity==PM_ACTIVITY_KEY)
+        g_pm_silent_start_ms=app_now_ms();
 
     /* 如果在待机态，立即切回工作态 */
     if (g_pm_state == PM_STATE_STANDBY) {
@@ -377,6 +413,12 @@ void pm_notify_disconnected(void)
 {
     PM_LOG("Disconnect notify, curr=%s", pm_state_name(g_pm_state));
 
+    /* 休眠前的主动断连(le_conn_destory): 忽略, 唤醒后由 pm_wakeup_entry 决定去向 */
+    if (g_pm_state == PM_STATE_SLEEP) {
+        PM_LOG("Disconnect during SLEEP (pre-sleep destroy), ignore");
+        return;
+    }
+
     /* 根据是否有绑定记录决定去向 */
     if (pm_has_bonding()) {
         /* 有绑定 → 回到回连态，尝试重连 */
@@ -400,7 +442,26 @@ void pm_state_process(void)
         return;
     }
 
+    if (task_keyscan_ir_busy() || g_audio_pcm_enabled) {
+        pm_refresh_activity();
+        g_pm_reconnect_start_ms = app_now_ms();
+        g_pm_pairing_start_ms = app_now_ms();
+        g_pm_silent_start_ms = app_now_ms();
+        return;
+    }
     switch (g_pm_state) {
+        case PM_STATE_SILENT:
+            /* 检查静默态 → 休眠态超时 */
+            {
+                uint32_t now_ms = app_now_ms();
+                if ((now_ms - g_pm_silent_start_ms) >= PM_SILENT_TO_SLEEP_MS) {
+                    co_printf("SILENT timeout %lu ms -> SLEEP",
+                              (unsigned long)(now_ms - g_pm_silent_start_ms));
+                    pm_state_transition(PM_STATE_SLEEP);
+                }
+            }
+            break;
+
         case PM_STATE_WORKING:
             /* 检查工作态 → 待机态超时 */
             idle_ms = pm_idle_duration_ms();
@@ -470,8 +531,8 @@ void pm_wakeup_entry(void)
         PM_LOG("Wakeup: bonded -> RECONNECTING");
         pm_state_transition(PM_STATE_RECONNECTING);
     } else {
-        PM_LOG("Wakeup: no bond -> PAIRING");
-        pm_state_transition(PM_STATE_PAIRING);
+        PM_LOG("Wakeup: no bond -> SILENT");
+        pm_state_transition(PM_STATE_SILENT);
     }
 }
 
@@ -490,6 +551,7 @@ bool pm_is_connected(void)
 const char* pm_state_name(pm_state_t state)
 {
     switch (state) {
+        case PM_STATE_SILENT:       return "SILENT";
         case PM_STATE_PAIRING:      return "PAIRING";
         case PM_STATE_RECONNECTING: return "RECONNECTING";
         case PM_STATE_WORKING:      return "WORKING";

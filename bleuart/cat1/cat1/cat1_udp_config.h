@@ -32,11 +32,15 @@
 /** ECSORF 解析失败时打印应答行前缀长度 */
 #define CAT1_ECSORF_PARSE_DIAG_HEAD  64u
 
-#define CAT1_UDP_MAX_UDP_PDU    592u               // 560B 明文 AES 后 581B 帧（19+560+2）；须 ≤ECSOST 能力
+#define CAT1_UDP_MAX_UDP_PDU    608u /* 560B plain + 16B PKCS padding + 21B framing = 597B. */
 
 #define RC_UDP_AES_ENABLE       1u                 // 0=明文联调, 1=AES-128-ECB 加密 data field
 
 #define RC_UDP_AES_PLAIN_DATA_MAX  560u            // 与 RC_TRANS_ASSEMBLY_MAX 一致（含 TLV数据长度 2B）
+
+#if CAT1_UDP_MAX_UDP_PDU < ((RC_UDP_AES_PLAIN_DATA_MAX / 16u + 1u) * 16u + 21u)
+#error "UDP PDU must include the complete PKCS padding and 6868 frame header"
+#endif
 
 // AES 密钥（按需修改与联调环境一致）
 //#define RC_UDP_AES_KEY_BYTES    { 0x01u, 0x02u, 0x03u, 0x04u, 0x05u, 0x06u, 0x07u, 0x08u, \

@@ -29,6 +29,13 @@ cat1_modem_result_t cat1_modem_step(void);
 /** @brief 是否有 AT 事务正在进行 */
 uint8_t cat1_modem_is_busy(void);
 
+/**
+ * @brief  读取 SIM 卡号原文 (setup 阶段 AT+ECICCID 捕获, 可含字母)
+ * @note   协议 V1.2: 上行按 BYTE[20] ASCII 原样上报 (无补位)
+ * @return 0=成功; -1=尚未捕获
+ */
+int cat1_iccid_get_raw(uint8_t out[20], uint8_t *out_len);
+
 /** @brief OTA 已收到代码片时提前结束 ECSOST 等待（不必等 AT 超时） */
 void cat1_skt_udp_finish_active_ok(void);
 
@@ -77,7 +84,7 @@ cat1_modem_result_t cat1_skt_udp_send_begin_wait_ex(const uint8_t *payload, uint
                                                     uint8_t wait_downlink_chunk,
                                                     uint16_t remote_port);
 
-/** @brief 将 USART2 已有字节喂入 +ECSONMI 解析（不取 PDU，OTA 期间可频繁调用） */
+/** @brief 将 USART1 已有字节喂入 +ECSONMI 解析（不取 PDU，OTA 期间可频繁调用） */
 void cat1_skt_udp_pump_urc(void);
 
 /** 尽量抽干 RX 环并解析 +ECSONMI（Flash 写后、发下一 req 前调用） */

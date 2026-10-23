@@ -24,6 +24,8 @@
 #include "pm_state.h"
 #include "app_voice_ctrl.h"
 #include "app_audio_pcm.h"
+#include "ir_key_map.h"
+#include "ir_learn.h"
 #include <string.h>
 
 /** @brief §3.1 下载时序阶段（与 s_expect_seq 配合） */
@@ -195,7 +197,8 @@ static int udp_ota_chunk_prog_valid(uint32_t prog_start, uint32_t prog_end)
 		return -1;
 	}
 	prog_len = prog_end - prog_start + 1u;
-	if (prog_len == 0u || prog_len > FLASH_APP2_SIZE) {
+	if (prog_len == 0u || prog_len > FLASH_APP2_SIZE ||
+        (prog_len + OTA_CHUNK_SIZE - 1u) / OTA_CHUNK_SIZE != s_total_packets) {
 		return -1;
 	}
 	return 0;
@@ -333,7 +336,7 @@ static void udp_ota_sync_checkpoint(void)
 	if (s_written_seq == 0u || s_written_seq >= s_total_packets) {
 		return;
 	}
-	if (s_para.prog_length == 0u) {
+	if (s_para.prog_length == 0u || (s_written_seq % 8u) != 0u) {
 		return;
 	}
 
@@ -361,7 +364,6 @@ static uint8_t udp_ota_try_resume_from_checkpoint(uint16_t sw_version_bcd,
 	if (cp.version != sw_version_bcd || cp.total_packets != total_packets) {
 		co_printf("[OTA  ] Tag11 checkpoint mismatch (cp ver=0x%04X pkts=%u), fresh\r\n",
 		          (unsigned)cp.version, (unsigned)cp.total_packets);
-		udp_bootload_clear_checkpoint();
 		return 0u;
 	}
 	if (cp.written_seq == 0u) {
@@ -449,7 +451,7 @@ void udp_ota_on_tag11_task(uint16_t sw_version_bcd, uint16_t total_packets)
 		return;
 	}
 
-	if (total_packets == 0u) {
+	if (total_packets == 0u || total_packets > FLASH_APP2_SIZE / OTA_CHUNK_SIZE) {
 		co_printf("[OTA  ] Tag11 invalid total_packets\r\n");
 		return;
 	}
@@ -462,14 +464,12 @@ void udp_ota_on_tag11_task(uint16_t sw_version_bcd, uint16_t total_packets)
 	if (sw_version_bcd < local_ver) {
 		co_printf("[OTA  ] Tag11 old version=0x%04X downgrade rejected srv=0x%04X\r\n",
 		          (unsigned)local_ver, (unsigned)sw_version_bcd);
-		udp_bootload_clear_checkpoint();
 		return;
 	}
 
 	if (sw_version_bcd == local_ver) {
 		co_printf("[OTA  ] Tag11 same version skip srv=0x%04X local=0x%04X\r\n",
 		          (unsigned)sw_version_bcd, (unsigned)local_ver);
-		udp_bootload_clear_checkpoint();
 		return;
 	}
 
@@ -477,6 +477,7 @@ void udp_ota_on_tag11_task(uint16_t sw_version_bcd, uint16_t total_packets)
 		return;
 	}
 
+	udp_ota_session_enter();
 	udp_bootload_clear_checkpoint();
 
 	s_total_packets = total_packets;
@@ -496,7 +497,6 @@ void udp_ota_on_tag11_task(uint16_t sw_version_bcd, uint16_t total_packets)
 	udp_ota_clear_uplink_cache();
 	ota_debug_reset_tx_req1_log();
 	s_dl_phase = OTA_DL_NEED_SEND;
-	udp_ota_session_enter();
 
 	co_printf("\r\n[OTA  ] Tag11 start OTA ver=0x%04X pkts=%u, req chunk 1\r\n\r\n",
 	          (unsigned)sw_version_bcd, (unsigned)total_packets);
@@ -656,7 +656,11 @@ int udp_ota_poll_tx_get(const uint8_t **frame, uint16_t *len)
 	if (s_dl_phase == OTA_DL_VERIFY) {
 		uint16_t calc;
 
-		calc = ota_prog_checksum16_flash(FLASH_APP2_START, s_para.prog_length);
+		if (ota_prog_checksum16_flash_checked(FLASH_APP2_START, s_para.prog_length, &calc) != 0) {
+            co_printf("[OTA  ] verify flash read fail\r\n");
+            udp_ota_fail(1u);
+            return -2;
+        }
 		if (calc != s_saved_checksum) {
 			co_printf("[OTA  ] checksum fail calc=0x%04X expect=0x%04X\r\n",
 			          (unsigned)calc, (unsigned)s_saved_checksum);
@@ -789,6 +793,8 @@ void udp_ota_session_enter(void)
 		return;
 	}
 	s_ota_session = 1u;
+    ir_tx_cancel();
+    ir_learn_stop();
 	(void)ble_adv_stop();
 	(void)voice_ctrl_post_stop();
 	if (g_audio_pcm_enabled != 0u) {
@@ -814,6 +820,7 @@ void udp_ota_session_exit(void)
 		return;
 	}
 	s_ota_session = 0u;
+    if (ble_gap_get_peer() == NULL) ble_adv_start_by_bonding();
 	co_printf("[OTA  ] session exit\r\n");
 }
 

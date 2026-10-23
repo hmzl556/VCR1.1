@@ -7,6 +7,7 @@
 
 void Encoder_Sbc_Init(void);
 void Encoder_Sbc_Enable(void);
+int Encoder_Sbc_IsReady(void);
 void Encoder_Sbc_Disable(void);
 void Encoder_Sbc_ProcessPcmBlock(const __IO int16_t* data, uint16_t count);
 

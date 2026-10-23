@@ -206,7 +206,7 @@ void co_print_rawdata(uint16_t dbg_type, uint8_t *p, uint8_t *end)
 	while (p < end) {/* Line by line */
         memset(dbg_str, 0, sizeof(dbg_str));
 		/* Line number, offest */
-		CO_DBG_OUT(dbg_str, "%04d:"), off);
+		CO_DBG_OUT(dbg_str, "%04u:"), (unsigned)off);
 		off += OCTETS_ONELINE;
 
 		/* Raw Data */

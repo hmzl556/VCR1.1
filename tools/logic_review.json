@@ -1,0 +1,479 @@
+{
+  "date": "2026-10-22",
+  "software_version": "02010000",
+  "backup": "backups/IR_logic_review_20261022_010759.zip",
+  "changed_firmware_files": [
+    {
+      "path": "bleuart/cat1/cat1/cat1_udp_config.h",
+      "before_sha256": "5e7c40856641e08db1eb3b4c50da7c007dd7ac28c6a242deeebcd50e239da599",
+      "after_sha256": "a72f3ccd72ae76dacc475eada707889169e5ed8d90dae5f8f3b751da81fea005"
+    },
+    {
+      "path": "bleuart/cat1/cat1/heartbeat.c",
+      "before_sha256": "ce359585cb9c95887e0b186b3b4fd8e1bcc9bb336375cee9726165f54f9b5b2b",
+      "after_sha256": "c5a668f735a2b72d09d59835478bb0f1b5614fdfe387ff1a951c368e6f4e8a5f"
+    },
+    {
+      "path": "bleuart/cat1/cat1/rc_cat1_bridge.c",
+      "before_sha256": "92409edd25570d377812635f0d06c2bbdcf3d4814764319f36f52917e03dc4fc",
+      "after_sha256": "6b716bdc76965a92a62ceed3f8a84cb059798cf5845648ae7671a45bfd4ce23a"
+    },
+    {
+      "path": "bleuart/cat1/cat1/rc_cat1_bridge.h",
+      "before_sha256": "22df572054ca1ccc9cc068b221952beddd07aabc65016e09a8bab8cd9e722e87",
+      "after_sha256": "522ac7d34246bd76695df7af26c6e3316e125dd4060e87e899fd062a5f0b860b"
+    },
+    {
+      "path": "bleuart/cat1/cat1/rc_trans_assembly.c",
+      "before_sha256": "ccecb86134f3c6844adaca974096aa12949c75c173a79a5b469376d9547ddc26",
+      "after_sha256": "28271d290598b3a7160ba45bd70d78d0fbda769c79407deb4b10e1f658aa5ab8"
+    },
+    {
+      "path": "bleuart/cat1/cat1/remote_reports.c",
+      "before_sha256": "7d850966bb627a61b41ce64f71383843eccd5fa9255beb0cb9b9f7ba2345565e",
+      "after_sha256": "c93b255919046c204b2132d8ec4ad0bbe94edbbb92c13574b0d19ead3730aaff"
+    },
+    {
+      "path": "bleuart/cat1/cat1/remote_reports.h",
+      "before_sha256": "86c75535d53a9eff25218d7dc9627611a99b8da13eed3c4759578e52198fac76",
+      "after_sha256": "07a72c67b9ae6ee929e3172944716626868f755f3ca1295b4798269536d659a2"
+    },
+    {
+      "path": "bleuart/cat1/cat1/OTA/ota_crc.c",
+      "before_sha256": "3255c51e76da25c72f1399b0a99cd46c0701c1c44b8f83b06a2843476c98d520",
+      "after_sha256": "fb4bc6eb057523c8555c297163a95114f605fe90db46dc67b722ddc5efe7c78c"
+    },
+    {
+      "path": "bleuart/cat1/cat1/OTA/ota_crc.h",
+      "before_sha256": "d4171c50a9e665e1ce2d8ae20d086e0cf22edb71b64df4c2f5aa26b7fbc25be9",
+      "after_sha256": "f2433b4ad0c8b22f076530c2b49be5e25c81d386bec2e813d7b62ae5ed40408c"
+    },
+    {
+      "path": "bleuart/cat1/cat1/OTA/ota_frame.c",
+      "before_sha256": "b6fddfff2731c6b412bbe2e168150b1c7b93efb15837c6bf03f076b204a1a2b6",
+      "after_sha256": "ae5f46240f16385aae43a301ffdfbfaa4a2825c743700bc8438b1256f7325463"
+    },
+    {
+      "path": "bleuart/cat1/cat1/OTA/udp_bootload.c",
+      "before_sha256": "4f2f2ac32068c797c831af40d4ebc6c3e00265f8d7523367db696b3f0577b656",
+      "after_sha256": "4cbeeb87892a10a279d37da6880c5b1f73b3ce5435b03751dc43e8ab4dad10c6"
+    },
+    {
+      "path": "bleuart/cat1/cat1/OTA/udp_ota.c",
+      "before_sha256": "9e6ad7f608c49987d6ac7eb77b509083b13b5d7bf62787d901cc95b9fa06574c",
+      "after_sha256": "cf78d390d0a9c00ebe32bbea2498109c18bf4de9ccc8739652bbab3fcd591279"
+    },
+    {
+      "path": "bleuart/inc/app_keyscan.h",
+      "before_sha256": "50d3db554eecba7d65773d4e543cf89d0e5eae35bb18da0b4b8d20975ce7cfb0",
+      "after_sha256": "dbe85a72802547c339458d730b44b046c88fc850117238af31817afeb0bf6a59"
+    },
+    {
+      "path": "bleuart/IR/ir_key_map.c",
+      "before_sha256": "e0cd30a9f3d41ffbcd1b02859b3f8e5b27c1c7ce9eec03953bd7fc18bcde4897",
+      "after_sha256": "16b5e703389fa9513b65a9e50a7c94b5b815d32f078c9c3eeddfd13f691587f6"
+    },
+    {
+      "path": "bleuart/IR/ir_key_map.h",
+      "before_sha256": "91b9a4dbe4ebcdb50492ce92b99b6f1c7fe3ccc2c61e6ac15f16522b2181446e",
+      "after_sha256": "2fb8fdc5b5d5a1a6c7b96a2ddfa4fde1f40402c7e1fac5bcf361717fbbc1deb3"
+    },
+    {
+      "path": "bleuart/IR/ir_wave_store.c",
+      "before_sha256": "3a743138677653e7937f3d3d3067952cc7e841ecca199006c2114c6ae144fcd4",
+      "after_sha256": "622f9fac4b2b4d8252c326ab301955c9bcb7713a15b82a40ab4076d832264fae"
+    },
+    {
+      "path": "bleuart/pmu/src/pm_sleep.c",
+      "before_sha256": "41e0a0cc0ae9699d3b2256fdd5c99e5dcaa62676629c1c13615c4923385d8838",
+      "after_sha256": "509d76b3cc55958644a8c74957913f55450786cd0624db382d08649c9eb4ff3a"
+    },
+    {
+      "path": "bleuart/pmu/src/pm_state.c",
+      "before_sha256": "4b7969b4cbce92b4065e9f0672934f66e26774d15dedd02650cddf80ddf5989a",
+      "after_sha256": "2585c7b8a946c2597f4bee0f53fc19ff7ae266d68ecd8379c90355130911408a"
+    },
+    {
+      "path": "bleuart/src/app_audio_pcm.c",
+      "before_sha256": "2c48c07c66eb9b67ba0c280daed3e025ee442a950b44d4c9da5d93921b1f0ac1",
+      "after_sha256": "cd431513f0a4f1232e36971fef52a51dddfb1992d55c84c0dc1c3ba78e72aca5"
+    },
+    {
+      "path": "bleuart/src/app_keyscan.c",
+      "before_sha256": "8b37efab0790901f33f68e0d13dd06894fde80b0506a561c79f8eb217d7a3ff9",
+      "after_sha256": "0e2aabe7d7e1e10b4a3bd66d2258ae5a4a0190a10b878a2985af039af74fa45c"
+    },
+    {
+      "path": "bleuart/src/app_voice_ctrl.c",
+      "before_sha256": "300492570b3c4f986079ba61f40a209ec107e934d82e5459688dba6708f2f658",
+      "after_sha256": "d530422003c4b695839a1bfdafe71acc1af125144b3323fcb087469d0e46eea5"
+    },
+    {
+      "path": "bleuart/src/ble_adv.c",
+      "before_sha256": "ee40b49033446e9c42c38016fff37f3730060155e440cbd389f2fc75b8b07c3c",
+      "after_sha256": "a59d7cb7374d1ad1daa2afc16d2d834fa062c5e99c74b0c87e7af4eaa39bd27f"
+    },
+    {
+      "path": "bleuart/src/ble_gap.c",
+      "before_sha256": "1e4278dbe53e54e7e740c9653c1ca71392f17c7187832aef492f7dbc733f914a",
+      "after_sha256": "e4529708f91d5505e5a2506f3e20551ab192f5f193c59d316cf0f254ad00e6dc"
+    },
+    {
+      "path": "bleuart/src/main.c",
+      "before_sha256": "dcf7144279ce8bc664e7118493f993fefd284c47503b01577a1964a1ed21cc88",
+      "after_sha256": "ff66c4fea002d201d7d09607e4f65ebdb00ae3e1379722f1e15bb4a91387c020"
+    },
+    {
+      "path": "bleuart/src/task_ble.c",
+      "before_sha256": "598d420604edf56cf9383eaa82632285c29ae413c0c0f9538e0d4cda071e4d07",
+      "after_sha256": "f7a44b928a2272700aed2016bc5b00bede9c6a154c760b935a7228fc4269df0f"
+    },
+    {
+      "path": "bleuart/src/task_keyscan.c",
+      "before_sha256": "22f0229a5a7186823576e7358dee3218bd54fd61e598dc4ede69a17ea8c789de",
+      "after_sha256": "bb293867bdaa8a604b68da5d2497f34552af1d9880460b715ddc21d7fcb55abc"
+    },
+    {
+      "path": "bsp/common/src/co_printf.c",
+      "before_sha256": "8cf1409ef856bf89474236af1fd45eef5973c19fe54eda90a7455590f048b309",
+      "after_sha256": "f170f38cf0ca55f8446dfa031fdb8f2db5a2a53d4e4ce72517d7033ac2477b96"
+    },
+    {
+      "path": "bsp/core/inc/core_cm0.h",
+      "before_sha256": "bbfa219b842062d872722a3aa0fa1c2af038c0dc2e36d6faf2f0131d126d87fd",
+      "after_sha256": "cc793f8204d93f6dcf73a386fed76c2549f3e4942b927794bba41b8bf9e63b90"
+    },
+    {
+      "path": "cs/src/ble_dtss.c",
+      "before_sha256": "63d13447b495d7124b673ce1c412deeca115f782004a410777022808ba28c9be",
+      "after_sha256": "676be9b861d526f1c2e0bad00a6f1d021d3b0afa3ef46bbc6ba442c717954075"
+    }
+  ],
+  "all_source_sha256": {
+    "bleuart/cat1/cat1/aes_transport.c": "750bf33ac03fb99e3ca439bbfc661a691fbc4eb5f8879451d0b300112f018b9e",
+    "bleuart/cat1/cat1/aes_transport.h": "9efeeba96fc9581765a2798128ffa653849c77d411208e4e172d78da57129d86",
+    "bleuart/cat1/cat1/ble_rc_svc.c": "7494938ea53929bb0933c82e9439cbff35105ef0bdaf5cdcbec87342321c40f0",
+    "bleuart/cat1/cat1/ble_rc_svc.h": "45ced2d53fdef1bc5405c5486e613f646cafbd7d4a787534d93bfdf1b998656f",
+    "bleuart/cat1/cat1/cat1_skt_udp.c": "f731cb96dcfe4c6daf0d9142dcdbb5580636ea0b5091e69a02c8498cf220010e",
+    "bleuart/cat1/cat1/cat1_skt_udp.h": "2610bbd9fa42673bdc0efed270a4cbb072fe523fbe934d7345072855290c7a5b",
+    "bleuart/cat1/cat1/cat1_time_sync.c": "e31901348726a86c6cf34e5700864cce962f459e5e37eb8db868ee587ed1767c",
+    "bleuart/cat1/cat1/cat1_time_sync.h": "8cdb2421b4ed4739109a432ad51c3fa3da5eb9769cb330ad90f6e28960a5d50f",
+    "bleuart/cat1/cat1/cat1_udp_config.h": "a72f3ccd72ae76dacc475eada707889169e5ed8d90dae5f8f3b751da81fea005",
+    "bleuart/cat1/cat1/cat1_usart1.c": "cd5b59504f6cb0c346a629243f0e733e226a517f305af6363473552614a06b1e",
+    "bleuart/cat1/cat1/cat1_usart1.h": "bbab7511d4dbfb25f9963c8cc36ad3b448b4dd922eafdb0c30b2acf4ad453ce0",
+    "bleuart/cat1/cat1/cat1_usart2.c": "68e6f8606ad797ff9efa8b85b564a2635e18ed9556fe981cb5a677724a39418b",
+    "bleuart/cat1/cat1/cat1_usart2.h": "c47f5d31254446f6296a17f3dc4acf0747abc54539a12b76fa94991089c53a90",
+    "bleuart/cat1/cat1/heartbeat.c": "c5a668f735a2b72d09d59835478bb0f1b5614fdfe387ff1a951c368e6f4e8a5f",
+    "bleuart/cat1/cat1/heartbeat.h": "123f8104d8b2de3d7a9d0694e93d2e99046b00d4773742790679607fe46b3762",
+    "bleuart/cat1/cat1/rc_cat1_bridge.c": "6b716bdc76965a92a62ceed3f8a84cb059798cf5845648ae7671a45bfd4ce23a",
+    "bleuart/cat1/cat1/rc_cat1_bridge.h": "522ac7d34246bd76695df7af26c6e3316e125dd4060e87e899fd062a5f0b860b",
+    "bleuart/cat1/cat1/rc_key_input.c": "d797380c7e441d2b2f5b06e87c142c3b1f8a2c06612762a1d7bfdd10e1308237",
+    "bleuart/cat1/cat1/rc_key_input.h": "7b1db68cb8671bc9e370e41cf430ba51c1f5cd68ed27a0f7a18a1fe775bc6083",
+    "bleuart/cat1/cat1/rc_protocol.h": "ca43aee121bc7c99e4f8eb37a96ef77c16039841a89c4c55123487c2a337497a",
+    "bleuart/cat1/cat1/rc_trans_assembly.c": "28271d290598b3a7160ba45bd70d78d0fbda769c79407deb4b10e1f658aa5ab8",
+    "bleuart/cat1/cat1/rc_trans_assembly.h": "0e6e27fc7a23e6b75fcddc83c3c04a3d2db4bda84e3783693ff2c1e356841ccc",
+    "bleuart/cat1/cat1/remote_reports.c": "c93b255919046c204b2132d8ec4ad0bbe94edbbb92c13574b0d19ead3730aaff",
+    "bleuart/cat1/cat1/remote_reports.h": "07a72c67b9ae6ee929e3172944716626868f755f3ca1295b4798269536d659a2",
+    "bleuart/cat1/cat1/OTA/flash_layout.h": "609a7df2b7b89fb75dcdf7b5e7568f3c7b493d8f28c78021ed1aa71600752ee2",
+    "bleuart/cat1/cat1/OTA/ota_crc.c": "fb4bc6eb057523c8555c297163a95114f605fe90db46dc67b722ddc5efe7c78c",
+    "bleuart/cat1/cat1/OTA/ota_crc.h": "f2433b4ad0c8b22f076530c2b49be5e25c81d386bec2e813d7b62ae5ed40408c",
+    "bleuart/cat1/cat1/OTA/ota_frame.c": "ae5f46240f16385aae43a301ffdfbfaa4a2825c743700bc8438b1256f7325463",
+    "bleuart/cat1/cat1/OTA/ota_frame.h": "6cac3700d416245c2d7933530103f7c19183d09ff4cfe454607de4d4af332f5e",
+    "bleuart/cat1/cat1/OTA/udp_bootload.c": "4cbeeb87892a10a279d37da6880c5b1f73b3ce5435b03751dc43e8ab4dad10c6",
+    "bleuart/cat1/cat1/OTA/udp_bootload.h": "4eed22bb7bfceeb6ccdcf2e7c7d130e470a4611cf994bcb3c8b066d2d32fd873",
+    "bleuart/cat1/cat1/OTA/udp_ota.c": "cf78d390d0a9c00ebe32bbea2498109c18bf4de9ccc8739652bbab3fcd591279",
+    "bleuart/cat1/cat1/OTA/udp_ota.h": "8b578fffb339d22c117d0ff8e182d35b6f4063c9bcd4690049c9c15272d97da1",
+    "bleuart/cat1/cat1/tiny-aes/aes.c": "f7f78b44654efd3542b6886923dd05194286807ebcfeb078ea05d21fe901ee9e",
+    "bleuart/cat1/cat1/tiny-aes/aes.h": "5c600b135bbf2986faf5d5fb235e4019ba6629c78459d89b51397b6b1dbafb8c",
+    "bleuart/freertos/app_port.c": "0884680b1609c66b974087088bdcede871c7ef61f62709960dda761040159e02",
+    "bleuart/freertos/FreeRTOSConfig.h": "6216b5b20fede4f7889b218fd931e6ccb04012c64c79ec4a659d6674fd69ed4d",
+    "bleuart/freertos/list.c": "0066ae7486f23453ce3b24875263e5d6ad78ceacfff6596059d3b9093a738f7a",
+    "bleuart/freertos/queue.c": "3feb04d19d53ccdbe9e423e2844b3ac0a5a8a5787f8efa9a35399f55bea51194",
+    "bleuart/freertos/tasks.c": "68d78edc1453aa20c134f15f349af3aa3f5de9f52632a8f35c63cb7f689c9eff",
+    "bleuart/freertos/include/atomic.h": "84298919ac304d3f35f3fe0d8173447876e401339dff6ca3315d5e1177ebbc95",
+    "bleuart/freertos/include/croutine.h": "adb9051cb9f0bcdcb8890b1a890e0a834de4e207dce30f91d3c4c507e71ff1f5",
+    "bleuart/freertos/include/deprecated_definitions.h": "bdb0d23e2cfc6a71937d2181ff7ed4710bfc6ddadf8fa53310007834146fc2a1",
+    "bleuart/freertos/include/event_groups.h": "1e0a8041aed40dc8706c9095e5d51253e23dd3f0692ec2ac2f6d1fd79da68972",
+    "bleuart/freertos/include/FreeRTOS.h": "28b5daf53aff547fc087882f6d88ccd5dd7e81058863d3063ca3b2e598139d1a",
+    "bleuart/freertos/include/list.h": "52cb175573be7b331855c61198de1d6469e7defd440d6ca8e6ed3cbb1d940fe6",
+    "bleuart/freertos/include/message_buffer.h": "e768b781164f11a939bb7f7bd672c1fe71c7a433f5c45af8c2ea06961e1eaba7",
+    "bleuart/freertos/include/mpu_prototypes.h": "ec1e3f3e287884191d87ab5a55086ee459dc86776c1ebaff937b0efe4366f2a1",
+    "bleuart/freertos/include/mpu_syscall_numbers.h": "5dca4ae9336d59a3bb7817ad6e1bfc86a8d387b91d44288e42fcacffe186c21b",
+    "bleuart/freertos/include/mpu_wrappers.h": "a1cb43fd51b02b9aa822f07ccc65b7d5df012d55b5ebc565c0f71b31575c6bfd",
+    "bleuart/freertos/include/newlib-freertos.h": "cc2848745661757cdcf2a0e1aa0f477829c7ab00447cd00ecf231ca6dfd4d18c",
+    "bleuart/freertos/include/picolibc-freertos.h": "47d6c61950ed238a3a71b0d3e2cc53fba9429ce151c9150171797af873cff6dc",
+    "bleuart/freertos/include/portable.h": "42acb1e82583498e03ae96bc4e5ed4040829bb89734bf7f205c3883a20f26dc2",
+    "bleuart/freertos/include/projdefs.h": "940ce00187d59e4fb22d8e38a63a5e5a342262db00eacf24f7571b071393f99a",
+    "bleuart/freertos/include/queue.h": "35d8820a3a41a1bac0075d0b0f0ccc11762931b2725a5df6bf2099863b2e2e9e",
+    "bleuart/freertos/include/semphr.h": "802a7f694b6e0eee4fafd294093faaa94dc5e0be9144104426d1a1a33fa6131e",
+    "bleuart/freertos/include/StackMacros.h": "e402caf776106c151b52aad766c3172bd5b4a1f4ac21582f007a4d1c08a52a2e",
+    "bleuart/freertos/include/stack_macros.h": "2a66781c5222d2d91441df680048b9c47df50566c3daf6c0452567476369ed89",
+    "bleuart/freertos/include/stream_buffer.h": "513a261db7fd3c338a771e10e5bb2893905203050543c2891630f1a5632476e6",
+    "bleuart/freertos/include/task.h": "a7bb0d1cbd89027877076f69743207d9e4e586ab4a3ea13521a06ff6049d1dd2",
+    "bleuart/freertos/include/timers.h": "016d7944e6769bca7d5db4adb28c8e024099a2958e125ea1c0626eead4403d95",
+    "bleuart/freertos/portable/MemMang/heap_4.c": "d283fc4d1dd882f5fc694231eec0d20503aa81d49062a3e578f51b790978e3d5",
+    "bleuart/freertos/portable/RVDS/ARM_CM0/port.c": "186513e4c435d37dc136fd8f7dab52aaffa6b28abf897fc83361336af3a19efe",
+    "bleuart/freertos/portable/RVDS/ARM_CM0/portmacro.h": "c6a570ad08790fd13162d31127d6df57f641f187532ca1d7bc6c65bf95b3e9e3",
+    "bleuart/inc/app_keyscan.h": "dbe85a72802547c339458d730b44b046c88fc850117238af31817afeb0bf6a59",
+    "bleuart/inc/app_rtos.h": "91ba6a37a4ce52d038969093809ea1f687a28ad894791d34a2d672048d287839",
+    "bleuart/inc/app_voice_ctrl.h": "dee524ff2b9db40752b543a2982ad981d81bbe25483fd1480d2d92add7e53f1b",
+    "bleuart/inc/bat_adc.h": "e3f33ee1580944a7f3be4654cb98ba0fa4d44469a0fe8255b9fe0d4e7936ca48",
+    "bleuart/inc/ble_adv.h": "90ef2fc14f66706b6f6e12ff5958877ad5c6acdd1a0f9ceb7ddbe9aad3aed652",
+    "bleuart/inc/ble_bas.h": "042c3ceb678701d87de7d8800ba380c70e2a1a9f94d76aa8e706219bed20f253",
+    "bleuart/inc/ble_diss.h": "6292267ed8a19b8be29ebba2e180adf5e2a6b18faa2ef757cbe18089e716d4a0",
+    "bleuart/inc/ble_gap.h": "7d5f5c584a159f2533423c99abacbc179e4f2c70f3b3f640b8d3619b5febe04e",
+    "bleuart/inc/ble_hid_kbd.h": "cbbf6f20e8cfc09e81a1270867c753afb67c445bf2de35dbf2ad9126b7e93a21",
+    "bleuart/inc/cfg_user.h": "ae2a23a43471af0812318c7c46b86bd15af8ae8dce5bfb26c7c1fb1c49308d3e",
+    "bleuart/inc/combo_key.h": "5a65a72b5e8f91eb583944358df0d7fdd20b0427cc70bc9124967eedf95719d4",
+    "bleuart/inc/gmem.h": "2d46977c4233cd24017acfd7328ca3727ac7a63d7f93513d45917ab440a5f9bf",
+    "bleuart/inc/task_ble.h": "06df2186cea9c895f78cdaea6d5285ad74a38edc5576c2b15823c8c5b1fc3063",
+    "bleuart/inc/task_keyscan.h": "093b4b6a0e6a5547c86bb34dd26f12efd558bdf461088fa16ebb3596f2c47d40",
+    "bleuart/inc/task_voice.h": "891496771b7ccd6c393b64e21743ac7183156cbd7645b56633deed31128eb444",
+    "bleuart/inc/userhard.h": "dd5a3620b05a2462fea20b9907cf23fc1928b0638b40322db542be40b4dec84c",
+    "bleuart/inc/sys/errno.h": "bf0a029f5618fd03af146c2b22e5a462322cfb2a400b693aa193650d01166ea0",
+    "bleuart/inc/sys/types.h": "d8f0e76af6c3767c376bf5f46f584c88c83b5e71e2769c05e71f5fad6cd0d238",
+    "bleuart/IR/irc.c": "9eb4ac2d7e8d23ea3eb83fb8ccebfafc272185b7fae35da9afc0ba3d8ce1470d",
+    "bleuart/IR/irc.h": "5445502afb171b34fff4e2b9af148f7d3a428a9ea82a4b8ea3e53ef6ff929aac",
+    "bleuart/IR/ir_key_map.c": "16b5e703389fa9513b65a9e50a7c94b5b815d32f078c9c3eeddfd13f691587f6",
+    "bleuart/IR/ir_key_map.h": "2fb8fdc5b5d5a1a6c7b96a2ddfa4fde1f40402c7e1fac5bcf361717fbbc1deb3",
+    "bleuart/IR/ir_key_policy.h": "39dca97909c7b8bdfe0673bf7db3a1979ffa2af1f0baa7a47feadcdb75d0945c",
+    "bleuart/IR/ir_learn.c": "8985e0d4450894200c0e16a897748b89aa895cd9acb7fab772c4153e4eb7e3cf",
+    "bleuart/IR/ir_learn.h": "7eedb2979ff7240b56fb5c4aa4008b8ca7c7e66841ebc1bdc8f7fac9a0de327f",
+    "bleuart/IR/ir_nec.h": "f09df4b70f0fc23bb6fa5fa81bb94399fdb701564de73c634b20fffdba998c6a",
+    "bleuart/IR/ir_raw.c": "bbdd7dfda944d511f4d90492d38e9e5d30279872bf8438caaaff36186c15dc2f",
+    "bleuart/IR/ir_raw.h": "9b1530f2758a0763ef5ee71eb55410fe6019c1a565abffd2afcdf481bccb866e",
+    "bleuart/IR/ir_rc6.c": "7c1ae8680eeff38f7be0cdc6b2b9a8e04e04492a15aaf3d1100334a1b80aed50",
+    "bleuart/IR/ir_rc6.h": "9d07fa2723b273540d3c4d5acac5c5158e3dd15be2f8125f476d575ae3bc1516",
+    "bleuart/IR/ir_rc6_encode.c": "e1ec1affd2660e4a54c85c29df0f5ba22a1cf9de9be84727e3a3d70d97b6cbf3",
+    "bleuart/IR/ir_rc6_encode.h": "4b499a9ab2a9b027654550bef16cf672f75defd7196a85efaa4ce494f6812ab7",
+    "bleuart/IR/ir_wave_store.c": "622f9fac4b2b4d8252c326ab301955c9bcb7713a15b82a40ab4076d832264fae",
+    "bleuart/IR/ir_wave_store.h": "fe5f06071078dd9efa0fbbbd134bf61e547ba0df5c176ec54242a8d1e6fdd7be",
+    "bleuart/pmu/inc/pm_config.h": "0a739a719ec86cabc000703947a45f820cc35591ac7b87e00cfd1cf4ad7a31a4",
+    "bleuart/pmu/inc/pm_sleep.h": "1ca713f4c47967a66eb7ef424b7602e0df2f5d5758a9b564c0fc5c22c6ba1696",
+    "bleuart/pmu/inc/pm_standby.h": "5b95c3bcb5662338422d5b909ad574f926fb4bed04b11e04cfab492687cf66ca",
+    "bleuart/pmu/inc/pm_state.h": "d3f8aa52937be01a34406f7ef88186abefe208bd71eed0f2bf22f9c5095be7a1",
+    "bleuart/pmu/src/pm_sleep.c": "509d76b3cc55958644a8c74957913f55450786cd0624db382d08649c9eb4ff3a",
+    "bleuart/pmu/src/pm_standby.c": "2019273cd8bc83a96db95ee5a469137995f77ca828c84667f28c11865658026a",
+    "bleuart/pmu/src/pm_state.c": "2585c7b8a946c2597f4bee0f53fc19ff7ae266d68ecd8379c90355130911408a",
+    "bleuart/prj/ble_dtss.sct": "4221135640c7000ec42620fc06abe623fa3873ff40f1ae18e6bef8740bc04c62",
+    "bleuart/prj/ble_dtss.uvprojx": "4d5f28ce0aab02f348bc252755754b717a89f650b9bfe031a76d5b1248c47f6b",
+    "bleuart/prj/gmem.c": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bleuart/prj/startup_br1601x.s": "bbdc02091ae194181802fc4dc29635d95dc6a161dc7f0cfcec5c9de34bd976d6",
+    "bleuart/prj/startup_hc32l19x.s": "221e482c4be8e6c5a2bfdf6e8a9e0abb7d0ba4c08fe0aff65da49635d41d94ba",
+    "bleuart/prj/sysasm.c": "300ad1c6cc9e782d4e4aa8f6308d976c8bc775e7f1cb444d830f5438a129f332",
+    "bleuart/prj/system_br1601x.c": "2727eb92a9d90599d3fc15d74f714727ea3216913541153a826acf1726433e92",
+    "bleuart/src/app_audio_pcm.c": "cd431513f0a4f1232e36971fef52a51dddfb1992d55c84c0dc1c3ba78e72aca5",
+    "bleuart/src/app_audio_pcm.h": "134b21e184c0773d6f1224444afd5d41e3a472554617b23c4636fc98fefd1688",
+    "bleuart/src/app_encoder_sbc.c": "3a3f44e6ec8320bcd2510ce2cc7f38f19bc8be051370671b7da842406efe42a7",
+    "bleuart/src/app_encoder_sbc.h": "30a14b3037adead9cb63837cffd3ae8603e3a84dd97f05d0602b98ed8c66606b",
+    "bleuart/src/app_keyscan.c": "0e2aabe7d7e1e10b4a3bd66d2258ae5a4a0190a10b878a2985af039af74fa45c",
+    "bleuart/src/app_rtos.c": "993c02a0d4d6cd1a50f5108aceba1632d50128b312ea1664bd3b1da66bb36bb6",
+    "bleuart/src/app_voice_ctrl.c": "d530422003c4b695839a1bfdafe71acc1af125144b3323fcb087469d0e46eea5",
+    "bleuart/src/bat_adc.c": "da3118008525efef012eb6bf25fd854e9a17883d8d417012a9b6ce98f5371214",
+    "bleuart/src/blecomm.c": "eaab4e66ca99c1d1d586882455dd2c0346272db92e6f2c364566ce4d10318f5a",
+    "bleuart/src/blecomm.h": "3c171078364a0df268ef7c023d9aa6971085c76513192b9c84cd4b8592672b0d",
+    "bleuart/src/ble_adv.c": "a59d7cb7374d1ad1daa2afc16d2d834fa062c5e99c74b0c87e7af4eaa39bd27f",
+    "bleuart/src/ble_bas.c": "e7d43436a0e34656cc8cdab600b48cf7ba605a34a2c36c220ab900ac71eb90b9",
+    "bleuart/src/ble_diss.c": "ba55c0867f670918ef09fe5cca4a988830b17a670d50b16f33c99b4d908491b7",
+    "bleuart/src/ble_gap.c": "e4529708f91d5505e5a2506f3e20551ab192f5f193c59d316cf0f254ad00e6dc",
+    "bleuart/src/ble_hid_kbd.c": "efd540de8ef32f41d7351592d8acba9d569ac39fdf304eae0ee4714ed7246d46",
+    "bleuart/src/combo_key.c": "30522722ee6b66d182a56fce94a33d644e0b6256695ef9700ba4eecdb0bbf5eb",
+    "bleuart/src/gmem.c": "941fbff3562ad95e00b2c4c3d4c98d7b4e5f46bc20460ff60d4cc90a37322231",
+    "bleuart/src/main.c": "ff66c4fea002d201d7d09607e4f65ebdb00ae3e1379722f1e15bb4a91387c020",
+    "bleuart/src/sbc.c": "925f592adee9b39ffb3704ed0ccb0f33aa478d2f35c5520a0aa2d849d3d1301e",
+    "bleuart/src/sbc.h": "490587f9e9d979e32267348056f77662e6c903e5956c22a0b2b716624ef24b1d",
+    "bleuart/src/sbc_math.h": "a1f3a1776395b3389373a2e8879c2d2934e3fa34cf230a209a39a09f53dc5785",
+    "bleuart/src/sbc_primitives.c": "93c3b5ea045a4460f4534e47b0b167acdf48a6fa0304f27225ea2afcca951f57",
+    "bleuart/src/sbc_primitives.h": "a2b154ee35705e91bfaf35f9e86a95772ede515d4da8d07f1a5f4f434014b981",
+    "bleuart/src/sbc_private.h": "b625e92d18adc885fd3eb800d1bfc5490d37fdb87bc7b6563e9a8c8c9a0f6e6b",
+    "bleuart/src/sbc_tables.h": "fe2c1a0320cd71436e87aa5a22d20177d2f08961c4efac738a48d2ac028abeba",
+    "bleuart/src/task_ble.c": "f7a44b928a2272700aed2016bc5b00bede9c6a154c760b935a7228fc4269df0f",
+    "bleuart/src/task_keyscan.c": "bb293867bdaa8a604b68da5d2497f34552af1d9880460b715ddc21d7fcb55abc",
+    "bleuart/src/task_voice.c": "2a2e3f1952d180904fa29e208de030aa89176413a92156ff6d1792f82924b588",
+    "bleuart/src/userhard.c": "49b12c729026ae65d45c6c52aa71034e51e6778c2f31f9c755c061169f4e035f",
+    "bsp/common/inc/co_printf.h": "98c75849eeb90273ab483b9f05a6010e6e81d63130d2e7eaa580e07acb3bfadd",
+    "bsp/common/src/co_printf.c": "f170f38cf0ca55f8446dfa031fdb8f2db5a2a53d4e4ce72517d7033ac2477b96",
+    "bsp/core/inc/br1601x.h": "053c3c82bbd19396b77930035f68212940a28b8baea023c8e5c32b102093b7fa",
+    "bsp/core/inc/br1601x_conf.h": "f90c1d06076a6c1bd1d9490ddcc288eb7c0bbc9443f283ff50d78339f4a93dd5",
+    "bsp/core/inc/cmsis_armcc.h": "5b29eb32bdff5d5ffbad7e569032f5f3eb7965f5dd020649f4bfb1b10d921fa1",
+    "bsp/core/inc/core_cm0.h": "cc793f8204d93f6dcf73a386fed76c2549f3e4942b927794bba41b8bf9e63b90",
+    "bsp/core/inc/core_cmFunc.h": "eaab1efbdca39a8beef502bdd4fda19062a99f6f765f418b6ce90b2ecdd0a44b",
+    "bsp/core/inc/core_cmInstr.h": "197d0287db6b1fed37ab9b2effee6c35914250ec2267ebfe0ef2a0f17256065a",
+    "bsp/core/inc/system_br1601x.h": "e481bb455d7a6e7f57e7f0ea7f8ca5164d858f8f5a69719f5bdb6a050102abb8",
+    "bsp/core/src/startup_br1601x.s": "566f9757f307d50348bde6b557418795e9e379ad5381799e14e1fb53a20cbd4c",
+    "bsp/core/src/system_br1601x.c": "2727eb92a9d90599d3fc15d74f714727ea3216913541153a826acf1726433e92",
+    "bsp/driver/inc/adc.h": "803b80a57be865c8aa3fdadd812f1b0371e2806cdd49874f0822b3463373acda",
+    "bsp/driver/inc/crc.h": "b14b109e689d49222524fce7e24ffdfab562847e4fd6b2bd7a95b246e35c1b22",
+    "bsp/driver/inc/dma.h": "bc0e84d4489dd818c6ac4b0cd76304024de74baf9ae48b09392f73c76215585d",
+    "bsp/driver/inc/exti.h": "f926c026d9ce0bc3729112438d048d35134d28a9655352d4413d55394438ad04",
+    "bsp/driver/inc/gpio.h": "16df1aa92eee9b204f65dcdbda0cb59ce7b6841183bc209b6bbd256ae599829f",
+    "bsp/driver/inc/i2c.h": "760ee5fcfe7f2947dcc3e3c21dbd16a8e8cf5f4d289f0c24337d04a5f6f9bdcd",
+    "bsp/driver/inc/iwdg.h": "81b41a2524183788c3c020608c12c69718fc49fd30f4ad9a77ad294f2cddafd0",
+    "bsp/driver/inc/keyscan.h": "039a43d4d1aa72bf807a09158fd15449bc086ce59a9934a19522446116c76905",
+    "bsp/driver/inc/lpuart.h": "18566c08ddccb0b3538e3e6db3ab12c110c343727f9521ab2b66c85d32c9d1bb",
+    "bsp/driver/inc/misc.h": "f227bc617a7cbd151e0f7a90a9dd603118e0df2e3943026d44e0b56336e80a8b",
+    "bsp/driver/inc/pwr.h": "5f2211784bb066b9d6d04905207a4cab4a4bfea6ef7c640cdfce711995dafae3",
+    "bsp/driver/inc/qflash.h": "f774614bbb8f64208ae754a8bbe9f105a017a21b6e3c3e7931de0fc1594afc0c",
+    "bsp/driver/inc/rcc.h": "143adf6d200cf4a41b12399292ba7e5942d99185e54e6175837437e8c69d43a3",
+    "bsp/driver/inc/rtc.h": "918607ceca7c5389a711599a15c276c2ccb6c685ee330cb76af53ff0d9967b67",
+    "bsp/driver/inc/spi.h": "2154845e7b09cfd326c81e06222053abf0113d6eb093328cb9d532f604708bf6",
+    "bsp/driver/inc/tim.h": "3adae3c5cdb1ab9b3227627b8e228f751c2cfe0e0853f89248a2a8cdcc26be65",
+    "bsp/driver/inc/usart.h": "5f2bbf7cf426028a891a269bf212e87829d861d34c99bc4d2d8ccd020ff1d31a",
+    "bsp/driver/inc/wwdg.h": "6bfdf38bc589a3fd430a951bc42f4f0405e63257025880c0889e25689363a12e",
+    "bsp/driver/src/adc.c": "eef7a853e5adc5e96592c746e34de7875e9ec51be4e970e314d907cd565d61c4",
+    "bsp/driver/src/crc.c": "e3d8dbc233a7a371061840d0cf854b5969496f9df0b70fd10d94eb94fc0c333f",
+    "bsp/driver/src/dma.c": "808b10777caf874ab2b68d636a3cc6cbc078ecea3a9939f35d5bcd4d3df05ee6",
+    "bsp/driver/src/exti.c": "0b01ff20545b355d987f32fb464ccc1a20b958ad1feef416aaaedd62c87aee17",
+    "bsp/driver/src/gpio.c": "699bdf10413862828f11824340bf6f1f398c4160a01bf00773da74fc1b2f40e1",
+    "bsp/driver/src/i2c.c": "4a650fcfe858ccc92f8f20881c27f3042ab183b0f1e6a8a1a0dc735a71fe4dfa",
+    "bsp/driver/src/iwdg.c": "a1440b71e63d61a078500a45ff6d4b312888b76d7c0885b19257e0c34c18815f",
+    "bsp/driver/src/keyscan.c": "2b93ec750757b74e788e9d734f6011932647a1c8fa4dde4a09c144eba7e33aaf",
+    "bsp/driver/src/lpuart.c": "81fff2c7188032a7d5a377e48bd25d0ab6cf862a8e8e96b689a33e6cd874cf24",
+    "bsp/driver/src/misc.c": "e34b83f270bf785453a091d4ad51049d252720490eaa7cbbcb198896a6956890",
+    "bsp/driver/src/pwr.c": "2ffb4eb7d0d1646edbe7758eb582c5ca270b2a2b886c66fe94b30d82fb51d147",
+    "bsp/driver/src/qflash.c": "b4ecd6a0a1d6ab6b28acc57d9da0b54823b43b999e1341346676fdf319c7f5e3",
+    "bsp/driver/src/rcc.c": "bedfb24d0b70b8dfb7ecaac453af6714f542cf5a49002b9c0cf8bbe48848b342",
+    "bsp/driver/src/rtc.c": "fcc4eb15358fe75ae2fb4be137523a2738c52bcfe2bce4588089ebc5b096afe5",
+    "bsp/driver/src/spi.c": "7d19e2a002f45c4c16fe05e86a14441a3ced1af3432b993800d60e13960be121",
+    "bsp/driver/src/tim.c": "9c3864bb5d78785a534a983c1e2f7d2e38dc54eb79f78983e18472e183cdd67a",
+    "bsp/driver/src/usart.c": "8b4a768d4a6199a81321639b4e3674eae850a770b8a82e17be7e1c7ea326af2d",
+    "bsp/driver/src/wwdg.c": "f2c38ab4d6b4cf3373bd1b023e3da4efb26576a265b56bd866d94993972e0f2b",
+    "cs/inc/ble_bass.h": "15232372249020b0b0b6d2257f28205979e8564e4a9ce87f489cddfa0ac4b00e",
+    "cs/inc/ble_blps.h": "ceb03b4729ae43a2a38979114765113d95beb5819d6acec724b7ca547fa284fe",
+    "cs/inc/ble_dfu.h": "71682db7dbe7db59c85da5071f965a4387b98ba2018ba21ef479b4b221fa8e5c",
+    "cs/inc/ble_diss.h": "6292267ed8a19b8be29ebba2e180adf5e2a6b18faa2ef757cbe18089e716d4a0",
+    "cs/inc/ble_dtss.h": "88b9de3c840b6c660fd75e607b489631624c610f5ff80bc145f69caaec66245b",
+    "cs/inc/ble_glps.h": "59b0da5c40a850032f9e716107a7d1d0bdbadf910807ee3a07b20b7317e16f06",
+    "cs/inc/ble_hrps.h": "f6de94373cb80bbb99d1da374cd12c52f1916d2ecc09a5d93f28e2ae581d2c4a",
+    "cs/inc/ble_prf.h": "0a30a75b1387d95cb6ff4567169a10f8d17274ffdb214a70fc88312006637a00",
+    "cs/inc/br_delay.h": "7f19fd8148da6f500cfc9b55045e027e3b50d223438391c2e1e784b8c0e8a7e6",
+    "cs/inc/br_dfu_ble.h": "ef0a77659c018c4122bff9717709e3e2b2340b9aee51df7b93a007d8a4d8c6fb",
+    "cs/inc/br_dfu_boot.h": "ff3ae9ea0c4be2a7a08a11c002d83dbccbe7536d72b53bb9c6d4ecf9f4a95dcb",
+    "cs/inc/br_dfu_serial.h": "3ec9c3faf77f3d0a04610b50e5a5ec8ea76e7b4fef1ddd7b4effb0e44ea3b2fe",
+    "cs/inc/br_error.h": "e1ae0ca9aaf376dc5f2aff80cf3f47dc3cc2908e6bdfa3fad179b117aed057f3",
+    "cs/inc/br_scheduler.h": "f072dd4e109838b0e6938bf217846822d7a5d47462e99828b55333482d5ac63a",
+    "cs/inc/br_timer.h": "159abe09b24ce4d4d2df84cee4fe5aa863498eb8ee2e3a2324accc28a40c6f6a",
+    "cs/inc/compiler.h": "6b27fa6febf0cf435f6c4fc4d026bb6fbd0e5deb2129f0ee3d006283c4fabafd",
+    "cs/inc/co_list.h": "f109972e04cb50367ecbac4032685511a84d8200325043118fc0aaea46bd9930",
+    "cs/inc/cs_core.h": "20cbefdad2c6a863081824f2d5d6031c02365b9fc2e03f8ee6aecb1e551ee922",
+    "cs/inc/dfu_action.h": "5559b9857fa28ee5b946784cbd194817a9670139365547617106ce47873491cb",
+    "cs/inc/dfu_crc.h": "9cb7192fd017d7093e0fd74ad84a3651f44463327deddbeee779298d7d1e2abb",
+    "cs/inc/dfu_delay.h": "33b6c46f65119a6e8a1cf07a401293243076c3373d3f0b8567f74cd41bc01151",
+    "cs/inc/dfu_led.h": "05a00929585e8c043001339e2155b676136430c806d0aaa7a9641d12d766ec52",
+    "cs/inc/dfu_usart.h": "806c76c3da9f2b8f199a057d76b800f7d1e2e4a8bd7fad45680a3285ebbb0d5b",
+    "cs/inc/direct_2.4g.h": "78aa6c8154eb73c5cc35df5aea7de44e7986ec4afceda0ed88903b30c219efe7",
+    "cs/inc/gap.h": "68e69acd2108d3cbf2f0a787ecde2591e7d2de999001500939dcec51e81c6e76",
+    "cs/inc/gatt.h": "9eacda9e33c01a5c7db29416349a7075a757756ec528a59ad29233f0194b5064",
+    "cs/inc/hid_parser.h": "478e6ded4acc144719956b2c97f0d7291c556b83b6e597a71e8fe773c183d34e",
+    "cs/inc/hogp.h": "e140f79bbfb1a7e4697ab6b06d5a5aba7dfc6452d1009d74975bcbb56a8ecbf4",
+    "cs/src/ble_bass.c": "f63a6c42388f7a25c219fa7f60ac9f27cb3c4cd56a7fde39e72595b91c158d04",
+    "cs/src/ble_blps.c": "c3ba4a0ad35bb85bd560cc6b0d0f875b17bc1d0bb6a19cc1c620f1cba6df8841",
+    "cs/src/ble_dfu.c": "cbf8b64fd4eaa9cd668c5a9c7ff506530a09c926567bce7cd43ea8f55c9c4327",
+    "cs/src/ble_diss.c": "828a0064bb644649c58e85a8867a19962dc9e6ce710bb0da5ddc424dd7c419d8",
+    "cs/src/ble_dtss.c": "676be9b861d526f1c2e0bad00a6f1d021d3b0afa3ef46bbc6ba442c717954075",
+    "cs/src/ble_glps.c": "d70fa88558cf98c61cf6b73b215f8f3ae191af972cef2e9c59fe5854c8ad81d7",
+    "cs/src/ble_hrps.c": "8583e7a287d8a2a07feb4c6a3969beb620f20bb411d74d4168036f08dcea7f25",
+    "cs/src/ble_prf.c": "587c74fb7b4128db7f40273c2e528bd073139a846a45c839302b44ead431b856",
+    "cs/src/br_dfu_boot.c": "e3fd3c376c281995f0a1f58845285785db4e4a4ba307402de5c8ad005988a9be",
+    "cs/src/br_dfu_serial.c": "c73147755fc613d33a016ffd811f9ffabe6170da7b4c69990dd6b481a85fea93",
+    "cs/src/br_error.c": "76ef718b4a14459967a20bceff67a5ee535a967fd7049889b36fda5aed411002",
+    "cs/src/br_scheduler.c": "36f02b45dfb675b3b3524d821be3132a4d0195a300a047f50dc84c4d50ca2052",
+    "cs/src/dfu_action.c": "c20fba0b3941af0df9ab2d4710234bcada7a5e7d4046bfe7d97ae839cd99c95b",
+    "cs/src/dfu_crc.c": "30198790a597604ab1770e932098f9718f95ca6c5197f2a6c294e29fe4b13211",
+    "cs/src/dfu_delay.c": "0ad9eee42eae32f3936359983c7b2365a27b6e0a5d36238cd91ac503ad365f70",
+    "cs/src/dfu_led.c": "02f56aa0778e01c82954d9c4756f53042bc1f124f5a205eda0e271b5fd95f607",
+    "cs/src/dfu_usart.c": "2c337e0e800fc939565f98726f03d0592cc9cc3d6fa80785a225fba4f292c540"
+  },
+  "binary_bytes": 182712,
+  "sha256": "eff4ffec6daec933786ea14643e911f99b13ab0ffac0a07a4c636e0ea84b3d92",
+  "host_test_groups": 23,
+  "static_analysis_translation_units": 73,
+  "static_analysis_raw_diagnostics": 11,
+  "linker_region_ends": {
+    "ER_IROM1": "0x0102E030",
+    "RW_IRAM0": "0x20003FA8",
+    "RW_IRAM1": "0x2000BAC0",
+    "MCU_STACK": "0x2000C000"
+  },
+  "static_max_call_depth_bytes": 1236,
+  "hardware_tested": false,
+  "confirmation_document": "待确认事项_02010000.md",
+  "separate_bootloader_modified": false,
+  "separate_bootloader_issue": "boot_main.c jumps to potentially partially erased APP1 after copy failure; requires separate recovery fix and on-device update",
+  "subsequent_confirmation_revision": {
+    "date": "2026-10-22",
+    "note": "Previous review hashes/build statistics describe the pre-confirmation review; latest verification.json supersedes binary/source state for this follow-up.",
+    "battery_source_sha256": "2f7cc29ce9e9f5daf6e068db510e655308eae62f1cccb9d4c8ddb63bd73af732",
+    "binary_sha256": "0c12134a357c7ab2f7e0554932a39ef0d5051d59c0844be6bf546fcf16a08587",
+    "host_test_groups": 24,
+    "backup": "backups/bat_adc_before_confirmations_20261022.c"
+  },
+  "latest_voice_routing_revision": {
+    "note": "Historical review hashes above predate latest follow-up; see verification.json voice_routing_revision for latest source/build state.",
+    "binary_sha256": "2f699621f96d1ada1a9a1297167c66d668b68b6754daf049154d5a4a4f3f4278",
+    "software_version": "02010000"
+  },
+  "latest_tv_combo_revision": {
+    "binary_sha256": "d3fff44aca344b5a86518970ae2e44c402aec2213b21bb14c90fba9cd6d12a5a",
+    "note": "Supersedes previous build/source snapshot; details in verification.json tv_combo_revision"
+  },
+  "latest_learn_feedback_wake_revision": {
+    "binary_sha256": "3e0121afab3be7268183c4292c94bf2aed98df579355d8878ef7c120bebc56d2",
+    "note": "Supersedes previous build snapshots; see verification.json learn_feedback_wake_revision for current source state."
+  },
+  "latest_combo_release_revision": {
+    "binary_sha256": "b609ee8dffeecdb689f4dd5a17c3c5690fd7c90cfcdd96c7f07ceae9c1ae4380",
+    "note": "Previous snapshots are historical; latest verification.json combo_release_revision describes this build."
+  },
+  "latest_combo_remap_led_revision": {
+    "binary_sha256": "1ea3d7668d59f77132a8683f644f59f8e61b66cc28760fbe5691dfafd5bccaf7",
+    "note": "Prior snapshots are historical; see verification.json combo_remap_led_revision."
+  },
+  "latest_voice_heap_review_20261023": {
+    "binary_sha256": "4beef43dca5b0bd1d8447aa04fa78e6b401fd98aedfd9d6baedfdf01c1daedd1",
+    "note": "Historical snapshots above are superseded; latest source/build details in verification.json voice_heap_review_20261023."
+  },
+  "latest_voice_reconnect_review_20261023": {
+    "binary_sha256": "25fea64bccd1011f86f65c9357e2f5f138c4eb49de394116a25ad4c77e45dac7",
+    "note": "Supersedes historical build snapshots; see verification.json voice_reconnect_review_20261023. Hardware reconnection still requires validation."
+  },
+  "latest_battery_sampling_revision_20261023": {
+    "binary_sha256": "bd9a886d32a40de05943f1505eb4b0266b91fb3c48387f9db479603a55d70ee4",
+    "note": "Supersedes historical build snapshots. See verification.json battery_sampling_revision_20261023. Firmware 02010000; real voltage calibration and repeated-reset validation remain to be performed."
+  },
+  "latest_ota_test_package_02020000_20261023": {
+    "binary_sha256": "588ca981ac04ee87538bcfd79c8b28f65628f8860ddf08a1bcaa5149dd11c48f",
+    "firmware_version": "02020000",
+    "note": "Only version literals changed; current package and deployment steps in artifacts/OTA_02020000_20261023. Actual OTA and deferred Bootloader recovery remain hardware work."
+  },
+  "latest_tag01_dates_fix_20261023": {
+    "firmware_version": "02010000",
+    "binary_sha256": "8e1a2d22bbec0f9044ddf17796727a279b83306db57992499bdee289a3ca860e",
+    "note": "Supersedes previous build snapshots. See verification.json tag01_dates_fix_20261023. Old OTA artifact remains historical and lacks this date fix."
+  },
+  "latest_ota_datefix_package_20261023": {
+    "firmware_version": "02020000",
+    "binary_sha256": "d62886df9e3a1baea42a1b456f63a7a43c35ad65581735b982a38c196e05432d",
+    "note": "Current date-fixed OTA artifact supersedes the earlier uncorrected 02020000 package; see verification.json ota_datefix_package_20261023."
+  },
+  "latest_retain_both_dates_user_confirmed_20261023": {
+    "firmware_version": "02010000",
+    "binary_sha256": "6dc3d8f8542f3353c1417784c8006fdbd9a522a679d928443df7ac6f9c13ba04",
+    "note": "User-confirmed reversal of status-based date omission; supersedes prior conditional-field behavior. Scope limited to report date retention and tests."
+  },
+  "latest_ota_led_ownership_20261023": {
+    "firmware_version": "02010000",
+    "binary_sha256": "b90993ec135706fb90e09d468f977f00aa405be7bd337f4e071f6810e4ead9d3",
+    "note": "User-approved LED-only ownership fix, supersedes previous build hash; no OTA package regenerated."
+  },
+  "latest_cat1_baud_sync_20261023": {
+    "firmware_version": "02010000",
+    "binary_sha256": "c95281257bba113317b468c554a49bddac026d359e851f174951c7060f74fc80",
+    "note": "Optimized baud sync integrated without changing version; see verification.json cat1_baud_sync_20261023."
+  },
+  "latest_cat1_baud_fallback_only_20261023": {
+    "firmware_version": "02010000",
+    "binary_sha256": "a2a7e8532df86c225efb4d6c3605c7117831718c266915c3f48db17649880096",
+    "note": "Supersedes proactive105ms probing. Healthy115200 path uses originalCSCON directly; see verification.json cat1_baud_fallback_only_20261023."
+  }
+}

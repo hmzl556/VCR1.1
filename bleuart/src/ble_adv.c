@@ -294,13 +294,17 @@ void ble_adv_start_reconnect(void)
 
 void ble_adv_start_wakeup(void)
 {
-    uint8_t stb_mac[6];
+    /* SDK Flash reads round up to a 32-bit word; reserve eight bytes. */
+    uint8_t stb_mac[8] = {0};
     uint32_t addr = BLE_BONDING_STORE_ADDR + 13;
 
     co_printf("Starting BLE Advertising for Wakeup...\n");
 
     // 读 STB MAC
-    Qflash_Read(addr, stb_mac, 6);
+    if (Qflash_Read(addr, stb_mac, sizeof(stb_mac)) != FlashOperationSuccess) {
+        co_printf("Wakeup address read failed\r\n");
+        return;
+    }
 
     // 源地址（遥控器 MAC 低 3 字节，LSB 在前）→ 索引 22-24
     adv_dat_wakeup[22] = local_bd[0];
@@ -337,10 +341,10 @@ void ble_adv_start_by_bonding(void)
     if (peer_bonded_count() > 0) {
         ble_adv_start_reconnect();
     } else if (g_pairing_active) {
-        // KEY14+KEY5 组合键已触发，启动可发现广播
+        // KEY14+KEY3 组合键已触发，启动可发现广播
         ble_adv_start_pairing();
     } else {
-        // 无绑定且未触发配对：不广播，由 KEY14+KEY5 组合键手动发起
-        co_printf("No bonding, skip advertising. Press KEY14+KEY5 to pair.\r\n");
+        // 无绑定且未触发配对（静默态）：不广播，由组合键手动发起
+        co_printf("No bonding, skip advertising. Press volume- + left (KEY14+KEY5) to pair.\r\n");
     }
 }

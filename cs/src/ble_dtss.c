@@ -1,3 +1,4 @@
+#include "app_gatt_safe.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
@@ -95,7 +96,7 @@ static void voice_send_chr2_value(const uint8_t *value, uint8_t len)
 	voice_update_chr2_value(value, len);
 
 	if (voice_indication_chr && voice_indication_peer) {
-		gatts_chr_val_indicate(voice_indication_peer, voice_indication_chr,
+		app_gatt_indicate(voice_indication_peer, voice_indication_chr,
 							   voice_chr2_value, voice_chr2_len);
 	}
 }
@@ -180,9 +181,15 @@ void dtss_chr0_cbk(gatt_event_t event, void *context, void *param)
 		}
 
 		case GATTS_EV_CHR_VALUE_SEND_START: { //手机订阅了chr0的通知，准备接收语音数据
-			co_printf("[VOICE] chr0 send start event!\r\n");
 			gatt_chr_val_send_start_t *in = (gatt_chr_val_send_start_t *)param;
-
+            if (in != NULL && in->peer != ble_gap_get_peer()) break;
+            if (!in || in->type != GATT_SEND_VAL_NOTIFICATION) {
+                bleSendEn=0;dtss_chr=NULL;dtss_peer=NULL;
+                (void)voice_ctrl_post_stop();
+                co_printf("[VOICE] chr0 disabled\r\n");
+                break;
+            }
+            co_printf("[VOICE] chr0 send start event!\r\n");
 			bleSendEn = 0xA6U;
 			dtss_chr = in->chr;
 			dtss_peer = in->peer;
@@ -197,8 +204,11 @@ void dtss_chr0_cbk(gatt_event_t event, void *context, void *param)
 //chr1的写请求处理，解析控制命令并执行相应操作
 static void dtss_chr1_handle_write(const gatt_chr_val_write_req_t *in)
 {
-	const uint8_t *val = in->val;
-	uint8_t len = in->val_len;
+    const uint8_t *val;
+    uint16_t len;
+    if (in == NULL || in->val == NULL || in->val_len == 0u) return;
+    val = in->val;
+    len = in->val_len;
 
 	bleConnectOk = 0xA6U;
 
@@ -272,8 +282,15 @@ void dtss_chr2_cbk(gatt_event_t event, void *context, void *param)
 		}
 
 		case GATTS_EV_CHR_VALUE_SEND_START: {
-			co_printf("[VOICE] chr2 send start event!\r\n");
 			gatt_chr_val_send_start_t *in = (gatt_chr_val_send_start_t *)param;
+            if (in != NULL && in->peer != ble_gap_get_peer()) break;
+            if (!in || in->type != GATT_SEND_VAL_INDICATION) {
+                voice_indication_chr=NULL;voice_indication_peer=NULL;
+                (void)voice_ctrl_post_stop();
+                co_printf("[VOICE] chr2 disabled\r\n");
+                break;
+            }
+            co_printf("[VOICE] chr2 send start event!\r\n");
 
 			/*
 			 * chr2 uses indication for Table D.4 / D.6 responses.
@@ -283,7 +300,7 @@ void dtss_chr2_cbk(gatt_event_t event, void *context, void *param)
 			voice_indication_chr = in->chr;
 			voice_indication_peer = in->peer;
 			if (voice_chr2_len > 0U) {
-				gatts_chr_val_indicate(voice_indication_peer, voice_indication_chr,
+				app_gatt_indicate(voice_indication_peer, voice_indication_chr,
 									   voice_chr2_value, voice_chr2_len);
 			}
 			break;
@@ -355,6 +372,10 @@ int ble_dtss_init(void)
 
 void ble_dtss_on_disconnect(void)
 {
+    bleSendEn = 0U;
+    dtss_peer = NULL;
+    dtss_chr = NULL;
+    voice_selected_codec = VOICE_CODEC_SBC;
 	voice_indication_chr = NULL;
 	voice_indication_peer = NULL;
 	voice_capture_enabled = 0U;
@@ -386,3 +407,15 @@ int ble_dtss_is_subscribed(void)
 }
 
 
+
+uint8_t ble_dtss_ready_channels(void)
+{
+    peer_t peer = ble_gap_get_peer();
+    uint8_t ready = 0U;
+    if (peer == NULL || bleConnectOk != 0xA6U) return 0U;
+    if (bleSendEn == 0xA6U && dtss_peer == peer && dtss_chr != NULL)
+        ready |= BLE_DTSS_DATA_READY;
+    if (voice_indication_peer == peer && voice_indication_chr != NULL)
+        ready |= BLE_DTSS_CTRL_READY;
+    return ready;
+}

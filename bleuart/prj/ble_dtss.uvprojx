@@ -579,6 +579,11 @@
               <FilePath>..\cat1\cat1\cat1_time_sync.c</FilePath>
             </File>
             <File>
+              <FileName>heartbeat.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\heartbeat.c</FilePath>
+            </File>
+            <File>
               <FileName>cat1_usart1.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\cat1\cat1\cat1_usart1.c</FilePath>
@@ -809,6 +814,26 @@
           <GroupName>IR</GroupName>
           <Files>
             <File>
+              <FileName>ir_rc6.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\IR\ir_rc6.c</FilePath>
+            </File>
+            <File>
+              <FileName>ir_rc6_encode.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\IR\ir_rc6_encode.c</FilePath>
+            </File>
+            <File>
+              <FileName>ir_raw.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\IR\ir_raw.c</FilePath>
+            </File>
+            <File>
+              <FileName>ir_wave_store.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\IR\ir_wave_store.c</FilePath>
+            </File>
+            <File>
               <FileName>irc.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\IR\irc.c</FilePath>
@@ -817,11 +842,6 @@
               <FileName>ir_learn.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\IR\ir_learn.c</FilePath>
-            </File>
-            <File>
-              <FileName>ir_learn_store.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\IR\ir_learn_store.c</FilePath>
             </File>
             <File>
               <FileName>ir_key_map.c</FileName>

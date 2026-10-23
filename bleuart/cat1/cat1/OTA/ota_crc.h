@@ -27,4 +27,7 @@ uint16_t ota_prog_checksum16(const uint8_t *data, uint32_t len);
 /** 从 Flash 流式计算程序校验字（整包比对） */
 uint16_t ota_prog_checksum16_flash(uint32_t flash_addr, uint32_t len);
 
+/* Returns -1 on a failed read; never accepts stale buffer bytes as firmware. */
+int ota_prog_checksum16_flash_checked(uint32_t flash_addr, uint32_t len, uint16_t *out);
+
 #endif /* OTA_CRC_H */

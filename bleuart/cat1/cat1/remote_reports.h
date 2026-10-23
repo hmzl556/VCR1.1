@@ -13,10 +13,15 @@
 /** 发送队列返回值（remote_queue_tlv_blob / remote_queue_tag10_key） */
 #define REMOTE_QUEUE_OK           0
 #define REMOTE_QUEUE_ERR         -1   /**< 参数/组帧错误 */
+#define REMOTE_QUEUE_PARAM       -3   /**< Malformed TLV/date; report PARAM_ERROR to STB */
 #define REMOTE_QUEUE_FULL        -2   /**< 队列满，设备忙 */
+
+/* Normalize known RC-READ date truncation in owned RC-TRANS data; update length. */
+int remote_normalize_tlv_blob(uint8_t *plain, uint16_t *length);
 
 /** 初始化远程报告 */
 void remote_reports_init(void);
+void remote_report_clear_queue(void);
 
 /** 从发送队列取出一帧 0x6868 报文；返回 1 表示队列空 */
 int remote_report_poll(uint8_t *out, size_t buflen, uint16_t *outlen,
@@ -38,6 +43,12 @@ int remote_queue_tag01_status(void);
 
 /** RC 本地直报 Tag0x10 按键（不经 STB/RC-TRANS）；返回值见 REMOTE_QUEUE_* */
 int remote_queue_tag10_key(uint8_t key_code);
+
+/**
+ * @brief  心跳直报 Tag0x0A（时间+SIM卡号+电量, heartbeat 模块到期触发）
+ * @return REMOTE_QUEUE_OK 成功；REMOTE_QUEUE_ERR 组帧失败；REMOTE_QUEUE_FULL 队列满
+ */
+int remote_queue_tag0A_heartbeat(void);
 
 /** UDP 软重建期间暂停/恢复 Tag10 入队（1=暂停，0=恢复） */
 void remote_tag10_enqueue_set_paused(uint8_t paused);

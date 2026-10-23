@@ -1,0 +1,93 @@
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\tasks.c:3352:9: warning: Either the condition '(pxTimeOut)==0' is redundant or there is possible null pointer dereference: pxTimeOut. [nullPointerRedundantCheck]
+        pxTimeOut->xOverflowCount = xNumOfOverflows;
+        ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\tasks.c:3349:5: note: Assuming that condition '(pxTimeOut)==0' is not redundant
+    configASSERT( pxTimeOut );
+    ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\tasks.c:3352:9: note: Null pointer dereference
+        pxTimeOut->xOverflowCount = xNumOfOverflows;
+        ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\tasks.c:3353:9: warning: Either the condition '(pxTimeOut)==0' is redundant or there is possible null pointer dereference: pxTimeOut. [nullPointerRedundantCheck]
+        pxTimeOut->xTimeOnEntering = xTickCount;
+        ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\tasks.c:3349:5: note: Assuming that condition '(pxTimeOut)==0' is not redundant
+    configASSERT( pxTimeOut );
+    ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\tasks.c:3353:9: note: Null pointer dereference
+        pxTimeOut->xTimeOnEntering = xTickCount;
+        ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:1278:5: warning: Either the condition '(pxQueue)==0' is redundant or there is possible null pointer dereference: pxQueue. [nullPointerRedundantCheck]
+    configASSERT( pxQueue->uxItemSize == 0 );
+    ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:1274:5: note: Assuming that condition '(pxQueue)==0' is not redundant
+    configASSERT( pxQueue );
+    ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:1278:5: note: Null pointer dereference
+    configASSERT( pxQueue->uxItemSize == 0 );
+    ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:1586:5: warning: Either the condition '(pxQueue)==0' is redundant or there is possible null pointer dereference: pxQueue. [nullPointerRedundantCheck]
+    configASSERT( pxQueue->uxItemSize == 0 );
+    ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:1582:5: note: Assuming that condition '(pxQueue)==0' is not redundant
+    configASSERT( ( pxQueue ) );
+    ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:1586:5: note: Null pointer dereference
+    configASSERT( pxQueue->uxItemSize == 0 );
+    ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2087:22: warning: Either the condition '(xQueue)==0' is redundant or there is possible null pointer dereference: (struct QueueDefinition*)xQueue. [nullPointerRedundantCheck]
+        uxReturn = ( ( Queue_t * ) xQueue )->uxMessagesWaiting;
+                     ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2083:5: note: Assuming that condition '(xQueue)==0' is not redundant
+    configASSERT( xQueue );
+    ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2087:22: note: Null pointer dereference
+        uxReturn = ( ( Queue_t * ) xQueue )->uxMessagesWaiting;
+                     ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2104:20: warning: Either the condition '(pxQueue)==0' is redundant or there is possible null pointer dereference: pxQueue. [nullPointerRedundantCheck]
+        uxReturn = pxQueue->uxLength - pxQueue->uxMessagesWaiting;
+                   ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2100:5: note: Assuming that condition '(pxQueue)==0' is not redundant
+    configASSERT( pxQueue );
+    ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2104:20: note: Null pointer dereference
+        uxReturn = pxQueue->uxLength - pxQueue->uxMessagesWaiting;
+                   ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2118:16: warning: Either the condition '(pxQueue)==0' is redundant or there is possible null pointer dereference: pxQueue. [nullPointerRedundantCheck]
+    uxReturn = pxQueue->uxMessagesWaiting;
+               ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2117:5: note: Assuming that condition '(pxQueue)==0' is not redundant
+    configASSERT( pxQueue );
+    ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2118:16: note: Null pointer dereference
+    uxReturn = pxQueue->uxMessagesWaiting;
+               ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2147:13: warning: Either the condition '(pxQueue)==0' is redundant or there is possible null pointer dereference: pxQueue. [nullPointerRedundantCheck]
+        if( pxQueue->ucStaticallyAllocated == ( uint8_t ) pdFALSE )
+            ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2128:5: note: Assuming that condition '(pxQueue)==0' is not redundant
+    configASSERT( pxQueue );
+    ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2147:13: note: Null pointer dereference
+        if( pxQueue->ucStaticallyAllocated == ( uint8_t ) pdFALSE )
+            ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2488:9: warning: Either the condition '(pxQueue)==0' is redundant or there is possible null pointer dereference: pxQueue. [nullPointerRedundantCheck]
+    if( pxQueue->uxMessagesWaiting == ( UBaseType_t ) 0 )
+        ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2486:5: note: Assuming that condition '(pxQueue)==0' is not redundant
+    configASSERT( pxQueue );
+    ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2488:9: note: Null pointer dereference
+    if( pxQueue->uxMessagesWaiting == ( UBaseType_t ) 0 )
+        ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2529:9: warning: Either the condition '(pxQueue)==0' is redundant or there is possible null pointer dereference: pxQueue. [nullPointerRedundantCheck]
+    if( pxQueue->uxMessagesWaiting == pxQueue->uxLength )
+        ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2527:5: note: Assuming that condition '(pxQueue)==0' is not redundant
+    configASSERT( pxQueue );
+    ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\queue.c:2529:9: note: Null pointer dereference
+    if( pxQueue->uxMessagesWaiting == pxQueue->uxLength )
+        ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\IR_Project\bleuart\freertos\portable\RVDS\ARM_CM0\port.c:197:11: warning: syntax error [syntaxError]
+    ldr r3, = pxCurrentTCB /* Obtain location of pxCurrentTCB. */
+          ^

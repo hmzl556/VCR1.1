@@ -17,8 +17,8 @@ int rc_trans_on_write(peer_t peer, const uint8_t *val, uint16_t len);
 // UDP 发送成功后记录 PackIndex（断线续传用）
 void rc_trans_note_upload_ok(uint32_t pack_index);
 
-// 汇聚完成且尚未 release 时读取 TLV 指针与长度
-const uint8_t *rc_trans_get_assembled(uint16_t *len);
+// 主循环独占已完成且未release的缓冲；允许校验/修正后入队，不可保留指针
+uint8_t *rc_trans_get_assembled(uint16_t *len);
 
 // 主循环入队完成后释放汇聚缓冲
 void rc_trans_release(void);

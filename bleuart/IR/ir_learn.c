@@ -1,369 +1,128 @@
-/**
- * @file    ir_learn.c
- * @brief   红外学习模块实现 — TIM3 输入捕获解码 NEC 码
- * @note    硬件方案：
- *            PB5 = TIM3_CH2（AF2），双边沿捕获（TIM_IC_POLARITY_BOTHEDGE）。
- *            TIM3 时钟 64MHz 分频 1MHz（1 tick = 1μs），16 位计数器
- *            （周期约 65.5ms），回绕检测累加 32 位绝对微秒时间。
- *
- *          捕获流程：
- *            中断只记录脉宽序列；收满 66 个脉宽（1 引导低 + 1 引导高 +
- *            32 位 × 2）后置 s_frame_ready；主循环 ir_learn_process()
- *            完成解码与结果上报。15 秒超时（GY/T 407-2024 §6.2）。
- */
-
+#include "app_heap.h"
+/* Hardware capture: IRQ only collects; task validates/saves/retries. */
 #include "ir_learn.h"
+#include "ir_key_map.h"
+#include "ir_key_policy.h"
 #include "br1601x.h"
 #include "rcc.h"
 #include "gpio.h"
 #include "tim.h"
-#include "misc.h"
-#include "gmem.h"       /* app_now_ms() */
+#include "gmem.h"
+#include "udp_ota.h"
+#include "cat1_skt_udp.h"
 #include "co_printf.h"
-
-/*===========================================================================
- * 一、时序与容量参数（单位：μs，1MHz 计数）
- *===========================================================================*/
-
-/** @brief 引导码低电平 9ms 容差范围 */
-#define IR_LEARN_LEAD_LOW_MIN     7000u
-#define IR_LEARN_LEAD_LOW_MAX     11000u
-
-/** @brief 引导码高电平 4.5ms 容差范围 */
-#define IR_LEARN_LEAD_HIGH_MIN    3500u
-#define IR_LEARN_LEAD_HIGH_MAX    5500u
-
-/** @brief 逻辑位判定阈值：高电平 >1100μs 判 1（560 vs 1680 中点） */
-#define IR_LEARN_BIT_THRESHOLD    1100u
-
-/** @brief 脉宽缓冲容量 */
-#define IR_LEARN_MAX_WIDTHS       70u
-
-/** @brief 完整 NEC 帧脉宽数：引导低+引导高+32 位×2 = 66 */
-#define IR_LEARN_FRAME_WIDTHS     66u
-
-/** @brief 学习超时 15 秒 */
-#define IR_LEARN_TIMEOUT_MS       15000u
-
-/*===========================================================================
- * 二、内部状态
- *===========================================================================*/
-
-/** @brief 学习状态机：空闲 / 学习中 */
-typedef enum
-{
-    IR_LEARN_ST_IDLE = 0,
-    IR_LEARN_ST_LEARNING,
-} ir_learn_state_t;
-
-/** @brief 当前学习状态 */
-static ir_learn_state_t s_state = IR_LEARN_ST_IDLE;
-
-/** @brief 学习结果回调 */
-static ir_learn_cb_t   s_cb    = NULL;
-
-/** @brief 脉宽缓冲（中断写、主循环读；单位 μs，最大 9ms < 65535） */
-static volatile uint16_t s_widths[IR_LEARN_MAX_WIDTHS];
-
-/** @brief 已捕获脉宽个数 */
-static volatile uint8_t  s_width_count;
-
-/** @brief 收满一帧标志（中断置位、主循环消费） */
-static volatile uint8_t  s_frame_ready;
-
-/** @brief 上次捕获计数值（回绕检测用） */
-static volatile uint16_t s_last_cap;
-
-/** @brief 32 位绝对微秒时间的溢出累加部分 */
-static volatile uint32_t s_overflow_us;
-
-/** @brief 上次边沿的绝对微秒时间 */
-static volatile uint32_t s_last_us;
-
-/** @brief 学习开始时间戳（毫秒，超时判断用） */
+#include <stdlib.h>
+static ir_capture_t *s_capture;
+static volatile bool s_active;
+static volatile uint8_t s_error;
+static volatile uint32_t s_high;
 static uint32_t s_start_ms;
-
-/** @brief 本次学习的目标物理按键号 */
-static uint8_t  s_target;
-
-/*===========================================================================
- * 三、内部辅助函数
- *===========================================================================*/
-
-/**
- * @brief  清空捕获缓冲与计时状态
- */
-static void ir_learn_reset_capture(void)
+static uint8_t s_target;
+static ir_learn_cb_t s_cb;
+#define RX_ERR_OVERCAPTURE 1u
+#define RX_ERR_BOUNDS     2u
+static uint16_t s_retry_count, s_overcapture_count;
+static uint8_t s_retry_errors;
+/* Task context only: one diagnostic summary per capture attempt, not a
+ * blocking UART print for every retry while receiving carrier edges. */
+static void report_retries(void)
 {
-    uint8_t i;
-
-    for (i = 0u; i < IR_LEARN_MAX_WIDTHS; i++) {
-        s_widths[i] = 0u;
+    if (s_retry_count) {
+        co_printf("[IR] KEY%u RX retry=%u hw=%u flags=%u\r\n",
+                  (unsigned)s_target, (unsigned)s_retry_count,
+                  (unsigned)s_overcapture_count, (unsigned)s_retry_errors);
+        s_retry_count=0;
     }
-    s_width_count  = 0u;
-    s_frame_ready  = 0u;
-    s_last_cap     = 0u;
-    s_overflow_us  = 0u;
-    s_last_us      = 0u;
 }
-
-/**
- * @brief  从脉宽序列解码 NEC 帧
- * @param  user 输出 NEC 用户码
- * @param  cmd  输出 NEC 数据码
- * @return true = 解码成功，false = 引导/反码校验失败
- * @note   脉宽序列：w[0]=引导低，w[1]=引导高，w[2+2i]=位 i 低，w[3+2i]=位 i 高。
- *         NEC 32 位 = 用户码 + 反码 + 数据码 + 反码，LSB first。
- */
-static bool ir_learn_decode(uint8_t *user, uint8_t *cmd)
+static void capture_off(void)
+{ TIM3->DINTEN=0;NVIC_DisableIRQ(TIM3_IRQn);TIM_Enable(TIM3,DISABLE);s_active=false; }
+void ir_learn_discard(void){if(!s_active){app_heap_free(s_capture);s_capture=0;}}
+const ir_raw_t *ir_learn_wave(void){return s_capture?&s_capture->wave:0;}
+void ir_learn_init(ir_learn_cb_t cb){s_cb=cb;}
+bool ir_learn_is_active(void){return s_active;}
+uint8_t ir_learn_get_target(void){return s_target;}
+void ir_learn_set_target(uint8_t key){s_target=key;}
+static void configure(void)
 {
-    uint32_t w0 = s_widths[0];
-    uint32_t w1 = s_widths[1];
-    uint32_t data = 0u;
-    uint8_t  u, ui, d, di;
-    uint8_t  i;
-
-    if (s_width_count < IR_LEARN_FRAME_WIDTHS) {
-        return false;
-    }
-    if (w0 < IR_LEARN_LEAD_LOW_MIN || w0 > IR_LEARN_LEAD_LOW_MAX) {
-        return false;
-    }
-    if (w1 < IR_LEARN_LEAD_HIGH_MIN || w1 > IR_LEARN_LEAD_HIGH_MAX) {
-        return false;
-    }
-
-    for (i = 0u; i < 32u; i++) {
-        if (s_widths[3u + 2u * i] > IR_LEARN_BIT_THRESHOLD) {
-            data |= (1u << i);
-        }
-    }
-
-    u  = (uint8_t)(data & 0xFFu);
-    ui = (uint8_t)((data >> 8)  & 0xFFu);
-    d  = (uint8_t)((data >> 16) & 0xFFu);
-    di = (uint8_t)((data >> 24) & 0xFFu);
-
-    if ((uint8_t)(u ^ ui) != 0xFFu) {
-        return false;
-    }
-    if ((uint8_t)(d ^ di) != 0xFFu) {
-        return false;
-    }
-
-    *user = u;
-    *cmd  = d;
-    return true;
+    GPIO_InitType g;TIM_TimeBaseInitType tb;TIM_ICInitType ic;
+    RCC_EnableAPB1PeriphClk(RCC_APB1_PERIPH_TIM3,ENABLE);
+    RCC_EnableAPB2PeriphClk(RCC_APB2_PERIPH_GPIOB|RCC_APB2_PERIPH_AFIO,ENABLE);
+    capture_off();TIM3->CCEN=0;TIM3->CCMOD1=0;
+    GPIO_InitStruct(&g);g.Pin=GPIO_PIN_5;g.GPIO_Mode=GPIO_MODE_AF_PP;
+    g.GPIO_Alternate=GPIO_AF2_TIM3;g.GPIO_Pull=GPIO_PULL_UP;GPIO_InitPeripheral(GPIOB,&g);
+    TIM_InitTimBaseStruct(&tb);tb.Prescaler=63;tb.Period=65535;tb.CntMode=TIM_CNT_MODE_UP;
+    TIM_InitTimeBase(TIM3,&tb);TIM_ConfigArPreload(TIM3,DISABLE);
+    TIM_InitIcStruct(&ic);ic.Channel=TIM_CH_2;ic.IcPolarity=TIM_IC_POLARITY_FALLING;
+    ic.IcPrescaler=TIM_IC_PSC_DIV1;ic.IcSelection=TIM_IC_SELECTION_DIRECTTI;ic.IcFilter=0;
+    TIM_ICInit(TIM3,&ic);NVIC_SetPriority(TIM3_IRQn,3);
 }
-
-/*===========================================================================
- * 四、公共 API
- *===========================================================================*/
-
-/**
- * @brief  初始化学习模块（PB5 → TIM3_CH2 + NVIC）
- * @param  cb 学习结果回调
- */
-void ir_learn_init(ir_learn_cb_t cb)
-{
-    GPIO_InitType        gpio;
-    TIM_TimeBaseInitType tb;
-    TIM_ICInitType       ic;
-    NVIC_InitType        nv;
-
-    s_cb    = cb;
-    s_state = IR_LEARN_ST_IDLE;
-    ir_learn_reset_capture();
-
-    /* 1. 时钟：TIM3(APB1) + GPIOB/AFIO(APB2) */
-    RCC_EnableAPB1PeriphClk(RCC_APB1_PERIPH_TIM3, ENABLE);
-    RCC_EnableAPB2PeriphClk(RCC_APB2_PERIPH_GPIOB | RCC_APB2_PERIPH_AFIO, ENABLE);
-
-    /* 2. PB5 = TIM3_CH2（AF2） */
-    GPIO_InitStruct(&gpio);
-    gpio.Pin           = GPIO_PIN_5;
-    gpio.GPIO_Mode     = GPIO_MODE_AF_PP;
-    gpio.GPIO_Current  = GPIO_DC_LOW;
-    gpio.GPIO_Alternate = GPIO_AF2_TIM3;
-    GPIO_InitPeripheral(GPIOB, &gpio);
-
-    /* 3. TIM3 时基 1MHz（64MHz / 64） */
-    TIM_InitTimBaseStruct(&tb);
-    tb.Prescaler = 63u;
-    tb.CntMode   = TIM_CNT_MODE_UP;
-    tb.Period    = 0xFFFFu;
-    tb.ClkDiv    = TIM_CLK_DIV1;
-    tb.RepetCnt  = 0u;
-    TIM_InitTimeBase(TIM3, &tb);
-
-    /* 4. CH2 双边沿捕获 */
-    TIM_InitIcStruct(&ic);
-    ic.Channel     = TIM_CH_2;
-    ic.IcPolarity  = TIM_IC_POLARITY_BOTHEDGE;
-    ic.IcSelection = TIM_IC_SELECTION_DIRECTTI;
-    ic.IcPrescaler = TIM_IC_PSC_DIV1;
-    ic.IcFilter    = 0u;
-    TIM_ICInit(TIM3, &ic);
-
-    /* 5. 使能 CH2 捕获中断 */
-    TIM_ConfigInt(TIM3, TIM_INT_CC2, ENABLE);
-
-    /* 6. NVIC */
-    nv.NVIC_IRQChannel           = TIM3_IRQn;
-    nv.NVIC_IRQChannelPriority   = 1;
-    nv.NVIC_IRQChannelCmd        = ENABLE;
-    NVIC_Init(&nv);
-
-    /* 7. 启动计数器 */
-    TIM_Enable(TIM3, ENABLE);
-}
-
-/**
- * @brief  开始学习（进入学习态，等待红外帧）
- * @return true = 已进入学习，false = 已在学习中
- */
+static void reset_frame(uint32_t now){ir_capture_init(s_capture,now,1);s_error=0;}
 bool ir_learn_start(void)
 {
-    if (s_state == IR_LEARN_ST_LEARNING) {
-        return false;
-    }
-
-    ir_learn_reset_capture();
-    s_start_ms = app_now_ms();
-    s_state    = IR_LEARN_ST_LEARNING;
-    co_printf("[IR   ] learn started\r\n");
-    return true;
+    if(s_active || !ir_key_learnable(s_target) || udp_ota_session_busy() || ir_tx_pending() || cat1_modem_is_busy())return false;
+    ir_learn_discard();s_capture=app_heap_alloc(sizeof(*s_capture));if(!s_capture)return false;
+    configure();s_high=0;TIM_SetCnt(TIM3,0);TIM3->STS=0;
+    reset_frame(0);s_retry_count=0;s_overcapture_count=0;s_retry_errors=0;
+    s_start_ms=app_now_ms();s_active=true;
+    NVIC_ClearPendingIRQ(TIM3_IRQn);TIM3->DINTEN=TIM_INT_UPDATE|TIM_INT_CC2;
+    NVIC_EnableIRQ(TIM3_IRQn);TIM_Enable(TIM3,ENABLE);return true;
 }
-
-/**
- * @brief  停止学习（主动取消）
- */
 void ir_learn_stop(void)
 {
-    if (s_state == IR_LEARN_ST_IDLE) {
-        return;
-    }
-    s_state       = IR_LEARN_ST_IDLE;
-    s_frame_ready = 0u;
-    if (s_cb != NULL) {
-        s_cb(IR_LEARN_EVT_CANCELED, 0u, 0u);
-    }
+    bool active=s_active;capture_off();if(active)report_retries();ir_learn_discard();
+    if(active && s_cb)s_cb(IR_LEARN_EVT_CANCELED,0,0);
 }
-
-/**
- * @brief  查询是否处于学习态
- * @return true = 学习中，false = 空闲
- */
-bool ir_learn_is_active(void)
+static uint32_t capture_now(void)
 {
-    return (s_state == IR_LEARN_ST_LEARNING);
+    uint32_t hi;uint16_t lo;uint32_t flags;
+    NVIC_DisableIRQ(TIM3_IRQn);hi=s_high;lo=TIM3->CNT;flags=TIM3->STS;
+    if((flags&TIM_FLAG_UPDATE) && lo<32768u)hi+=65536u;
+    NVIC_EnableIRQ(TIM3_IRQn);return hi+lo;
 }
-
-/**
- * @brief  学习主循环轮询（须周期性调用）
- * @note   负责 15 秒超时检测与解码结果上报。
- */
-void ir_learn_process(void)
+static void capture_push(uint32_t width)
 {
-    if (s_state != IR_LEARN_ST_LEARNING) {
-        return;
-    }
-
-    /* 收满一帧 → 解码 */
-    if (s_frame_ready != 0u) {
-        uint8_t user = 0u;
-        uint8_t cmd  = 0u;
-
-        s_frame_ready = 0u;
-        s_state       = IR_LEARN_ST_IDLE;
-
-        if (ir_learn_decode(&user, &cmd)) {
-            co_printf("[IR   ] learn done user=0x%02X cmd=0x%02X\r\n",
-                      (unsigned)user, (unsigned)cmd);
-            if (s_cb != NULL) {
-                s_cb(IR_LEARN_EVT_DONE, user, cmd);
-            }
-        } else {
-            co_printf("[IR   ] learn decode fail\r\n");
-            if (s_cb != NULL) {
-                s_cb(IR_LEARN_EVT_FAILED, 0u, 0u);
-            }
-        }
-        return;
-    }
-
-    /* 15 秒超时 */
-    if ((app_now_ms() - s_start_ms) >= IR_LEARN_TIMEOUT_MS) {
-        s_state = IR_LEARN_ST_IDLE;
-        co_printf("[IR   ] learn timeout\r\n");
-        if (s_cb != NULL) {
-            s_cb(IR_LEARN_EVT_TIMEOUT, 0u, 0u);
-        }
-    }
+    if(width<80u || width>65535u || s_capture->wave.count>=IR_RAW_MAX){s_error|=RX_ERR_BOUNDS;return;}
+    s_capture->wave.widths[s_capture->wave.count++]=(uint16_t)width;
 }
-
-/**
- * @brief  设置本次学习的目标按键号
- * @param  key 物理按键号（KEYSCAN_KEY1..17）
- */
-void ir_learn_set_target(uint8_t key)
-{
-    s_target = key;
-}
-
-/**
- * @brief  获取本次学习的目标按键号
- * @return 目标按键号；未设置返回 0
- */
-uint8_t ir_learn_get_target(void)
-{
-    return s_target;
-}
-
-/*===========================================================================
- * 五、中断处理
- *===========================================================================*/
-
-/**
- * @brief  TIM3 全局中断：CH2 双边沿捕获记录脉宽
- * @note   仅在学习态记录；首脉宽须为引导低否则视为噪声丢弃。
- */
 void TIM3_IRQHandler(void)
 {
-    if (TIM_GetIntStatus(TIM3, TIM_INT_CC2) == SET) {
-        uint16_t cap;
-        uint32_t cur_us;
-        uint32_t width;
-
-        TIM_ClrIntPendingBit(TIM3, TIM_INT_CC2);
-        cap = TIM_GetCap2(TIM3);
-
-        /* 回绕检测：两次边沿间隔 < 65.5ms，最多回绕一次 */
-        if (cap < s_last_cap) {
-            s_overflow_us += 0x10000u;
-        }
-        s_last_cap = cap;
-        cur_us     = s_overflow_us + (uint32_t)cap;
-        width      = cur_us - s_last_us;
-        s_last_us  = cur_us;
-
-        if (s_state != IR_LEARN_ST_LEARNING) {
-            return;
-        }
-        if (s_frame_ready != 0u || s_width_count >= IR_LEARN_MAX_WIDTHS) {
-            return;
-        }
-
-        if (s_width_count == 0u) {
-            /* 首脉宽必须是引导低，否则为噪声丢弃 */
-            if (width >= IR_LEARN_LEAD_LOW_MIN && width <= IR_LEARN_LEAD_LOW_MAX) {
-                s_widths[s_width_count++] = (uint16_t)width;
-            }
-        } else {
-            s_widths[s_width_count++] = (uint16_t)width;
-            if (s_width_count >= IR_LEARN_FRAME_WIDTHS) {
-                s_frame_ready = 1u;
-            }
-        }
+    uint16_t flags=TIM3->STS,cap=TIM3->CCDAT2;uint32_t base=s_high,t,d;
+    ir_capture_t *c=s_capture;
+    if(!s_active || !c){TIM3->STS=0;return;}
+    TIM3->STS=(uint16_t)~flags;
+    if(flags&TIM_FLAG_UPDATE){s_high+=65536u;if(cap<32768u)base=s_high;}
+    if(flags&TIM_FLAG_CC2OF)s_error|=RX_ERR_OVERCAPTURE;
+    if(s_error){TIM3->DINTEN=TIM_INT_UPDATE;return;}
+    if(flags&TIM_FLAG_CC2){
+        t=base+cap;if(!c->armed){c->quiet_at=t;return;}
+        if(c->seen_fall){d=t-c->last_fall;if(d>=10u && d<=64u && c->periods[d]<65535u)++c->periods[d];}
+        if(c->mark && t-c->last_fall>100u){c->mark_end=c->last_fall+8u;capture_push(c->mark_end-c->mark_start);c->mark=0;}
+        if(!c->mark){if(c->wave.count)capture_push(t-c->mark_end);else c->started=t;c->mark_start=t;c->mark=1;}
+        c->last_fall=t;c->seen_fall=1;
+        TIM3->CCDAT1=(uint16_t)(cap+100u);TIM3->DINTEN|=TIM_INT_CC1;
+    }else if((flags&TIM_FLAG_CC1) && c->mark){
+        c->mark_end=c->last_fall+8u;capture_push(c->mark_end-c->mark_start);c->mark=0;TIM3->DINTEN&=~TIM_INT_CC1;
+    }
+}
+void ir_learn_process(void)
+{
+    uint32_t now;bool complete,failed;int ok;ir_capture_t *c=s_capture;
+    if(!s_active || !c)return;
+    if(udp_ota_session_busy()){ir_learn_stop();return;}
+    if(app_now_ms()-s_start_ms>=15000u){capture_off();report_retries();ir_learn_discard();if(s_cb)s_cb(IR_LEARN_EVT_TIMEOUT,0,0);return;}
+    now=capture_now();NVIC_DisableIRQ(TIM3_IRQn);
+    if(!c->armed && now-c->quiet_at>=20000u && (GPIOB->PID&GPIO_PIN_5))c->armed=1;
+    complete=c->seen_fall && !c->mark && c->wave.count && now-c->last_fall>=20000u;
+    failed=s_error || (c->seen_fall && now-c->started>270000u);
+    if(complete || failed)TIM3->DINTEN=TIM_INT_UPDATE;
+    NVIC_EnableIRQ(TIM3_IRQn);if(!complete && !failed)return;
+    ok=!failed && ir_capture_complete(c)==1;
+    if(ok){capture_off();report_retries();if(s_cb)s_cb(IR_LEARN_EVT_DONE,0,0);}
+    else{
+        if(s_retry_count<65535u)++s_retry_count;
+        if((s_error&RX_ERR_OVERCAPTURE) && s_overcapture_count<65535u)++s_overcapture_count;
+        s_retry_errors|=s_error;
+        NVIC_DisableIRQ(TIM3_IRQn);reset_frame(now);s_capture->quiet_at=now;
+        TIM3->STS=0;TIM3->DINTEN=TIM_INT_UPDATE|TIM_INT_CC2;NVIC_EnableIRQ(TIM3_IRQn);
     }
 }

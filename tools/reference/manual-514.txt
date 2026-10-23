@@ -1,0 +1,42 @@
+                                                            BR1601A0X/B0X 用户手册 
+   514 / 532  
+后续的客户码（Customer Code）和数据码（Data Code）使用Digital message 编码。 
+Digital message 和Paint message FIFO 深度都是16，编码参考下表： 
+表 20-1 Digital message 编码 
+位 
+名称 
+描述 
+[20] 
+消息类型 
+1=Digital message 
+[19:16] 
+消息长度 
+有效数据位数-1 
+[15:0] 
+消息有效数据 
+逻辑“0”和逻辑“1”  
+表 20-2 Paint message 编码 
+位 
+名称 
+描述 
+[20] 
+消息类型 
+0=Paint message 
+[19:15] 
+保留 
+- 
+[14] 
+符号类型 
+1：Mark 
+0：Space 
+[13:0] 
+消息有效数据 
+Mark/Space 持续时间（单位为载波时钟周期数） 
+20.4. IRC 红外发送程序流程 
+ 设置红外发送引脚配置 
+ 开启IRC 时钟并复位此模块 
+ 设置载波频率占空比（FREQ_CARR_ON/OFF） 
+ 设置逻辑0 和逻辑1 时间和格式（如果是Digital message） 
+ 设置红外重复码时间（如果有重复码） 
+ IRC 模块使能 
+Barrot Confidential

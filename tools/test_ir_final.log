@@ -1,0 +1,11 @@
+NEC decoder: exhaustive 65536 pairs and malformed timing PASS
+PASS: detailed RX failure reasons; 40 RC6 capture/toggle cases, NEC at 36/38/56kHz, generic waveform, quiet/noise/overflow rejection
+capture IRQ: 512 RC6, 256 NEC, 56kHz, raw, wrap, overrun/retry, timeout, OTA, policy PASS
+wave store: 147 torn/read/erase failure points, boot restore, CRC fallback, compacted layout, clear/no resurrection, page limits, policy/OTA/CAT1 PASS
+TX routing: RC6 STB/toggle/repeats, NEC TV/learned/zero, undefined silence, queue/full, pair targets, wrap PASS
+keys: POWER learning, held-entry suppression, 18 keys, feedback/save failure, OTA cancel, debounce, voice release, reset failure, deferred HID order PASS
+combo: TV/STB IR target, one action per hold, user-switch latch, triple-key exclusion, OTA release latch PASS
+matrix: actual 18-key table, PB9--PA6 bit26, unique original keys, new key isolation PASS
+driver: init, 11-bit carrier limits, frequency, busy rejection, completion, stuck TX bound, zero command PASS
+RC6 encoder: 512 command/toggle round trips, header, trailer, 39960us, 13 mapped keys, unmapped rejection PASS
+RC6 driver: 512 nonblocking frames, PWM/segments, NEC/capture exclusion, mux restore, late IRQ/timeout/wrap PASS

@@ -6,6 +6,10 @@
 #include "gpio.h"
 #include "adc.h"
 #include "co_printf.h"
+#include "gmem.h"
+#include "cat1_skt_udp.h"
+#include "task_keyscan.h"
+#include "udp_ota.h"
 
 /* 分压 R16=20k / R28=4.7k → V_adc = V_bat * 4.7/24.7 */
 #define BAT_DIV_NUM           2470U
@@ -19,16 +23,23 @@
 #define BAT_SAMPLE_COUNT      8U          /* 连续采样次数，用于平均抑噪 */
 #define BAT_ADC_DONE_TIMEOUT  100000U     /* 单次转换完成等待上限 */
 
-/* EMA 平滑 + 迟滞滤波参数（放电极慢场景） */
-#define BAT_EMA_ALPHA_NUM     1U          /* α = 1/16 ≈ 6.25%，新值权重 */
-#define BAT_EMA_ALPHA_DEN     16U
-#define BAT_HYST_THRESHOLD    2U          /* EMA 偏离 ≥x% 才更新 */
+/* Q8 percent retains fractional changes; public values remain 0..100. */
+#define BAT_Q                 256U
+#define BAT_HYST_THRESHOLD    2U
+#define BAT_UPDATE_MS         60000U
+#define BAT_POWER_SETTLE_MS   200U
+#define BAT_QUIET_MS          100U
+#define BAT_GROUP_GAP_MS      20U
+#define BAT_RETRY_MS          1000U
+#define BAT_GROUP_COUNT       3U
 
-static uint8_t s_bat_level_cached  = 100U;/* 最近一次有效电量（默认 100%） */
-static uint8_t s_bat_level_ema     = 100U;/* EMA 平滑值，每轮采样都更新 */
-static uint8_t s_bat_level_display = 100U;/* 对外显示值，迟滞控制 */
-static uint8_t s_bat_first_sample  = 1U;  /* 首次有效采样标志，1=尚未采样 */
-static uint8_t s_pb6_analog_ready  = 0U;  /* PB6 模拟输入是否已配置 */
+static uint8_t s_bat_level_display = 100U;
+static uint16_t s_bat_ema_q8;
+static uint16_t s_group_mv[BAT_GROUP_COUNT];
+static uint32_t s_power_ms, s_quiet_ms, s_group_ms, s_last_update_ms;
+static uint8_t s_lte_seen, s_quiet_valid, s_group_count, s_retry_pending;
+static uint8_t s_bat_valid;
+static uint8_t s_pb6_analog_ready;
 
 /**
  * @brief  将 PB6 配置为模拟输入（ADC CH5），仅初始化一次
@@ -102,134 +113,137 @@ static int bat_adc_read_once_raw(uint16_t *out_raw)
 	return 0;
 }
 
-/**
- * @brief  将电池端电压（mV）线性换算为 0–100%
- * @note   ≤3.3V → 0%，≥4.2V → 100%
- */
-static uint8_t bat_mv_to_percent(uint32_t vbat_mv)
+/* Preserve the existing 3.3..4.2V linear range, with Q8 precision. */
+static uint16_t bat_mv_to_q8(uint32_t mv)
 {
-	uint32_t pct;
-
-	if (vbat_mv <= BAT_MV_EMPTY) {
-		return 0U;
-	}
-	if (vbat_mv >= BAT_MV_FULL) {
-		return 100U;
-	}
-
-	pct = ((vbat_mv - BAT_MV_EMPTY) * 100U) / BAT_MV_SPAN;
-	if (pct > 100U) {
-		pct = 100U;
-	}
-	return (uint8_t)pct;
+    if (mv <= BAT_MV_EMPTY) return 0U;
+    if (mv >= BAT_MV_FULL) return (uint16_t)(100U * BAT_Q);
+    return (uint16_t)(((mv - BAT_MV_EMPTY) * 100U * BAT_Q) / BAT_MV_SPAN);
 }
 
-/**
- * @brief  返回最近一次有效显示电量（未采样过则为 100）
- */
 uint8_t bat_get_cached_level(void)
 {
-	return s_bat_level_display;
+    return s_bat_level_display;
 }
 
-/**
- * @brief  读取电池电量百分比（0–100）
- * @note   LTE_EN 低：不上采样，返回 100%；
- *         LTE_EN 高：PB6/CH5 采 8 次平均，分压反推后线性换算；
- *         语音 ADC 忙：跳过采样，返回缓存。
- */
+/* Compatibility entry point: reading/reporting must never trigger ADC work. */
 uint8_t bat_get_level_percent(void)
 {
-	uint32_t sum_raw = 0U;
-	uint32_t sum_mv = 0U;
-	uint32_t vadc_mv;
-	uint32_t vbat_mv;
-	uint16_t raw;
-	uint8_t i;
-	uint8_t ok_cnt = 0U;
-	uint8_t level;
+    return bat_get_cached_level();
+}
 
-	/* LTE 未供电：分压器无电，不上采样，固定报 100% */
-	if (!LTE_EN_IS_ON()) {
-		s_bat_level_cached = 100U;
-		return 100U;
-	}
+/* Called on modem reset/power transitions, including deep-sleep wake.
+ * Do not discard the valid battery cache or restart the 60s rate limit. */
+void bat_adc_restart_window(void)
+{
+    s_lte_seen = 0U;
+    s_quiet_valid = 0U;
+    s_group_count = 0U;
+    s_retry_pending = 0U;
+}
 
-	/* 语音占用 ADC+DMA 时跳过，保留上次电量 */
-	if (g_audio_pcm_enabled != 0U) {
-		return s_bat_level_cached;
-	}
+/* One bounded group per poll: discard the first conversion after switching
+ * channel, then trim one minimum and maximum from eight valid samples.
+ * No partial/failed group may initialize or change the published battery. */
+static int bat_sample_group(uint16_t *mv_out)
+{
+    uint16_t raw;
+    uint32_t sum = 0U, lo = 0xFFFFFFFFU, hi = 0U, mv;
+    uint8_t i;
+    bat_adc_hw_prepare();
+    if (bat_adc_read_once_raw(&raw) != 0) {
+        bat_adc_hw_release();
+        return -1;
+    }
+    for (i = 0U; i < BAT_SAMPLE_COUNT; ++i) {
+        if (bat_adc_read_once_raw(&raw) != 0) {
+            bat_adc_hw_release();
+            return -1;
+        }
+        mv = ADC_ConverValueToVoltage(raw, ADC_CTRL_CH_5);
+        sum += mv;
+        if (mv < lo) lo = mv;
+        if (mv > hi) hi = mv;
+    }
+    bat_adc_hw_release();
+    mv = (sum - lo - hi) / (BAT_SAMPLE_COUNT - 2U);
+    *mv_out = (uint16_t)((mv * BAT_DIV_NUM) / BAT_DIV_DEN);
+    return 0;
+}
 
-	/* 开启ADC，准备采样 */
-	bat_adc_hw_prepare();
+static void bat_publish(uint16_t mv, uint32_t now)
+{
+    uint16_t target = bat_mv_to_q8(mv);
+    uint32_t steps, i;
+    uint8_t rounded;
+    int16_t diff;
+    if (!s_bat_valid) {
+        s_bat_ema_q8 = target;
+        s_bat_level_display = (uint8_t)((target + BAT_Q / 2U) / BAT_Q);
+        s_bat_valid = 1U;
+    } else {
+        /* Account for missed minutes while LTE was off, without waking it.
+         * Limit catch-up to 64 EMA steps; no dependence on read count. */
+        steps = (now - s_last_update_ms) / BAT_UPDATE_MS;
+        if (steps < 1U) steps = 1U;
+        if (steps > 64U) steps = 64U;
+        for (i = 0U; i < steps; ++i)
+            s_bat_ema_q8 = (uint16_t)(((uint32_t)s_bat_ema_q8 * 15U + target + 8U) / 16U);
+        rounded = (uint8_t)((s_bat_ema_q8 + BAT_Q / 2U) / BAT_Q);
+        diff = (int16_t)rounded - s_bat_level_display;
+        if (diff >= (int16_t)BAT_HYST_THRESHOLD || diff <= -(int16_t)BAT_HYST_THRESHOLD ||
+            rounded == 0U || rounded == 100U)
+            s_bat_level_display = rounded;
+    }
+    s_last_update_ms = now;
+    co_printf("[BAT  ] vbat=%umV raw=%u%% ema=%u.%u%% disp=%u%%\r\n",
+              (unsigned)mv, (unsigned)((target + BAT_Q / 2U) / BAT_Q),
+              (unsigned)(s_bat_ema_q8 / BAT_Q),
+              (unsigned)(((uint32_t)(s_bat_ema_q8 % BAT_Q) * 10U) / BAT_Q),
+              (unsigned)s_bat_level_display);
+}
 
-	/* 连续 8 次采样取平均，抑制噪声 */
-	for (i = 0U; i < BAT_SAMPLE_COUNT; i++) {
-		if (bat_adc_read_once_raw(&raw) == 0) {
-			sum_raw += raw;
-			sum_mv += ADC_ConverValueToVoltage(raw, ADC_CTRL_CH_5);
-			ok_cnt++;
-		}
-	}
-
-	/* 关闭ADC，释放资源 */
-	bat_adc_hw_release();
-
-	/* 采样失败，保留上次电量 */
-	if (ok_cnt == 0U) {
-		co_printf("[BAT  ] ADC sample failed, keep %u%%\r\n", (unsigned)s_bat_level_cached);
-		return s_bat_level_cached;
-	}
-
-	vadc_mv = sum_mv / ok_cnt;
-	/* V_bat = V_adc * (20k+4.7k)/4.7k */
-	vbat_mv = (vadc_mv * BAT_DIV_NUM) / BAT_DIV_DEN;
-	level = bat_mv_to_percent(vbat_mv);
-
-	/* === 首次有效采样：直接初始化，避免从 100% 缓慢收敛 === */
-	if (s_bat_first_sample != 0U) {
-		s_bat_level_ema     = level;
-		s_bat_level_display = level;
-		s_bat_first_sample  = 0U;
-	} else {
-		/* === EMA 平滑滤波：每轮都更新，独立状态追踪趋势 === */
-		{
-			uint16_t smoothed;
-			smoothed = (uint16_t)s_bat_level_ema * (BAT_EMA_ALPHA_DEN - BAT_EMA_ALPHA_NUM)
-			         + (uint16_t)level * BAT_EMA_ALPHA_NUM;
-			smoothed = (smoothed + (BAT_EMA_ALPHA_DEN / 2U)) / BAT_EMA_ALPHA_DEN;
-			s_bat_level_ema = (uint8_t)smoothed;
-		}
-
-		/* === 迟滞保护：EMA 偏离显示值 ≥3% 时才更新 === */
-		{
-			int16_t diff = (int16_t)s_bat_level_ema - (int16_t)s_bat_level_display;
-			uint16_t abs_diff = (uint16_t)(diff < 0 ? -diff : diff);
-			if (abs_diff >= BAT_HYST_THRESHOLD) {
-				s_bat_level_display = s_bat_level_ema;
-			}
-		}
-	}
-
-	s_bat_level_cached = s_bat_level_display;
-
-	/*
-	 * raw_avg：ADC 原始码平均值
-	 * vadc：分压器输出电压（mV）
-	 * vbat：电池端电压（mV）
-	 * raw：当前采样原始码
-	 * ema：EMA 平滑值（%）
-	 * disp：对外显示值（%）
-	 * n：有效采样次数
-	 */
-	co_printf("[BAT  ] raw_avg=%u vadc=%umV vbat=%umV raw=%u%% ema=%u%% disp=%u%% (n=%u)\r\n",
-	          (unsigned)(sum_raw / ok_cnt),
-	          (unsigned)vadc_mv,
-	          (unsigned)vbat_mv,
-	          (unsigned)level,
-	          (unsigned)s_bat_level_ema,
-	          (unsigned)s_bat_level_display,
-	          (unsigned)ok_cnt);
-
-	return s_bat_level_display;
+void bat_adc_poll(void)
+{
+    uint32_t now = app_now_ms();
+    uint16_t mv, a, b, c, middle;
+    if (!LTE_EN_IS_ON()) {
+        bat_adc_restart_window();
+        return;
+    }
+    if (!s_lte_seen) {
+        s_lte_seen = 1U;
+        s_power_ms = now;
+        s_quiet_valid = 0U;
+        s_group_count = 0U;
+    }
+    if (g_audio_pcm_enabled || cat1_modem_is_busy() || task_keyscan_ir_busy() ||
+        udp_ota_session_busy()) {
+        s_quiet_valid = 0U;
+        s_group_count = 0U;
+        return;
+    }
+    if (!s_quiet_valid) {
+        s_quiet_valid = 1U;
+        s_quiet_ms = now;
+    }
+    if (now - s_power_ms < BAT_POWER_SETTLE_MS || now - s_quiet_ms < BAT_QUIET_MS)
+        return;
+    if (s_bat_valid && now - s_last_update_ms < BAT_UPDATE_MS) return;
+    if (s_retry_pending && now - s_group_ms < BAT_RETRY_MS) return;
+    if (s_group_count && now - s_group_ms < BAT_GROUP_GAP_MS) return;
+    s_group_ms = now;
+    if (bat_sample_group(&mv) != 0) {
+        s_group_count = 0U;
+        s_retry_pending = 1U;
+        co_printf("[BAT  ] sample failed, keep %u%%\r\n", (unsigned)s_bat_level_display);
+        return;
+    }
+    s_retry_pending = 0U;
+    s_group_mv[s_group_count++] = mv;
+    if (s_group_count != BAT_GROUP_COUNT) return;
+    a = s_group_mv[0]; b = s_group_mv[1]; c = s_group_mv[2];
+    middle = a > b ? (b > c ? b : (a > c ? c : a)) : (a > c ? a : (b > c ? c : b));
+    s_group_count = 0U;
+    bat_publish(middle, now);
 }

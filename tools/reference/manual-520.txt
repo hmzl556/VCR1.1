@@ -1,0 +1,35 @@
+                                                            BR1601A0X/B0X 用户手册 
+   520 / 532  
+15：0 
+IR_REPEAT_TI
+ME 
+定义重复时间（载波时钟周期数）。 
+重复计时器将从协议帧头开始计数，并在定义重复时间后停止计数。 
+20.5.9. IRC CODE FIFO 数据寄存器（IR_CODE_FIFO） 
+偏移地址：0x1C 
+复位值：0x0000 0000 
+位域 
+名称 
+描述 
+31:21 
+Reserved 
+始终读为0。 
+20：0 
+IR_CODE_FIFO_DATA 
+写入CODE FIFO 中数据 
+20.5.10. IRC REPEAT FIFO 数据寄存器（IR_REPEAT_FIFO） 
+偏移地址：0x20 
+复位值：0x0000 0000 
+位域 
+名称 
+描述 
+31:21 
+Reserved 
+始终读为0。 
+20：0 
+IR_REPEAT_FIFO_DATA 写入REPEAT FIFO 中数据 
+21. 按键扫描（KEYSCAN） 
+21.1. KEYSCAN 简介 
+本芯片内部集成了硬件按键扫描电路，支持多达104 个按键。主要用于对按键数量有要求的应
+用场景。硬件按键扫描电路可以唤醒休眠，可以产生中断，节省CPU 运行负担。 
+Barrot Confidential
