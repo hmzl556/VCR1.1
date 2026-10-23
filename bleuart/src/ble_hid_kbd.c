@@ -830,6 +830,25 @@ void hid_kbd_send_key_id_current(uint16_t key_id)
     }
 }
 
+/*
+ * 休眠唤醒 GATT 服务重建用: 删除 HID 服务并清空通知标志/peer 缓存
+ * (重建后 hid_kbd_init 会重新创建服务与特征; 旧的强开标志与 peer
+ * 句柄在断连后已失效, 需清除, 重连后由 CCCD 自旋逻辑重新强开)。
+ */
+void hid_kbd_deinit(void)
+{
+    if (g_hid_boot_svc != NULL) {
+        gatts_svc_delete(g_hid_boot_svc);
+        g_hid_boot_svc = NULL;
+    }
+    g_kbd_ntf_enabled_boot = false;
+    g_hid_boot_peer = NULL;
+    g_kbd_ntf_enabled_report = false;
+    g_hid_report_peer = NULL;
+    g_kbd_ntf_enabled_report_consumer = false;
+    g_hid_report_consumer_peer = NULL;
+}
+
 // 强制使能所有 HID CCCD，绕过 STB 不写 CCCD 的问题
 void hid_kbd_force_cccd_enable(peer_t peer)
 {

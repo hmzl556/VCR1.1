@@ -45,6 +45,9 @@
 
 // HID 键盘业务层接口：只负责服务启动与报告发送，不包含任何硬件或按键扫描逻辑。
 void hid_kbd_init(void);
+
+/** 休眠唤醒 GATT 重建用: 删除 HID 服务并复位通知状态 */
+void hid_kbd_deinit(void);
 void hid_kbd_on_disconnect(void);
 bool hid_kbd_can_send_current(void);
 void hid_kbd_send_report(peer_t peer, uint8_t rpt_id, uint8_t rpt_type, const uint8_t *data, uint16_t len);

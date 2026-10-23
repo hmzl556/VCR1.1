@@ -181,6 +181,15 @@ void device_info_chr8_cbk(gatt_event_t event, void *context, void *param)
     }
 }
 
+/* 休眠唤醒 GATT 服务重建用: 删除 DIS 服务 (重建后 ble_device_info_init 重创建) */
+void ble_device_info_deinit(void)
+{
+	if (device_info_svc != NULL) {
+		gatts_svc_delete(device_info_svc);
+		device_info_svc = NULL;
+	}
+}
+
 int ble_device_info_init(void)
 {
     uuid_t svc_uuid = {
