@@ -46,6 +46,7 @@
 #include "task_keyscan.h"
 #include "ble_hid_kbd.h"
 #include "rc_trans_assembly.h"
+#include "ble_diss.h"       /* ble_device_info_deinit/init — GATT 重建 */
 #include "ble_rc_svc.h"
 #include "ble_bas.h"
 #include "rc_cat1_bridge.h"
@@ -387,6 +388,27 @@ void ble_gap_disconnected(gap_event_t ev, void *ctx, gap_disc_cmpl_t *arg)
 	g_peer = NULL;
 	s_disconnect_work_pending = 1U;
 	co_printf("\r\n[DISCONNECT] OK! %08X, %02X\r\n\r\n", (uint32_t)arg->peer, arg->result);
+}
+
+/**
+ * @brief  休眠唤醒后重建 GATT 服务表 (DIS/HID/RC/BAS)
+ * @note   栈复用不发 Service Changed, STB 带旧缓存重连时随机跳过
+ *         订阅(实测: 复位异常率远低于休眠唤醒)。删除并重建服务使
+ *         GATT 表变化, 栈向已绑定 STB 发 Service Changed, 强制其
+ *         重新发现+订阅。以逆序重建, 保证句柄布局确实变化。
+ *         (DTSS 语音服务在 SDK 库内, 无法重建, 其句柄保持不变)
+ */
+void ble_gatt_services_rebuild(void)
+{
+    ble_device_info_deinit();
+    hid_kbd_deinit();
+    ble_rc_svc_deinit();
+    ble_bas_deinit();
+
+    ble_bas_init();
+    ble_rc_svc_init();
+    hid_kbd_init();
+    ble_device_info_init();
 }
 
 /**

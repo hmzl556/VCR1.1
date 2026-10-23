@@ -406,6 +406,21 @@ void ble_rc_svc_on_connect(peer_t peer)
               (unsigned)s_rc_status.state);
 }
 
+/*
+ * 休眠唤醒 GATT 服务重建用: 删除 RC 服务并复位本地缓存。
+ * 重建后 ble_rc_svc_init 会重新创建服务与特征句柄。
+ */
+void ble_rc_svc_deinit(void)
+{
+    if (s_rc_svc != NULL) {
+        gatts_svc_delete(s_rc_svc);
+        s_rc_svc = NULL;
+    }
+    s_rc_peer = NULL;
+    s_chr_status = NULL;
+    s_chr_key_notify = NULL;
+}
+
 void ble_rc_svc_on_disconnect(void)
 {
     s_rc_peer = NULL;

@@ -26,6 +26,7 @@
 #include "heartbeat.h"
 #include "task_keyscan.h"
 #include "ble_adv.h"    /* ble_adv_start_by_bonding() — 唤醒后复用栈重启广播 */
+#include "ble_gap.h"    /* ble_gatt_services_rebuild() — 唤醒重建 GATT 表 */
 
 extern volatile uint8_t g_audio_pcm_enabled;
 extern void sdk_timer_pause(void);   /* main.c: 删 8ms 定时器让 WFI 深睡 */
@@ -175,6 +176,14 @@ static void pm_enter_sleep(void)
     /* 恢复 8ms sdk 定时器 (FreeRTOS tick): 休眠入口已暂停, 否则唤醒后
      * tick 一直冻结 (vTaskDelay 等会挂死) */
     sdk_timer_resume();
+    /*
+     * ★ GATT 服务重建: 栈复用不发 Service Changed, STB 带旧缓存重连
+     * 时随机跳过订阅(实测: 复位异常率远低于休眠唤醒)。重建服务表
+     * 使栈向已绑定 STB 发 Service Changed, 强制其重新发现+订阅。
+     */
+    if (peer_bonded_count() > 0u) {
+        ble_gatt_services_rebuild();
+    }
     ble_adv_start_by_bonding();
 
     (void)wake_reason;

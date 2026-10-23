@@ -7,6 +7,9 @@
 // 初始化 RC GATT 服务（19ee51a4）及五个特征
 int ble_rc_svc_init(void);
 
+/** 休眠唤醒 GATT 重建用: 删除 RC 服务并复位本地缓存 */
+void ble_rc_svc_deinit(void);
+
 // 获取当前连接对端（供 RC-STATUS Notify 使用）
 peer_t ble_rc_svc_get_peer(void);
 

@@ -106,6 +106,15 @@ static void bas_notify_now(void)
 /**
  * @brief  注册 BAS 1.0：Service 0x180F + Battery Level 0x2A19（READ|NOTIFY）
  */
+/* 休眠唤醒 GATT 服务重建用: 删除 BAS 服务 (重建后 ble_bas_init 重创建) */
+void ble_bas_deinit(void)
+{
+	if (s_bas_svc != NULL) {
+		gatts_svc_delete(s_bas_svc);
+		s_bas_svc = NULL;
+	}
+}
+
 int ble_bas_init(void)
 {
 	uuid_t svc_uuid = {
