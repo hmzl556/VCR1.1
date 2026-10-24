@@ -5,6 +5,8 @@
 #include "rc_protocol.h"
 
 void rc_cat1_init(void);
+/* Main-loop request: queue one manual Tag01 check; automatic OTA unchanged. */
+uint8_t rc_cat1_request_upgrade_check(void);
 /* Includes setup/boot/retry gaps and queued work, not only an active AT. */
 uint8_t rc_cat1_has_work(void);
 void rc_cat1_poll(void);

@@ -10,6 +10,7 @@
 #include "ble_gap.h"
 #include "gmem.h"
 #include "rc_key_input.h"
+#include "rc_cat1_bridge.h"
 #include "pm_state.h"       /* 电源管理 — 按键活动通知 */
 #include "combo_key.h"      /* 组合键管理器（配对/解配）     */
 #include "udp_ota.h"
@@ -47,6 +48,12 @@ static uint32_t key_state_ts_ms = 0;
 static uint32_t key_last_event_ms = 0;
 static uint32_t key_press_start_ms = 0;
 static bool key_long_triggered = false;
+static bool key_menu_check_triggered = false;
+#define MENU_UPGRADE_CHECK_HOLD_MS 5000U
+#define MENU_CHECK_BLUE_PHASE_MS 150U
+static bool s_menu_blue_active;
+static uint8_t s_menu_blue_phase;
+static uint32_t s_menu_blue_ts;
 static bool key_active_is_consumer = false;
 static bool key15_voice_started = false;
 
@@ -508,7 +515,7 @@ void task_keyscan_flush_deferred_voice_rc(void)
 /**
 * @brief 按键扫描处理
 */
-void task_keyscan_process(void)
+static void task_keyscan_process_core(void)
 {
 	uint16_t key_id = 0;
 
@@ -636,6 +643,7 @@ void task_keyscan_process(void)
 				//SETLED2;									// 设置 LED2（蓝） 状态为 ON
 				key_press_start_ms = now_ms;
 				key_long_triggered = false;
+                key_menu_check_triggered = false;
 
 				// 按键 LED 指示：按下亮，松开灭
 				if (key_active == TASK_KEYSCAN_TV_POWER) {
@@ -725,6 +733,20 @@ void task_keyscan_process(void)
 				break;
 			}
 
+            /* Preserve MENU HID press/release. A hold adds one cloud check;
+             * learning, factory reset and combos take over before this state. */
+            if (key_active == TASK_KEYSCAN_KEY10 && hw_key == TASK_KEYSCAN_KEY10 &&
+                !key_menu_check_triggered &&
+                (now_ms - key_press_start_ms) >= MENU_UPGRADE_CHECK_HOLD_MS &&
+                udp_ota_session_busy() == 0u) {
+                key_menu_check_triggered = true;
+                if (rc_cat1_request_upgrade_check() != 0u) {
+                    s_menu_blue_active = true;
+                    s_menu_blue_phase = 0u;
+                    s_menu_blue_ts = now_ms;
+                }
+            }
+
 			// 长按判定：仅触发一次
 			if (!key_long_triggered && (now_ms - key_press_start_ms) >= KEY_LONG_PRESS_MS) {
 				key_long_triggered = true;
@@ -784,4 +806,30 @@ void task_keyscan_process(void)
 			key_state = KEY_STATE_IDLE;
 			break;
 	}
+}
+
+/* Overlay after ordinary writes so a key release cannot shorten a flash.
+ * Start with a dark interval: BLUE may already be on for the held MENU key.
+ * Special modes retain priority; this is main-loop timing, never a delay. */
+void task_keyscan_process(void)
+{
+    uint32_t now_ms;
+    task_keyscan_process_core();
+    if (!s_menu_blue_active) return;
+    if (udp_ota_session_busy() != 0u || factory_rst_state != FACTORY_RST_IDLE ||
+        !combo_key_is_idle() || s_ir_learn_mode != IR_LEARN_MODE_OFF) {
+        s_menu_blue_active = false;
+        if (udp_ota_session_busy() != 0u) CLRLED2;
+        return;
+    }
+    now_ms = task_keyscan_get_now_ms();
+    if (now_ms - s_menu_blue_ts >= MENU_CHECK_BLUE_PHASE_MS) {
+        s_menu_blue_ts = now_ms;
+        ++s_menu_blue_phase;
+    }
+    if (s_menu_blue_phase >= 7u) {
+        s_menu_blue_active = false;
+        if (key_state == KEY_STATE_PRESSED && key_active != TASK_KEYSCAN_TV_POWER &&
+            ble_gap_get_peer() != NULL) SETLED2; else CLRLED2;
+    } else if ((s_menu_blue_phase & 1u) != 0u) SETLED2; else CLRLED2;
 }

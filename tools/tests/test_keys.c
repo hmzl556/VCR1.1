@@ -137,4 +137,50 @@ int main(void){unsigned i;
  led1=1;task_keyscan_red_led(false);assert(led1);
  ota_busy=0;task_keyscan_red_led(false);assert(!led1);
  task_keyscan_red_led(true);assert(led1);scan(60700,0,0);assert(!led1);
+ /* MENU hold: short/early release never checks; preserve HID and repeat gate. */
+ key_state=KEY_STATE_IDLE;key_active=0;factory_rst_state=FACTORY_RST_IDLE;
+ s_ir_learn_mode=IR_LEARN_MODE_OFF;combo_idle=true;ota_busy=0;connected=true;
+ hid_order_len=0;hid_defer_clear();manual_check_calls=0;
+ i=hid_presses;scan(70000,1u<<10,10);scan(70020,1u<<10,0);
+ assert(hid_presses==i+1&&last_hid_key==10);
+ scan(75019,1u<<10,0);assert(manual_check_calls==0);
+ scan(75020,1u<<10,0);assert(manual_check_calls==1&&hid_presses==i+1);
+ scan(79020,1u<<10,0);assert(manual_check_calls==1);
+ i=hid_releases;scan(79030,0,0);scan(79060,0,0);assert(hid_releases==i+1);
+ scan(80000,1u<<10,10);scan(80020,1u<<10,0);
+ scan(84900,0,0);scan(84930,0,0);assert(manual_check_calls==1);
+ scan(85000,1u<<10,10);scan(85020,1u<<10,0);scan(90020,1u<<10,0);
+ assert(manual_check_calls==2);scan(90030,0,0);scan(90060,0,0);
+ /* Disconnected MENU still sends its ordinary IR, then manual check. */
+ connected=false;i=ir_presses;scan(91000,1u<<10,10);scan(91020,1u<<10,0);
+ scan(96020,1u<<10,0);assert(manual_check_calls==3&&ir_presses==i+1);
+ scan(96030,0,0);scan(96060,0,0);
+ ota_busy=1;scan(97000,1u<<10,10);scan(97020,1u<<10,0);scan(102020,1u<<10,0);
+ assert(manual_check_calls==3);scan(102030,0,0);scan(102060,0,0);ota_busy=0;
+ /* Combo takeover cancels pending single-key hold. */
+ scan(103000,1u<<10,10);scan(103020,1u<<10,0);combo_idle=false;
+ scan(108020,(1u<<10)|(1u<<12),0);assert(manual_check_calls==3);
+ combo_idle=true;scan(108030,0,0);
+ /* BLUE feedback has three complete 150ms on pulses, survives release. */
+ connected=true;combo_idle=true;ota_busy=0;key_state=KEY_STATE_IDLE;key_active=0;
+ hid_order_len=0;hid_defer_clear();s_ir_suppress_until_release=false;
+ scan(110000,1u<<10,10);scan(110020,1u<<10,0);assert(led2==1);
+ scan(115020,1u<<10,0);assert(s_menu_blue_active&&led2==0);
+ scan(115030,0,0);scan(115060,0,0);assert(led2==0);
+ for(i=1;i<=6;i++){
+  scan(115020+150*i,0,0);assert(s_menu_blue_active&&led2==(i&1u));
+  scan(115020+150*i+149,0,0);assert(led2==(i&1u));
+ }
+ scan(116070,0,0);assert(!s_menu_blue_active&&!led2);
+ /* If MENU stays held, restore its original blue after the three pulses. */
+ scan(117000,1u<<10,10);scan(117020,1u<<10,0);scan(122020,1u<<10,0);
+ for(i=1;i<=7;i++)scan(122020+150*i,1u<<10,0);
+ assert(!s_menu_blue_active&&led2==1);
+ scan(123080,0,0);scan(123110,0,0);assert(!led2);
+ /* OTA and special modes preempt feedback rather than being overwritten. */
+ s_menu_blue_active=true;s_menu_blue_phase=1;s_menu_blue_ts=124000;ota_busy=1;led1=1;led2=1;
+ scan(124000,0,0);assert(!s_menu_blue_active&&!led2&&led1==1);ota_busy=0;
+ s_menu_blue_active=true;s_menu_blue_phase=1;combo_idle=false;led2=1;
+ scan(124010,(1u<<14)|(1u<<5),0);assert(!s_menu_blue_active&&led2==1);
+ combo_idle=true;scan(124020,0,0);
  puts("keys: POWER learning, held-entry suppression, 18 keys, feedback/save failure, OTA cancel/100ms LED ownership, debounce, voice release, reset failure, deferred HID order PASS");return 0;}

@@ -9,7 +9,7 @@ with tempfile.TemporaryDirectory(prefix='vcr_ir_tests_') as temp:
     tmp=Path(temp)
     for name in ['br1601x.h','keyscan.h','rcc.h','gpio.h','tim.h','misc.h','gmem.h','udp_ota.h','qflash.h']:
         (tmp/name).write_text('#include "mock_hw.h"\n'+('uint32_t Qflash_Read(uint32_t,uint8_t*,uint32_t);\nuint32_t Qflash_Write(uint32_t,uint8_t*,uint32_t);\nuint32_t Qflash_Erase_Sector(uint32_t);\n' if name=='qflash.h' else ''))
-    app_headers = ['app_voice_ctrl.h','app_keyscan.h','ble_hid_kbd.h','ble_gap.h','rc_key_input.h','pm_state.h','combo_key.h','ble_adv.h','cs_core.h','userhard.h','cat1_skt_udp.h','co_printf.h']
+    app_headers = ['app_voice_ctrl.h','app_keyscan.h','ble_hid_kbd.h','ble_gap.h','rc_key_input.h','pm_state.h','combo_key.h','ble_adv.h','cs_core.h','userhard.h','cat1_skt_udp.h','co_printf.h','rc_cat1_bridge.h']
     for name in app_headers:
         extra = 'void combo_key_process(uint32_t,const uint32_t[5]);\nbool combo_key_is_idle(void);\n' if name=='combo_key.h' else ''
         (tmp/name).write_text('#include "mock_app.h"\n'+extra)

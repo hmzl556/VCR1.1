@@ -1,0 +1,15 @@
+{
+  "feature": "KEY10 hold 5s manual Tag01 check; existing automatic OTA retained",
+  "version": "02010000",
+  "binary_bytes": 188400,
+  "sha256": "6bbcd42b154f70f2da895fe55118b029efcd6d2aea971542218c1e52240600a7",
+  "host_regression_groups_passed": 28,
+  "build_errors": 0,
+  "build_existing_warnings": 2,
+  "static_units": 73,
+  "static_raw_diagnostics": 11,
+  "hardware_verified": false,
+  "IR_Project_modified": false,
+  "blue_feedback": "3 flashes, nominal 150 ms on/off, nonblocking overlay; release survives; special modes preempt",
+  "blue_tests": "actual keyscan phase/release/held restoration/OTA and combo priority passed"
+}
