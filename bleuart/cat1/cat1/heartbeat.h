@@ -23,7 +23,7 @@
  * 出厂默认心跳周期: 0=关闭(出厂状态, 等服务器下发间隔后才开始心跳);
  * 当前测试值 1800s(30min, 与规范默认一致); ★正式出厂烧录前改回 0。
  */
-#define HEARTBEAT_DEFAULT_PERIOD_MS    (0u * 1000u)
+#define HEARTBEAT_DEFAULT_PERIOD_MS    (1800u * 1000u)
 
 /** 上电初始化: 按出厂默认周期排程 (0=关闭) */
 void heartbeat_init(void);

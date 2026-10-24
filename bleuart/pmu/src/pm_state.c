@@ -26,7 +26,6 @@
 #include "heartbeat.h"
 #include "task_keyscan.h"
 #include "ble_adv.h"    /* ble_adv_start_by_bonding() — 唤醒后复用栈重启广播 */
-#include "ble_gap.h"    /* ble_gatt_services_rebuild() — 唤醒重建 GATT 表 */
 
 extern volatile uint8_t g_audio_pcm_enabled;
 extern void sdk_timer_pause(void);   /* main.c: 删 8ms 定时器让 WFI 深睡 */
@@ -177,13 +176,12 @@ static void pm_enter_sleep(void)
      * tick 一直冻结 (vTaskDelay 等会挂死) */
     sdk_timer_resume();
     /*
-     * ★ GATT 服务重建: 栈复用不发 Service Changed, STB 带旧缓存重连
-     * 时随机跳过订阅(实测: 复位异常率远低于休眠唤醒)。重建服务表
-     * 使栈向已绑定 STB 发 Service Changed, 强制其重新发现+订阅。
+     * 模式B(复用栈): 不再重建 GATT 服务表。重建依赖 gatts_svc_delete
+     * 释放内存, 实测该 SDK 不释放 → malloc fail → HardFault → 冷启动,
+     * 心跳计时与唤醒按键业务被复位打断 (见 doc/休眠唤醒模式回退说明.md)。
+     * STB 带旧缓存跳过订阅的问题由回连自旋强开 + RC 会话恢复补偿
+     * (见 doc/回连语音RC失效问题追踪.md), 根因已提 STB 侧问题单。
      */
-    if (peer_bonded_count() > 0u) {
-        ble_gatt_services_rebuild();
-    }
     ble_adv_start_by_bonding();
 
     (void)wake_reason;

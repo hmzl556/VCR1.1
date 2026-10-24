@@ -47,8 +47,5 @@
 
 int ble_device_info_init(void);
 
-/** 休眠唤醒 GATT 重建用: 删除 DIS 服务 */
-void ble_device_info_deinit(void);
-
 
 #endif

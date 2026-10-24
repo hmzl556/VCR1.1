@@ -46,7 +46,6 @@ peer_t ble_gap_get_peer(void);
 void ble_gap_process_disconnect_pending(void);
 
 /** 休眠唤醒后重建 GATT 服务表 (触发 Service Changed, 使 STB 失效缓存重订阅) */
-void ble_gatt_services_rebuild(void);
 
 // LED 指示：配对广播且未连接时 LED2 快闪
 void ble_gap_led_indicate(void);
