@@ -91,3 +91,18 @@ F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 
 F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\20IWDG\bleuart\freertos\portable\RVDS\ARM_CM0\port.c:197:11: warning: syntax error [syntaxError]
     ldr r3, = pxCurrentTCB /* Obtain location of pxCurrentTCB. */
           ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\20IWDG\cs\src\ble_dtss.c:264:28: warning: Either the condition 'in' is redundant or there is possible null pointer dereference: in. [nullPointerRedundantCheck]
+   gatts_chr_val_write_rsp(in->peer, in->chr, GATT_OK);
+                           ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\20IWDG\cs\src\ble_dtss.c:261:9: note: Assuming that condition 'in' is not redundant
+       (in && in->val && in->val_len > 0u) ? in->val[0] : 0u,
+        ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\20IWDG\cs\src\ble_dtss.c:258:35: note: Assignment to 'in=(struct gatt_chr_val_write_req*)param'
+   gatt_chr_val_write_req_t *in = (gatt_chr_val_write_req_t *)param;
+                                  ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\20IWDG\cs\src\ble_dtss.c:258:33: note: in is assigned '(struct gatt_chr_val_write_req*)param' here.
+   gatt_chr_val_write_req_t *in = (gatt_chr_val_write_req_t *)param;
+                                ^
+F:\A_ZZT_Project\Remote_4G_VCR1\UDP bootloader 在线升级\VCR1-UDP-bootloader 文件夹\用户程序-app1\20IWDG\cs\src\ble_dtss.c:264:28: note: Null pointer dereference
+   gatts_chr_val_write_rsp(in->peer, in->chr, GATT_OK);
+                           ^
