@@ -1,8 +1,8 @@
 /**
  * @file    combo_key.c
  * @brief   组合键管理器实现
- * @note    TV pairing: volume- + TV; STB pairing: volume- + left (matrix-safe alias).
- *          TV user-code switch: volume+ + back; STB switch disabled. Trigger once until release.
+ * @note    STB pairing: volume- + TV business; unpairing: back + TV business.
+ *          Both user-code switch combos disabled. Trigger once until release.
  *          Factory reset and learning are mutually exclusive in task_keyscan.
  */
 
@@ -26,14 +26,12 @@ typedef enum {
     COMBO_HOLDING,       /* 双键按住中，计时 3s                     */
     COMBO_TRIGGERED,     /* 已触发，执行后续动作（仅解配使用此状态） */
     COMBO_WAIT_RELEASE,
-    COMBO_FLASHING,      /* LED 指示中（仅用户码切换使用此状态）     */
 } combo_state_t;
 
 /** @brief 组合键动作类型 */
 typedef enum {
-    COMBO_ACT_PAIR = 0,  /* 电视：仅红外请求；机顶盒：蓝牙配对 + 红外请求 */
-    COMBO_ACT_UNPAIR,    /* 电视：不操作机顶盒；机顶盒：清绑定 + 等断连 */
-    COMBO_ACT_USER_TV,   /* 切电视机用户码（LED 慢闪2/快闪3）         */
+    COMBO_ACT_PAIR = 0,  /* STB Bluetooth pairing + Gehua RC6 request */
+    COMBO_ACT_UNPAIR,    /* Clear STB bond + wait for disconnect */
 } combo_action_t;
 
 typedef struct {
@@ -46,9 +44,6 @@ typedef struct {
     bool           release_pending;
     uint32_t       led_ts_ms;     /* LED 闪烁时间戳                  */
     bool           led_on;        /* LED 当前亮灭                    */
-    uint8_t        flash_total;   /* 用户码切换：需闪半周期次数      */
-    uint8_t        flash_done;    /* 用户码切换：已闪半周期次数      */
-    uint32_t       flash_period;  /* 用户码切换：闪烁半周期 ms       */
 } combo_key_def_t;
 
 /*===========================================================================
@@ -56,17 +51,10 @@ typedef struct {
  *===========================================================================*/
 
 /* 组合键注册表（编译时确定，不动态分配） */
-#define COMBO_IDX_PAIR_TV    0   /* 音量- + 电视     → 配对电视机 */
-#define COMBO_IDX_UNPAIR_TV  1   /* 电视 + 返回      → 解配电视机 */
-#define COMBO_IDX_PAIR_STB   2   /* 音量- + 左     → 配对机顶盒 */
-#define COMBO_IDX_UNPAIR_STB 3   /* 返回 + 左      → 解配机顶盒 */
-#define COMBO_IDX_USER_TV    4   /* 音量+ + 返回     → 切电视机用户码 */
-#define COMBO_COUNT          5
+#define COMBO_IDX_PAIR_STB   0   /* KEY14 + KEY3 */
+#define COMBO_IDX_UNPAIR_STB 1   /* KEY9 + KEY3 */
+#define COMBO_COUNT         2
 
-/** @brief 用户码切换 LED 慢闪半周期（默认码） */
-#define COMBO_USER_SLOW_FLASH_MS  500U
-/** @brief 用户码切换 LED 快闪半周期（备用码） */
-#define COMBO_USER_FAST_FLASH_MS  200U
 /* Automatic KEYSCAN uses 32ms scan interval plus 10ms debounce.
  * Do not treat one incomplete snapshot as an actual release. */
 #define COMBO_RELEASE_CONFIRM_MS 100U
@@ -103,21 +91,14 @@ static void combo_register(uint8_t idx, uint8_t key1, uint8_t key2, combo_action
     g_combos[idx].release_pending = false;
     g_combos[idx].led_ts_ms     = 0U;
     g_combos[idx].led_on        = false;
-    g_combos[idx].flash_total   = 0U;
-    g_combos[idx].flash_done    = 0U;
-    g_combos[idx].flash_period  = 0U;
 }
 
 void combo_key_init(void)
 {
-    /* 配对/解配电视机（沿用原按键） */
-    combo_register(COMBO_IDX_PAIR_TV,    TASK_KEYSCAN_KEY14, TASK_KEYSCAN_KEY3,  COMBO_ACT_PAIR);
-    combo_register(COMBO_IDX_UNPAIR_TV,  TASK_KEYSCAN_KEY3,  TASK_KEYSCAN_KEY9,  COMBO_ACT_UNPAIR);
-    /* 用户确认：旧静音组合共用PA1，改用矩阵线不重叠的左键。 */
-    combo_register(COMBO_IDX_PAIR_STB,   TASK_KEYSCAN_KEY14, TASK_KEYSCAN_KEY5,  COMBO_ACT_PAIR);
-    combo_register(COMBO_IDX_UNPAIR_STB, TASK_KEYSCAN_KEY9,  TASK_KEYSCAN_KEY5,  COMBO_ACT_UNPAIR);
-    /* 用户码切换 */
-    combo_register(COMBO_IDX_USER_TV,    TASK_KEYSCAN_KEY12, TASK_KEYSCAN_KEY9,  COMBO_ACT_USER_TV);
+    /* One BLE target: these pairs replace the previous TV actions and
+     * the left-key aliases. No user-code switching combo is registered. */
+    combo_register(COMBO_IDX_PAIR_STB,   TASK_KEYSCAN_KEY14, TASK_KEYSCAN_KEY3, COMBO_ACT_PAIR);
+    combo_register(COMBO_IDX_UNPAIR_STB, TASK_KEYSCAN_KEY9,  TASK_KEYSCAN_KEY3, COMBO_ACT_UNPAIR);
 }
 
 bool combo_key_is_idle(void)
@@ -133,8 +114,7 @@ bool combo_key_is_idle(void)
 
 bool combo_key_unpair_in_progress(void)
 {
-    return (g_combos[COMBO_IDX_UNPAIR_TV].state == COMBO_TRIGGERED)
-        || (g_combos[COMBO_IDX_UNPAIR_STB].state == COMBO_TRIGGERED);
+    return g_combos[COMBO_IDX_UNPAIR_STB].state == COMBO_TRIGGERED;
 }
 
 /*===========================================================================
@@ -142,19 +122,11 @@ bool combo_key_unpair_in_progress(void)
  *===========================================================================*/
 
 /**
- * @brief  电视仅发送 NEC 0x7D；机顶盒清绑定、配对广播并发 RC6 0xAD
+ * @brief  机顶盒清绑定、配对广播并发 RC6 0xAD
  */
 static void combo_do_pair(combo_key_def_t *c)
 {
     co_printf("[COMBO] key%d+key%d pair triggered\r\n", c->key1, c->key2);
-
-    /* The current BLE context belongs to the STB. A TV request must not
-     * clear that bond, replace its advertising or alter its PM state. */
-    if (c == &g_combos[COMBO_IDX_PAIR_TV]) {
-        ir_send_pair_code_target(true);
-        c->state = COMBO_WAIT_RELEASE;
-        return;
-    }
 
     /*
      * 清除旧绑定以确保设备可被发现，再设置配对广播活跃标志。
@@ -174,19 +146,11 @@ static void combo_do_pair(combo_key_def_t *c)
 }
 
 /**
- * @brief  电视不操作机顶盒；机顶盒清绑定并进入等断连状态
+ * @brief  机顶盒清绑定并进入等断连状态
  */
 static void combo_do_unpair(combo_key_def_t *c, uint32_t now_ms)
 {
     co_printf("[COMBO] key%d+key%d unpair triggered\r\n", c->key1, c->key2);
-
-    /* No independent TV BLE context exists yet. Do not pretend success or
-     * run the STB disconnect/sleep flow for a TV unpair request. */
-    if (c == &g_combos[COMBO_IDX_UNPAIR_TV]) {
-        co_printf("[COMBO] TV unpair skipped: no TV BLE context; STB bond preserved\r\n");
-        c->state = COMBO_WAIT_RELEASE;
-        return;
-    }
 
     c->state       = COMBO_TRIGGERED;
     c->state_ts_ms = now_ms;
@@ -196,30 +160,6 @@ static void combo_do_unpair(combo_key_def_t *c, uint32_t now_ms)
 
     /* 清绑定（内部先断连再擦 Flash），断连异步完成 */
     ble_gap_clear_bonding_info();
-}
-
-/**
- * @brief  用户码切换动作：切换变量 + LED 慢闪2下(默认)/快闪3下(备用)
- */
-static void combo_do_user_switch(combo_key_def_t *c, uint32_t now_ms)
-{
-    bool is_default;
-
-    /* STB is fixed Gehua RC6. Only the TV retains NEC user-code switching. */
-    is_default = ir_user_switch_tv();
-
-    co_printf("[COMBO] user code switched to %s\r\n",
-              is_default ? "default" : "alternate");
-
-    /* 默认：慢闪 2 下（4 半周期）；备用：快闪 3 下（6 半周期） */
-    c->flash_total  = is_default ? 4u : 6u;
-    c->flash_done   = 0u;
-    c->flash_period = is_default ? COMBO_USER_SLOW_FLASH_MS : COMBO_USER_FAST_FLASH_MS;
-    c->led_ts_ms    = now_ms;
-    c->led_on       = false;
-    CLRLED1;
-    CLRLED2;
-    c->state        = COMBO_FLASHING;
 }
 
 void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
@@ -284,9 +224,6 @@ void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
                 case COMBO_ACT_UNPAIR:
                     combo_do_unpair(c, now_ms);
                     break;
-                case COMBO_ACT_USER_TV:
-                    combo_do_user_switch(c, now_ms);
-                    break;
                 default:
                     c->state = COMBO_IDLE;
                     break;
@@ -325,29 +262,6 @@ void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
             }
             break;
         }
-
-        /* ---------------------------------------------------------- */
-        /*  FLASHING：用户码切换 LED 指示，闪够次数后熄灭              */
-        /* ---------------------------------------------------------- */
-        case COMBO_FLASHING:
-            if ((now_ms - c->led_ts_ms) >= c->flash_period) {
-                c->led_ts_ms = now_ms;
-                c->led_on = !c->led_on;
-                if (c->led_on) {
-                    SETLED1;
-                    SETLED2;
-                } else {
-                    CLRLED1;
-                    CLRLED2;
-                }
-                c->flash_done++;
-                if (c->flash_done >= c->flash_total) {
-                    CLRLED1;
-                    CLRLED2;
-                    c->state = COMBO_WAIT_RELEASE;
-                }
-            }
-            break;
 
         case COMBO_WAIT_RELEASE:
             if (!keyscan_is_key_pressed(hw_snapshot, c->key1) &&

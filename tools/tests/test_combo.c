@@ -4,37 +4,27 @@ void ir_send_pair_code_target(bool tv){if(!tv){assert(bond_clears>0u);assert(g_p
 bool ir_user_switch_stb(void){++switch_calls;return false;}
 bool ir_user_switch_tv(void){++switch_calls;return true;}
 static void scan(unsigned t,unsigned mask){uint32_t hw[5]={mask,0,0,0,0};now_ms=t;combo_key_process(t,hw);}
-int main(void){unsigned i;unsigned tv=(1u<<14)|(1u<<3),stb=(1u<<14)|(1u<<5),user=(1u<<12)|(1u<<9);
- pm_value=PM_STATE_WORKING;combo_key_init();scan(0,tv);scan(3000,tv);assert(pair_calls==1&&last_pair_tv==1);
- assert(!bond_clears&&!adv_pair_calls&&!g_pairing_active&&pm_value==PM_STATE_WORKING&&connected);
+int main(void){unsigned i;unsigned tv=(1u<<14)|(1u<<3),stb=tv;
+ unsigned unpair=(1u<<9)|(1u<<3);
+ pm_value=PM_STATE_WORKING;combo_key_init();
+ assert(COMBO_COUNT==2);
+ assert(g_combos[COMBO_IDX_PAIR_STB].key1==14&&g_combos[COMBO_IDX_PAIR_STB].key2==3);
+ assert(g_combos[COMBO_IDX_UNPAIR_STB].key1==9&&g_combos[COMBO_IDX_UNPAIR_STB].key2==3);
+ scan(0,tv);scan(2999,tv);assert(pair_calls==0);scan(3000,tv);
+ assert(pair_calls==1&&!last_pair_tv&&bond_clears==1&&adv_pair_calls==1&&g_pairing_active);
  for(i=3010;i<12000;i+=10)scan(i,tv);assert(pair_calls==1);scan(12010,0);assert(combo_key_is_idle());
- scan(12100,stb);scan(15100,stb);assert(pair_calls==2&&last_pair_tv==0&&bond_clears==1&&adv_pair_calls==1&&g_pairing_active);scan(15110,0);
- scan(16000,user);scan(19000,user);assert(switch_calls==1);for(i=19200;i<=22000;i+=200)scan(i,user);assert(switch_calls==1);scan(22010,0);
- scan(22100,(1u<<12)|(1u<<8));scan(25100,(1u<<12)|(1u<<8));assert(switch_calls==1);scan(25110,0);
+ /* Pairing also works disconnected, without duplicate TV IR actions. */
+ connected=false;scan(12100,stb);scan(15100,stb);
+ assert(pair_calls==2&&!last_pair_tv&&bond_clears==2&&adv_pair_calls==2);scan(15110,0);
  scan(26000,tv|(1u<<2));scan(30000,tv|(1u<<2));assert(pair_calls==2);scan(30010,0);
- ota_busy=1;scan(31000,tv);scan(34000,tv);ota_busy=0;scan(35000,tv);assert(pair_calls==2);scan(35010,0);scan(36000,tv);scan(39000,tv);assert(pair_calls==3);
- /* TV operations preserve an existing STB connection, advertising and bond
-  * for both connected/disconnected and active/inactive pairing states. */
- for(i=0;i<4;i++){
-  unsigned before_pair=pair_calls,before_clear=bond_clears,before_adv=adv_pair_calls;
-  unsigned unpair=(1u<<3)|(1u<<9);bool active=(i&1)!=0;
-  combo_key_init();connected=(i&2)!=0;g_pairing_active=active;
-  pm_value=connected?PM_STATE_WORKING:PM_STATE_RECONNECTING;
-  {int before_pm=pm_value;
-   scan(40000,tv);scan(43000,tv);scan(80000,tv);
-   assert(pair_calls==before_pair+1&&last_pair_tv);
-   assert(bond_clears==before_clear&&adv_pair_calls==before_adv&&g_pairing_active==active&&pm_value==before_pm);
-   scan(80010,0);scan(80100,unpair);scan(83100,unpair);scan(120000,unpair);
-   assert(!combo_key_unpair_in_progress());
-   assert(bond_clears==before_clear&&adv_pair_calls==before_adv&&g_pairing_active==active&&pm_value==before_pm);
-   scan(120010,0);assert(combo_key_is_idle());
-  }
- }
- /* Actual STB unpair still clears binding and follows disconnect/sleep. */
- {unsigned before=bond_clears;unsigned unpair=(1u<<9)|(1u<<5);
+ ota_busy=1;scan(31000,tv);scan(34000,tv);ota_busy=0;scan(35000,tv);assert(pair_calls==2);
+ scan(35010,0);scan(36000,tv);scan(39000,tv);assert(pair_calls==3);scan(39010,0);
+ /* New unpair combo clears once, waits for disconnect, then sleeps. */
+ {unsigned before=bond_clears;
   combo_key_init();connected=true;pm_value=PM_STATE_WORKING;
-  scan(130000,unpair);scan(133000,unpair);
-  assert(bond_clears==before+1&&combo_key_unpair_in_progress());
+  scan(130000,unpair);scan(132999,unpair);assert(bond_clears==before);
+  scan(133000,unpair);assert(bond_clears==before+1&&combo_key_unpair_in_progress());
+  scan(133010,unpair);assert(bond_clears==before+1);
   connected=false;scan(135000,unpair);assert(pm_value==PM_STATE_SLEEP);
   scan(135010,0);assert(combo_key_is_idle());}
  /* Missing a single sample must not repeatedly cancel a held pair. */
@@ -47,7 +37,7 @@ int main(void){unsigned i;unsigned tv=(1u<<14)|(1u<<3),stb=(1u<<14)|(1u<<5),user
  /* A real release cancels; a new press needs a new full 3-second hold. */
  {unsigned before=pair_calls;
   combo_key_init();scan(220000,tv);scan(220008,0);scan(220107,0);
-  assert(g_combos[COMBO_IDX_PAIR_TV].state==COMBO_HOLDING);
+  assert(g_combos[COMBO_IDX_PAIR_STB].state==COMBO_HOLDING);
   scan(220108,0);assert(combo_key_is_idle());
   scan(220200,tv);scan(223199,tv);assert(pair_calls==before);
   scan(223200,tv);assert(pair_calls==before+1);scan(223210,0);
@@ -80,8 +70,9 @@ int main(void){unsigned i;unsigned tv=(1u<<14)|(1u<<3),stb=(1u<<14)|(1u<<5),user
  }
  /* Previous, electrically overlapping aliases no longer execute. */
  {unsigned before=pair_calls,clear=bond_clears,sw=switch_calls,n;
-  unsigned old[3]={(1u<<14)|(1u<<2),(1u<<9)|(1u<<2),(1u<<12)|(1u<<10)};
-  for(n=0;n<3;n++){combo_key_init();scan(280000+n*5000,old[n]);scan(283000+n*5000,old[n]);scan(283010+n*5000,0);}
+  unsigned old[7]={(1u<<14)|(1u<<2),(1u<<9)|(1u<<2),(1u<<12)|(1u<<10),
+   (1u<<14)|(1u<<5),(1u<<9)|(1u<<5),(1u<<12)|(1u<<9),(1u<<12)|(1u<<8)};
+  for(n=0;n<7;n++){combo_key_init();scan(280000+n*5000,old[n]);scan(283000+n*5000,old[n]);scan(283010+n*5000,0);}
   assert(pair_calls==before&&bond_clears==clear&&switch_calls==sw);
  }
- puts("combo: TV operations preserve STB bond/advertising/PM; STB pair/unpair retained; 100ms release filter/dropout/repress/threshold/wrap; IR target, one action per hold, user-switch latch, triple-key exclusion, OTA release latch PASS");return 0;}
+ puts("combo: KEY14+KEY3 STB pair/RC6, KEY9+KEY3 unpair, seven obsolete aliases disabled; 100ms release filter/dropout/repress/threshold/wrap; IR target, one action per hold, all user-switch aliases disabled, triple-key exclusion, OTA release latch PASS");return 0;}

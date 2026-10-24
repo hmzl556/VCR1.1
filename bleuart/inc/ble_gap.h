@@ -37,7 +37,7 @@
 #include "gap.h"
 int ble_gap_init(void);
 
-// 配对广播活跃标志：仅 KEY14+KEY5 组合键触发后为 true，控制 LED2 闪烁
+// 配对广播活跃标志：仅 KEY14+KEY3 组合键触发后为 true，控制 LED2 闪烁
 extern volatile bool g_pairing_active;
 
 // 获取当前已连接对端句柄；未连接时返回 NULL。

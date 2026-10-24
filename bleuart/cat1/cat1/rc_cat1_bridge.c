@@ -54,6 +54,7 @@ static uint32_t s_inflight_pack_index;
 static uint32_t s_setup_retry_ms;
 static uint8_t  s_sktsend_fail_streak;
 static uint8_t  s_tag01_queued;
+static uint8_t  s_manual_tag01_pending;
 /** BUSY 孤儿监视：无 pending/队列/inflight 时超时强制 ERROR，避免 STB 永久卡死 */
 static uint32_t s_busy_orphan_ms;
 
@@ -335,6 +336,7 @@ void rc_cat1_init(void)
 	s_setup_retry_ms = 0u;
 	s_sktsend_fail_streak = 0u;
 	s_tag01_queued = 0u;
+    s_manual_tag01_pending = 0u;
 	s_busy_orphan_ms = 0u;
 	s_uplink_ok_logged = 0u;
 	s_rc_done_on_uplink = 0u;
@@ -454,6 +456,29 @@ static void rc_cat1_on_sktsend_fail(void)
 	}
 }
 
+uint8_t rc_cat1_request_upgrade_check(void)
+{
+    if (udp_ota_session_busy() != 0u || s_manual_tag01_pending != 0u) return 0u;
+    s_manual_tag01_pending = 1u;
+    co_printf("[OTA  ] manual check requested\r\n");
+    return 1u;
+}
+
+/* Called only after UDP setup, never enqueue into an unready socket. */
+static void rc_cat1_manual_check_poll(void)
+{
+    if (s_manual_tag01_pending == 0u) return;
+    if (udp_ota_session_busy() != 0u) {
+        s_manual_tag01_pending = 0u;
+        return;
+    }
+    if (s_udp_ready == 0u || s_tx_waiting != 0u || cat1_modem_is_busy() != 0u) return;
+    if (remote_queue_tag01_status() == 0) {
+        s_manual_tag01_pending = 0u;
+        co_printf("[OTA  ] manual Tag01 queued\r\n");
+    }
+}
+
 static void rc_cat1_on_setup_ok(void)
 {
 	s_udp_ready = 1u;
@@ -468,6 +493,8 @@ static void rc_cat1_on_setup_ok(void)
 			co_printf("[RC   ] Tag01 queue fail\r\n");
 		} else {
 			s_tag01_queued = 1u;
+            /* The normal post-setup Tag01 also fulfills a manual request. */
+            s_manual_tag01_pending = 0u;
 			co_printf("[RC   ] Tag01 queued (probe after setup)\r\n");
 		}
 	}
@@ -961,7 +988,7 @@ static void rc_cat1_poll_core(uint8_t ota_exclusive)
 	 *   - 无数据 → 跳过所有轮询
 	 */
 	if (!LTE_EN_IS_ON()) {
-		if (s_pending_tlv != 0u || udp_ota_session_busy() != 0u) {
+		if (s_pending_tlv != 0u || s_manual_tag01_pending != 0u || udp_ota_session_busy() != 0u) {
 			rc_cat1_power_up();
 		} else {
 			return;
@@ -1010,6 +1037,7 @@ static void rc_cat1_poll_core(uint8_t ota_exclusive)
 		rc_cat1_try_silent_rebuild();
 	}
 
+	rc_cat1_manual_check_poll();
 	(void)udp_ota_poll_stall_pause();
 	if (udp_ota_take_pause_event() != 0u) {
 		rc_cat1_on_ota_paused_release();
@@ -1085,6 +1113,7 @@ static void rc_cat1_poll_core(uint8_t ota_exclusive)
 	if (s_udp_ready != 0u
 	    && udp_ota_session_busy() == 0u
 	    && s_pending_tlv == 0u
+        && s_manual_tag01_pending == 0u
 	    && s_tx_waiting == 0u
 	    && remote_report_queue_count() == 0u
 	    && cat1_modem_is_busy() == 0u) {
@@ -1133,6 +1162,7 @@ void rc_cat1_power_down(void)
 	s_inflight_ota   = 0u;
 	s_setup_retry_ms = 0u;
 	s_tag01_queued   = 0u;
+    s_manual_tag01_pending = 0u;
 	s_busy_orphan_ms = 0u;
 	s_uplink_ok_logged = 0u;
 	s_rc_done_on_uplink = 0u;
@@ -1154,6 +1184,7 @@ void rc_cat1_power_down(void)
 void rc_cat1_power_up(void)
 {
 	uint8_t  saved_pending_tlv      = s_pending_tlv;
+    uint8_t  saved_manual_check     = s_manual_tag01_pending;
 	uint16_t saved_pending_tlv_len  = s_pending_tlv_len;
 	uint32_t saved_pending_pack_idx = s_pending_pack_index;
 
@@ -1163,6 +1194,7 @@ void rc_cat1_power_up(void)
 
 	/* rc_cat1_init() 内部把 s_pending_tlv 清零了，恢复之 */
 	s_pending_tlv       = saved_pending_tlv;
+    s_manual_tag01_pending = saved_manual_check;
 	s_pending_tlv_len   = saved_pending_tlv_len;
 	s_pending_pack_index = saved_pending_pack_idx;
 	if (saved_pending_tlv != 0u) {
@@ -1182,7 +1214,7 @@ uint8_t rc_cat1_is_powered(void)
 
 uint8_t rc_cat1_has_work(void)
 {
-    return (uint8_t)(s_cloud_save_pending || s_pending_tlv || s_tx_waiting ||
+    return (uint8_t)(s_manual_tag01_pending || s_cloud_save_pending || s_pending_tlv || s_tx_waiting ||
         cat1_modem_is_busy() || (LTE_EN_IS_ON() && (!s_udp_ready || s_cat1_booting)) ||
         remote_report_queue_count());
 }

@@ -43,4 +43,6 @@ static void hid_kbd_send_consumer_release_current(void){++hid_releases;hid_order
 static void rc_key_input_event(unsigned t,unsigned a,unsigned u,unsigned k){(void)t;last_rc_key=k;last_rc_usage=u;if(!a)++rc_releases;}
 static int voice_ctrl_post_start(void){++voice_starts;return 0;}
 static int voice_ctrl_post_stop(void){++voice_stops;return 0;}
+static unsigned manual_check_calls;
+static uint8_t rc_cat1_request_upgrade_check(void){++manual_check_calls;return 1u;}
 #endif
