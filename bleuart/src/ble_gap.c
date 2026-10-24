@@ -613,7 +613,7 @@ peer_t ble_gap_get_peer(void)
 
 
 // 配对广播 LED2 快闪指示（200ms 周期）
-// 仅 KEY14+KEY5 组合键触发后 (g_pairing_active=true) 才闪烁
+// 仅 KEY14+KEY3 组合键触发后 (g_pairing_active=true) 才闪烁
 #define PAIRING_LED_FLASH_MS 200U
 static uint32_t g_pairing_led_ts_ms = 0;
 static bool     g_pairing_led_state = false;

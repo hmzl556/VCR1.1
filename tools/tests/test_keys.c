@@ -183,4 +183,14 @@ int main(void){unsigned i;
  s_menu_blue_active=true;s_menu_blue_phase=1;combo_idle=false;led2=1;
  scan(124010,(1u<<14)|(1u<<5),0);assert(!s_menu_blue_active&&led2==1);
  combo_idle=true;scan(124020,0,0);
+ /* Reset shares VOL- with pairing but must reject every third key. */
+ {uint32_t hw[5]={(1u<<8)|(1u<<14)|(1u<<3),0,0,0,0};
+  factory_rst_state=FACTORY_RST_IDLE;
+  factory_reset_process(130000,0,hw);factory_reset_process(133000,0,hw);
+  assert(factory_rst_state==FACTORY_RST_IDLE);
+  hw[0]=(1u<<8)|(1u<<14);factory_reset_process(134000,0,hw);
+  assert(factory_rst_state==FACTORY_RST_COMBO_DETECT);
+  hw[0]|=(1u<<3);factory_reset_process(137000,0,hw);
+  assert(factory_rst_state==FACTORY_RST_IDLE);
+ }
  puts("keys: POWER learning, held-entry suppression, 18 keys, feedback/save failure, OTA cancel/100ms LED ownership, debounce, voice release, reset failure, deferred HID order PASS");return 0;}

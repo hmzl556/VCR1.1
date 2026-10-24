@@ -1,0 +1,43 @@
+{
+  "version": "02010000",
+  "pair_combo": [
+    14,
+    3
+  ],
+  "unpair_combo": [
+    9,
+    3
+  ],
+  "factory_reset_combo": [
+    8,
+    14
+  ],
+  "combo_hold_ms": 3000,
+  "retained_single_holds": {
+    "TV_power_learning": [
+      1,
+      5000
+    ],
+    "menu_ota_check": [
+      10,
+      5000
+    ]
+  },
+  "pair_rc6_command": "0xAD",
+  "disabled": [
+    "TV-specific pair/unpair branches",
+    "old left-key aliases",
+    "TV user-code switching combo",
+    "STB user-code switching combo"
+  ],
+  "factory_third_key_guard": true,
+  "host_regression_groups_passed": 28,
+  "static_C_units": 73,
+  "static_raw_diagnostics": 11,
+  "build_errors": 0,
+  "build_existing_warnings": 2,
+  "binary_bytes": 187952,
+  "sha256": "1d94368bd385fa7eb1c0bbe5f6dfbec79e491d31d528acff4ff22b98ebfd6a85",
+  "hardware_verified": false,
+  "IR_Project_modified": false
+}

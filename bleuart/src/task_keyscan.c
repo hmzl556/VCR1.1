@@ -225,6 +225,18 @@ static uint32_t factory_rst_led_ts_ms = 0;     // LED 闪烁/切换时间戳
 static bool factory_rst_led2_state = false;     // LED2 当前亮灭状态
 static bool pending_keys_released = false;      // PENDING 下组合键是否已松开
 
+/* Require exactly HOME + VOL-; never treat a three-key chord as reset. */
+static bool factory_reset_keys_down(const uint32_t hw[5])
+{
+    uint8_t k;
+    if (!keyscan_is_key_pressed(hw, TASK_KEYSCAN_KEY8) ||
+        !keyscan_is_key_pressed(hw, TASK_KEYSCAN_KEY14)) return false;
+    for (k=1u; k<=IR_KEY_COUNT; ++k)
+        if (k!=TASK_KEYSCAN_KEY8 && k!=TASK_KEYSCAN_KEY14 &&
+            keyscan_is_key_pressed(hw,k)) return false;
+    return true;
+}
+
 // 恢复出厂设置状态机处理（与正常按键处理并行运行）
 // hw_snapshot 由调用方一次读取传入，避免重复读硬件
 static void factory_reset_process(uint32_t now_ms, uint16_t key_id,
@@ -234,9 +246,7 @@ static void factory_reset_process(uint32_t now_ms, uint16_t key_id,
     {
         case FACTORY_RST_IDLE:
         {
-            bool k8 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY8);
-            bool k14 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY14);
-            if (k8 && k14)
+            if (factory_reset_keys_down(hw_snapshot))
             {
                 factory_rst_state = FACTORY_RST_COMBO_DETECT;
                 factory_rst_state_ts_ms = now_ms;
@@ -247,9 +257,7 @@ static void factory_reset_process(uint32_t now_ms, uint16_t key_id,
 
         case FACTORY_RST_COMBO_DETECT:
         {
-            bool k8 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY8);
-            bool k14 = keyscan_is_key_pressed(hw_snapshot, TASK_KEYSCAN_KEY14);
-            if (!(k8 && k14))
+            if (!factory_reset_keys_down(hw_snapshot))
             {
                 factory_rst_state = FACTORY_RST_IDLE;
                 co_printf("Factory reset: combo released before 3s, cancelled.\r\n");
@@ -344,7 +352,7 @@ static void factory_reset_process(uint32_t now_ms, uint16_t key_id,
                     co_printf("Factory reset: complete ignored, OTA session busy.\r\n");
                     break;
                 }
-                // 工厂复位后进入休眠，用户按 KEY14+KEY5 可重新配对
+                // 工厂复位后进入休眠，用户按 KEY14+KEY3 可重新配对
                 pm_state_transition(PM_STATE_SLEEP);
                 co_printf("Factory reset: complete, entering SLEEP.\r\n");
             }
