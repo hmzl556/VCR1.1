@@ -254,13 +254,37 @@ void dtss_chr1_cbk(gatt_event_t event, void *context, void *param)
 	(void)context;
 
 	switch (event) {
-		case GATTS_EV_CHR_VALUE_WRITE_REQ:
-		case GATTS_EV_CHR_VALUE_WRITE:
-			dtss_chr1_handle_write((gatt_chr_val_write_req_t *)param);
-			gatts_chr_val_write_rsp(((gatt_chr_val_write_req_t *)param)->peer,
-									((gatt_chr_val_write_req_t *)param)->chr,
-									GATT_OK);
+		case GATTS_EV_CHR_VALUE_WRITE_REQ: {
+			gatt_chr_val_write_req_t *in = (gatt_chr_val_write_req_t *)param;
+			/* 诊断: 回连失败场景需确认 STB 初始化序列是否到达 chr1 */
+			co_printf("[VOICE] chr1 write_req cmd=%02X len=%d\r\n",
+					  (in && in->val && in->val_len > 0u) ? in->val[0] : 0u,
+					  in ? (int)in->val_len : 0);
+			dtss_chr1_handle_write(in);
+			gatts_chr_val_write_rsp(in->peer, in->chr, GATT_OK);
 			break;
+		}
+
+		case GATTS_EV_CHR_VALUE_WRITE: {
+			/* 无响应写: 不回应答 */
+			gatt_chr_val_write_req_t *in = (gatt_chr_val_write_req_t *)param;
+			co_printf("[VOICE] chr1 write_cmd cmd=%02X len=%d\r\n",
+					  (in && in->val && in->val_len > 0u) ? in->val[0] : 0u,
+					  in ? (int)in->val_len : 0);
+			dtss_chr1_handle_write(in);
+			break;
+		}
+
+		case GATTS_EV_CHR_VALUE_READ_REQ: {
+			/* STB 读取语音控制状态: 返回与 chr0 一致的状态字节
+			 * (首字节=采集状态, 次字节=是否允许发送数据) */
+			gatt_chr_val_read_req_t *in = (gatt_chr_val_read_req_t *)param;
+			uint8_t value[] = { voice_capture_enabled, bleSendEn };
+
+			co_printf("[VOICE] chr1 read req\r\n");
+			gatts_chr_val_read_rsp(in->peer, in->chr, GATT_OK, value, sizeof(value));
+			break;
+		}
 
 		default:
 			break;
@@ -345,9 +369,16 @@ int ble_dtss_init(void)
 			0x0c, 0x4e, 0xbc, 0xa0, 0x61, 0x4e, 0x76, 0xc1
 		}}
 	};
+	/*
+	 * chr1 属性对齐甲方样品: READ | WRITE | WRITE WITHOUT RSP。
+	 * STB 会读 chr1(状态)与无响应写控制命令; 原 SDK 只注册 WRITE,
+	 * STB 读取收到 ATT 错误 → 其初始化序列中断 → 语音/RC 会话随机
+	 * 打不开(实测回连成功率 <50%, 样品 100%)。
+	 */
 	dtss_chr1 = gatts_chr_add(dtss_svc, &chr1_uuid,
-							  GATT_CHR_PROP_WRITE,
-							  ATT_PERM_WRITE,
+							  GATT_CHR_PROP_READ | GATT_CHR_PROP_WRITE
+							  | GATT_CHR_PROP_WRITE_WITHOUT_RSP,
+							  ATT_PERM_READ | ATT_PERM_WRITE,
 							  dtss_chr1_cbk, NULL);
 
 	uuid_t chr2_uuid = {

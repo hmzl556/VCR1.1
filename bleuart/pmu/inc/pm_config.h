@@ -36,7 +36,7 @@ extern "C" {
  *         实际待在待机态的时长 = PM_STANDBY_TO_SLEEP_MS - PM_WORK_TO_STANDBY_MS
  */
 //#define PM_STANDBY_TO_SLEEP_MS       9000000U
-#define PM_STANDBY_TO_SLEEP_MS       540000000U /* 暂时30分钟；原值90000U */
+#define PM_STANDBY_TO_SLEEP_MS       9000000U /* 暂时30分钟；原值90000U */
 
 /**
  * @brief  回连态 → 休眠态：持续广播无连接超时（45 秒）

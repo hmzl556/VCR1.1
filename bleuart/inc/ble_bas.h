@@ -6,9 +6,6 @@
  */
 int ble_bas_init(void);
 
-/** 休眠唤醒 GATT 重建用: 删除 BAS 服务 */
-void ble_bas_deinit(void);
-
 /**
  * @brief  断开连接时仅清 peer，保留 Notify 订阅标志
  */

@@ -46,7 +46,6 @@
 #include "task_keyscan.h"
 #include "ble_hid_kbd.h"
 #include "rc_trans_assembly.h"
-#include "ble_diss.h"       /* ble_device_info_deinit/init — GATT 重建 */
 #include "ble_rc_svc.h"
 #include "ble_bas.h"
 #include "rc_cat1_bridge.h"
@@ -246,17 +245,37 @@ static void ble_conn_params_apply(peer_t peer, const ble_conn_param_store_t *par
 static uint32_t s_cccd_retry_tid = BR_TIMER_INVALID_HANDLER;
 static uint8_t s_cccd_retry_count, s_connection_generation;
 
+/* HID / 语音(chr0+chr2 双通道) / RC(订阅+本会话 CONF) 全部就绪才停自旋 */
+static int cccd_all_channels_ready(void)
+{
+    return hid_kbd_is_any_cccd_enabled() &&
+           ble_dtss_ready_channels() == (BLE_DTSS_DATA_READY | BLE_DTSS_CTRL_READY) &&
+           ble_rc_svc_is_subscribed() && !ble_rc_svc_needs_restore();
+}
+
 static void cccd_retry_handle(uint8_t event, void *arg)
 {
     (void)arg;
     if (event != s_connection_generation || g_peer == NULL) return;
     s_cccd_retry_tid = BR_TIMER_INVALID_HANDLER;
-    if (!peer_bonded_count() || hid_kbd_is_any_cccd_enabled()) {
+    if (!peer_bonded_count() || cccd_all_channels_ready()) {
         s_cccd_retry_count = 0u;
         return;
     }
     if (++s_cccd_retry_count >= CCCD_RETRY_MAX) {
-        hid_kbd_force_cccd_enable(g_peer);
+        /*
+         * 距离断联回连后 STB 带旧缓存随机跳过订阅, 或只完成部分
+         * 初始化 (实测出现过: chr0/RC-KEY-NOTIFY 已订阅, 但 chr2/
+         * 能力协商/CONF 缺失, 语音与按键上报双挂, 见
+         * doc/回连语音RC失效问题追踪.md)。与 HID 既有策略一致:
+         * 3s 内未就绪的通道强制打开; RC 会话用上次有效 CONF 恢复
+         * READY 并推送 STATUS。
+         */
+        if (!hid_kbd_is_any_cccd_enabled()) hid_kbd_force_cccd_enable(g_peer);
+        if (ble_dtss_ready_channels() != (BLE_DTSS_DATA_READY | BLE_DTSS_CTRL_READY))
+            ble_dtss_force_cccd_enable(g_peer);
+        if (!ble_rc_svc_is_subscribed() || ble_rc_svc_needs_restore())
+            ble_rc_svc_force_cccd_enable(g_peer);
         s_cccd_retry_count = 0u;
     } else s_cccd_retry_tid = sdk_timer_add(CCCD_RETRY_INTERVAL_MS,
                          s_connection_generation, cccd_retry_handle, NULL);
@@ -355,6 +374,13 @@ void ble_gap_disconnected(gap_event_t ev, void *ctx, gap_disc_cmpl_t *arg)
 	(void)ev;
 	(void)ctx;
 
+	/*
+	 * 诊断: 记录断开时语音 chr0 是否处于已订阅状态。
+	 * 回连后 STB 不重写 CCCD 的失败场景, 需要知道上次会话是否
+	 * 带着活跃订阅被异常断开(距离断联), 用于关联 CCCD 残留假说。
+	 */
+	co_printf("[DISCONNECT] voice_was_sub=%d\r\n", ble_dtss_is_subscribed());
+
     ++s_connection_generation;
     s_cccd_retry_count = 0u;
     if (s_cccd_retry_tid != BR_TIMER_INVALID_HANDLER) {
@@ -388,27 +414,6 @@ void ble_gap_disconnected(gap_event_t ev, void *ctx, gap_disc_cmpl_t *arg)
 	g_peer = NULL;
 	s_disconnect_work_pending = 1U;
 	co_printf("\r\n[DISCONNECT] OK! %08X, %02X\r\n\r\n", (uint32_t)arg->peer, arg->result);
-}
-
-/**
- * @brief  休眠唤醒后重建 GATT 服务表 (DIS/HID/RC/BAS)
- * @note   栈复用不发 Service Changed, STB 带旧缓存重连时随机跳过
- *         订阅(实测: 复位异常率远低于休眠唤醒)。删除并重建服务使
- *         GATT 表变化, 栈向已绑定 STB 发 Service Changed, 强制其
- *         重新发现+订阅。以逆序重建, 保证句柄布局确实变化。
- *         (DTSS 语音服务在 SDK 库内, 无法重建, 其句柄保持不变)
- */
-void ble_gatt_services_rebuild(void)
-{
-    ble_device_info_deinit();
-    hid_kbd_deinit();
-    ble_rc_svc_deinit();
-    ble_bas_deinit();
-
-    ble_bas_init();
-    ble_rc_svc_init();
-    hid_kbd_init();
-    ble_device_info_init();
 }
 
 /**

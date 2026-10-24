@@ -11,10 +11,13 @@
 static gatt_svc_t s_rc_svc;
 static gatt_chr_t s_chr_status;
 static gatt_chr_t s_chr_key_notify;
+static uint8_t s_rc_cccd_subscribed;  /* 本连接会话内 STB 是否写过 RC CCCD (断连清零) */
 
 static uint8_t     s_rc_read[RC_READ_LEN];
 static rc_status_t s_rc_status;
 static rc_conf_t   s_rc_conf;
+static uint8_t     s_rc_conf_valid;   /* 是否曾应用过有效 CONF (普通断连保留, init 清零) */
+static uint8_t     s_rc_conf_session; /* 本连接会话内是否已应用有效 CONF (断连清零) */
 static peer_t      s_rc_peer;
 
 /**
@@ -61,11 +64,13 @@ static const char *rc_result_name(uint8_t result)
 }
 
 /**
- * @brief  RC-STATUS Notify 前打印各字段及 14 字节原始载荷（MD §3.4）
+ * @brief  RC-STATUS 推送前打印各字段及 14 字节原始载荷（MD §3.4）
+ * @param  indicate  0=Notify 推送, 1=Indicate 推送（日志标签区分）
  */
-static void rc_status_log_notify(const rc_status_t *st, const uint8_t buf[RC_STATUS_LEN])
+static void rc_status_log_notify(const rc_status_t *st, const uint8_t buf[RC_STATUS_LEN], int indicate)
 {
-    co_printf("\r\n[RC   ] STATUS Notify: State = %s(0x%02X) Result = %s(0x%02X) Retry = %u Rsv = 0x%02X PackIndex = 0x%08X CloudPolicy = %02X %02X %02X %02X %02X %02X\r\n",
+    co_printf("\r\n[RC   ] STATUS %s: State = %s(0x%02X) Result = %s(0x%02X) Retry = %u Rsv = 0x%02X PackIndex = 0x%08X CloudPolicy = %02X %02X %02X %02X %02X %02X\r\n",
+              indicate ? "Indicate" : "Notify",
               rc_state_name(st->state), (unsigned)st->state,
               rc_result_name(st->result), (unsigned)st->result,
               (unsigned)st->retry_count, (unsigned)st->reserved1,
@@ -205,6 +210,8 @@ static int rc_conf_apply(const uint8_t *val, uint16_t len, peer_t peer)
     s_rc_status.result = RC_RESULT_OK;
     s_rc_status.retry_count = 0u;
     s_rc_status.reserved1 = 0u;
+    s_rc_conf_valid = 1u;
+    s_rc_conf_session = 1u;
 
     memcpy(&st, &s_rc_status, sizeof(st));
     ble_rc_svc_status_notify(peer, &st);
@@ -228,6 +235,9 @@ static void rc_read_cbk(gatt_event_t event, void *context, void *param)
     if (event == GATTS_EV_CHR_VALUE_READ_REQ)
     {
         gatt_chr_val_read_req_t *in = (gatt_chr_val_read_req_t *)param;
+        /* 诊断: 规范 4.1/4.5 要求 STB 初始化时读 RC-READ;
+         * 失败回连场景需确认 STB 的读是否到达 */
+        co_printf("[RC   ] RC-READ read req\r\n");
         gatts_chr_val_read_rsp(in->peer, in->chr, GATT_OK, s_rc_read, RC_READ_LEN);
     }
 }
@@ -301,14 +311,20 @@ static void rc_status_cbk(gatt_event_t event, void *context, void *param)
     {
         gatt_chr_val_read_req_t *in = (gatt_chr_val_read_req_t *)param;
 
+        /* 诊断: 规范 4.5 要求 STB 重连后主动读 RC-STATUS 判断续传;
+         * 失败回连场景需确认 STB 是否读了、读到的状态是什么 */
+        co_printf("[RC   ] RC-STATUS read req, state=%s(0x%02X)\r\n",
+                  rc_state_name(s_rc_status.state), (unsigned)s_rc_status.state);
         rc_cat1_get_cloud_policy(s_rc_status.cloud_policy);//获取云端配置
         rc_status_to_bytes(&s_rc_status, buf);
         gatts_chr_val_read_rsp(in->peer, in->chr, GATT_OK, buf, RC_STATUS_LEN);
     }
     else if (event == GATTS_EV_CHR_VALUE_SEND_START)
     {
-        co_printf("[RC   ] RC-STATUS send start event!\r\n");
         gatt_chr_val_send_start_t *in = (gatt_chr_val_send_start_t *)param;
+        /* 诊断: type=1 为使能通知, 0 为关闭; 回连失败场景可见 STB 是否重订阅 */
+        co_printf("[RC   ] RC-STATUS send start event! type=%d\r\n", (int)in->type);
+        if (in->type == GATT_SEND_VAL_NOTIFICATION) s_rc_cccd_subscribed = 1u;
         s_rc_peer = in->peer;
         s_chr_status = in->chr;
     }
@@ -319,8 +335,9 @@ static void rc_key_notify_cbk(gatt_event_t event, void *context, void *param)
 {
     if (event == GATTS_EV_CHR_VALUE_SEND_START)
     {
-        co_printf("[RC   ] RC-KEY-NOTIFY send start event!\r\n");
         gatt_chr_val_send_start_t *in = (gatt_chr_val_send_start_t *)param;
+        co_printf("[RC   ] RC-KEY-NOTIFY send start event! type=%d\r\n", (int)in->type);
+        if (in->type == GATT_SEND_VAL_NOTIFICATION) s_rc_cccd_subscribed = 1u;
         s_rc_peer = in->peer;
         s_chr_key_notify = in->chr;
     }
@@ -350,7 +367,7 @@ const uint8_t *ble_rc_svc_get_read(void)
 /**
  * @brief  更新 RC-STATUS 并通过 Notify 推送
  */
-void ble_rc_svc_status_notify(peer_t peer, const rc_status_t *st)
+static void rc_status_push(peer_t peer, const rc_status_t *st, int indicate)
 {
     uint8_t buf[RC_STATUS_LEN];
 
@@ -360,7 +377,7 @@ void ble_rc_svc_status_notify(peer_t peer, const rc_status_t *st)
     }
     rc_cat1_get_cloud_policy(s_rc_status.cloud_policy);
     rc_status_to_bytes(&s_rc_status, buf);
-    rc_status_log_notify(&s_rc_status, buf);// 打印 RC-STATUS 各字段及 14 字节原始载荷
+    rc_status_log_notify(&s_rc_status, buf, indicate);// 打印 RC-STATUS 各字段及 14 字节原始载荷
 
     if (peer == NULL)
     {
@@ -368,8 +385,25 @@ void ble_rc_svc_status_notify(peer_t peer, const rc_status_t *st)
     }
     if (peer != NULL && s_chr_status != NULL)
     {
-        app_gatt_notify(peer, s_chr_status, buf, RC_STATUS_LEN);
+        if (indicate) app_gatt_indicate(peer, s_chr_status, buf, RC_STATUS_LEN);
+        else          app_gatt_notify(peer, s_chr_status, buf, RC_STATUS_LEN);
     }
+}
+
+void ble_rc_svc_status_notify(peer_t peer, const rc_status_t *st)
+{
+    rc_status_push(peer, st, 0);
+}
+
+/*
+ * RC-STATUS 结果推送 (规范 §2: 配置生效/成功/失败结果应使用
+ * Indicate)。会话恢复的 READY 是"配置生效"结果, 用 Indicate;
+ * STB 应用层可能只认 Indicate 的 READY (正常流程由 STB 自己的
+ * CONF 写驱动, Notify 也能过; 强开恢复场景只能靠本推送)。
+ */
+void ble_rc_svc_status_indicate(peer_t peer, const rc_status_t *st)
+{
+    rc_status_push(peer, st, 1);
 }
 
 /**
@@ -404,25 +438,36 @@ void ble_rc_svc_on_connect(peer_t peer)
               (unsigned)(uint32_t)peer,
               rc_state_name(s_rc_status.state),
               (unsigned)s_rc_status.state);
-}
 
-/*
- * 休眠唤醒 GATT 服务重建用: 删除 RC 服务并复位本地缓存。
- * 重建后 ble_rc_svc_init 会重新创建服务与特征句柄。
- */
-void ble_rc_svc_deinit(void)
-{
-    if (s_rc_svc != NULL) {
-        gatts_svc_delete(s_rc_svc);
-        s_rc_svc = NULL;
+    /*
+     * 会话恢复(连接即恢复): STB 带旧缓存跳过订阅+CONF 时其 RC 会话
+     * 停在 IDLE, 键值镜像从 t=0 就在推送但被丢弃。立即用上次有效
+     * CONF 重建 READY 并推送 STATUS, 抢在第一个键值镜像之前。
+     * STB 之后若仍按正常流程发 CONF, rc_conf_apply 幂等覆盖。
+     * (无旧 CONF 的首次连接/冷启动不恢复, 走正常 CONF 流程)
+     */
+    if (ble_rc_svc_needs_restore()) {
+        s_rc_status.state = RC_STATE_READY;
+        s_rc_status.result = RC_RESULT_OK;
+        s_rc_status.retry_count = 0u;
+        rc_cat1_get_cloud_policy(s_rc_status.cloud_policy);
+        ble_rc_svc_status_indicate(peer, &s_rc_status);
+        co_printf("[RC   ] session restored READY at connect (last CONF)\r\n");
+    } else if (!s_rc_conf_valid) {
+        /* 诊断: 烧录后从未收到过 CONF, 恢复无原料; 需先完成一次
+         * 正常连接并等到 CONF applied 再测断连回连 */
+        co_printf("[RC   ] connect: no CONF cache, restore skipped\r\n");
     }
-    s_rc_peer = NULL;
-    s_chr_status = NULL;
-    s_chr_key_notify = NULL;
 }
 
 void ble_rc_svc_on_disconnect(void)
 {
+    /* 诊断: 断开时 RC 句柄是否还指向已订阅通道 (普通断连不清除,
+     * 与语音的断连清理策略不同; 回连失败场景用于判断残留状态) */
+    co_printf("[RC   ] disconnect: status=%p key=%p\r\n",
+              (void *)s_chr_status, (void *)s_chr_key_notify);
+    s_rc_cccd_subscribed = 0u;
+    s_rc_conf_session = 0u;
     s_rc_peer = NULL;
     s_rc_status.state = RC_STATE_IDLE;
     s_rc_status.result = RC_RESULT_NONE;
@@ -431,12 +476,62 @@ void ble_rc_svc_on_disconnect(void)
     remote_key_capture_on_ble_disconnect();
 }
 
+uint8_t ble_rc_svc_is_subscribed(void)
+{
+    return s_rc_cccd_subscribed;
+}
+
+/*
+ * 是否需要会话恢复: 曾有过有效 CONF, 但本连接会话 STB 还没下发
+ * (跳过初始化或只完成部分订阅)。恢复 = 用上次 CONF 重建 READY
+ * 并推送 STATUS。
+ */
+uint8_t ble_rc_svc_needs_restore(void)
+{
+    return s_rc_conf_valid && !s_rc_conf_session;
+}
+
+/*
+ * STB 未写 CCCD 时强制打开 RC 发送通道 (与 HID force 一致)。
+ * 距离断联回连后 STB 带旧缓存随机跳过订阅, 键值镜像/状态上报
+ * 是主动推送, 强开后无需 STB 初始化即可发送。
+ * (s_chr_status/s_chr_key_notify 由 ble_rc_svc_init 创建赋值,
+ *  服务存续期间始终有效, 普通断连不清除)
+ */
+void ble_rc_svc_force_cccd_enable(peer_t peer)
+{
+    if (peer == NULL) return;
+    s_rc_peer = peer;
+    s_rc_cccd_subscribed = 1u;
+    co_printf("[RC   ] CCCD force-enabled for bonded peer %08X\r\n",
+              (unsigned)(uint32_t)peer);
+
+    /*
+     * 会话恢复: STB 带旧缓存跳过订阅+CONF (或只完成部分订阅) 时,
+     * 其 RC 会话停在 IDLE, 到达的键值镜像也被丢弃。用上次会话的
+     * 有效 CONF 重建 READY 并推送 STATUS, 补上 STB 跳过的初始化
+     * 产物 (无旧 CONF 的首次连接不恢复, 仍走正常 CONF 流程)。
+     */
+    if (ble_rc_svc_needs_restore()) {
+        s_rc_status.state = RC_STATE_READY;
+        s_rc_status.result = RC_RESULT_OK;
+        s_rc_status.retry_count = 0u;
+        rc_cat1_get_cloud_policy(s_rc_status.cloud_policy);
+        ble_rc_svc_status_indicate(peer, &s_rc_status);
+        co_printf("[RC   ] session restored READY (last CONF)\r\n");
+    } else if (!s_rc_conf_valid) {
+        co_printf("[RC   ] force: no CONF cache, restore skipped\r\n");
+    }
+}
+
 /**
  * @brief  注册 RC GATT 服务及五个特征
  */
 int ble_rc_svc_init(void)
 {
     memset(&s_rc_conf, 0, sizeof(s_rc_conf));
+    s_rc_conf_valid = 0u;
+    s_rc_conf_session = 0u;
     memset(&s_rc_status, 0, sizeof(s_rc_status));
     s_rc_status.state = RC_STATE_IDLE;
     s_rc_status.pack_index = RC_PACK_INDEX_NONE;
