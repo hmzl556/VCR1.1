@@ -45,6 +45,18 @@ int remote_queue_tag01_status(void);
 int remote_queue_tag10_key(uint8_t key_code);
 
 /**
+ * @brief  RC 本地批量直报 Tag0x10：n 个按键各带操作时间，打包进同一条 0x6868 报文
+ * @param  keys  键码数组（1~18，0 非法）
+ * @param  times 每个键的操作时间 BCD6（YYMMDDhhmmss），长度 n
+ * @param  n     键数（>0；单帧上限受 RC_UDP_AES_PLAIN_DATA_MAX 约束，约 46 条）
+ * @return REMOTE_QUEUE_OK 成功；REMOTE_QUEUE_ERR 组帧失败；REMOTE_QUEUE_FULL 队列满
+ */
+int remote_queue_tag10_batch(const uint8_t *keys, uint8_t (*times)[6], uint8_t n);
+
+/** 获取上报用操作时间 BCD6（CCLK 墙钟 + 东八区；未对时回退占位时间） */
+void remote_get_report_time_bcd6(uint8_t out[6]);
+
+/**
  * @brief  心跳直报 Tag0x0A（时间+SIM卡号+电量, heartbeat 模块到期触发）
  * @return REMOTE_QUEUE_OK 成功；REMOTE_QUEUE_ERR 组帧失败；REMOTE_QUEUE_FULL 队列满
  */

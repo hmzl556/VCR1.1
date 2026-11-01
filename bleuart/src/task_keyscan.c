@@ -489,9 +489,17 @@ static uint32_t task_keyscan_get_now_ms(void)
 static void task_keyscan_rc_notify(uint8_t action)
 {
 	uint8_t key_type;
-    /* The right TV power is IR-only; the left STB power keeps the existing
-     * external power key identity in HID/RC/Tag10 despite its physical ID18. */
-    if (key_active == TASK_KEYSCAN_TV_POWER) return;
+    uint8_t ir_routed;
+
+    /* 电视机电源是纯红外键：只上报 Tag0x10，不发 BLE RC-KEY-NOTIFY */
+    if (key_active == TASK_KEYSCAN_TV_POWER) {
+        rc_key_input_report_tag10(TASK_KEYSCAN_TV_POWER, action);
+        return;
+    }
+
+    /* BLE 断开即红外模式：所有普通按键（含歌华RC6未定义/未学习键）都主动上报
+     * Tag0x10，与红外是否真正发出无关；BLE 连接时不直报，避免与机顶盒重复。 */
+    ir_routed = (ble_gap_get_peer() == NULL) ? 1u : 0u;
 
 	if (key_active == TASK_KEYSCAN_KEY15) {
 		key_type = 0x03u;
@@ -499,7 +507,8 @@ static void task_keyscan_rc_notify(uint8_t action)
 		key_type = key_active_is_consumer ? 0x02u : 0x01u;
 	}
 	rc_key_input_event(key_type, action, key_active_usage,
-                       key_active == TASK_KEYSCAN_STB_POWER ? TASK_KEYSCAN_KEY1 : key_active);
+                       key_active == TASK_KEYSCAN_STB_POWER ? TASK_KEYSCAN_KEY1 : key_active,
+                       ir_routed);
 }
 
 void task_keyscan_flush_deferred_hid(void)
@@ -516,7 +525,7 @@ void task_keyscan_flush_deferred_voice_rc(void)
 	/* 先让语音 chr2 indicate / chr0 notify 入队完成，再发 RC-KEY notify */
 	cs_schedule();
 	rc_key_input_event(0x03u, s_key15_rc_defer.action,
-	                   s_key15_rc_defer.usage, s_key15_rc_defer.key_id);
+	                   s_key15_rc_defer.usage, s_key15_rc_defer.key_id, 0u);
 	s_key15_rc_defer.pending = 0u;
 }
 
@@ -678,6 +687,9 @@ static void task_keyscan_process_core(void)
 
 				if (key_active != TASK_KEYSCAN_KEY15) {
 					task_keyscan_rc_notify(0x01u);
+				} else if (ble_gap_get_peer() == NULL) {
+					/* BLE 断开：语音键短按也上报按键采集（键值13按下） */
+					rc_key_input_report_tag10(TASK_KEYSCAN_KEY15, 0x01u);
 				}
 			}
 			break;
@@ -796,6 +808,9 @@ static void task_keyscan_process_core(void)
 						(void)voice_ctrl_post_stop();
 						key15_rc_notify_defer(0x00u);
 						co_printf("[VOICE] KEY15 stop requested\r\n\r\n");
+					} else if (ble_gap_get_peer() == NULL) {
+						/* BLE 断开：语音键短按释放也上报（键值14） */
+						rc_key_input_report_tag10(TASK_KEYSCAN_KEY15, 0x00u);
 					}
 				} else {
 					task_keyscan_rc_notify(0x00u);

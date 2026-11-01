@@ -166,10 +166,12 @@ static void rc_cat1_cloud_policy_load_from_flash(void)
 	s_cloud_policy[5] = (uint8_t)(store.item_count & 0xFFu);
 	taskEXIT_CRITICAL();
 
-	remote_set_key_capture_enable(store.key_capture);
+	/* 旧固件 Flash 可能存 key_capture=2(关闭)；新固件默认开启。
+	 * 这里忽略旧值，按 REMOTE_KEY_CAPTURE_DEFAULT 强制恢复，避免覆盖新默认。 */
+	remote_set_key_capture_enable(REMOTE_KEY_CAPTURE_DEFAULT);
 
-	co_printf("[RC   ] CloudPolicy restored: capture=%u interval=%u count=%u\r\n",
-	          (unsigned)store.key_capture,
+	co_printf("[RC   ] CloudPolicy restored: capture=%u(forced) interval=%u count=%u\r\n",
+	          (unsigned)REMOTE_KEY_CAPTURE_DEFAULT,
 	          (unsigned)store.interval_sec,
 	          (unsigned)store.item_count);
 }
@@ -988,7 +990,9 @@ static void rc_cat1_poll_core(uint8_t ota_exclusive)
 	 *   - 无数据 → 跳过所有轮询
 	 */
 	if (!LTE_EN_IS_ON()) {
-		if (s_pending_tlv != 0u || s_manual_tag01_pending != 0u || udp_ota_session_busy() != 0u) {
+		if (s_pending_tlv != 0u || s_manual_tag01_pending != 0u || udp_ota_session_busy() != 0u
+		    || rc_key_input_has_pending_tag10() != 0u
+		    || remote_report_queue_count() != 0u) {
 			rc_cat1_power_up();
 		} else {
 			return;
@@ -1116,6 +1120,7 @@ static void rc_cat1_poll_core(uint8_t ota_exclusive)
         && s_manual_tag01_pending == 0u
 	    && s_tx_waiting == 0u
 	    && remote_report_queue_count() == 0u
+	    && rc_key_input_has_pending_tag10() == 0u
 	    && cat1_modem_is_busy() == 0u) {
 		rc_cat1_power_down();
 	}
@@ -1216,5 +1221,5 @@ uint8_t rc_cat1_has_work(void)
 {
     return (uint8_t)(s_manual_tag01_pending || s_cloud_save_pending || s_pending_tlv || s_tx_waiting ||
         cat1_modem_is_busy() || (LTE_EN_IS_ON() && (!s_udp_ready || s_cat1_booting)) ||
-        remote_report_queue_count());
+        remote_report_queue_count() || rc_key_input_has_pending_tag10());
 }

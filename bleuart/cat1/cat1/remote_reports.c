@@ -402,6 +402,8 @@ static int remote_build_tag10_value(uint8_t *value, uint16_t *value_len, uint8_t
     return 0;
 }
 
+static int remote_queue_plain_frame(const uint8_t *plain, uint16_t plain_len, uint8_t is_tag10);
+
 /**
  * @brief  本地直报：按 RC-TRANS Payload 格式拼明文 data field 并入队
  * @note   TLV数据长度 2B 由 STB 在 RC-TRANS 中提供；本地路径按同格式写入
@@ -428,17 +430,80 @@ static int remote_queue_tag_tlv(uint8_t tag, const uint8_t *value, uint16_t valu
     plain[3] = (uint8_t)((value_len >> 8) & 0xFFu);
     plain[4] = (uint8_t)(value_len & 0xFFu);
     memcpy(plain + 5u, value, value_len);
+    is_tag10 = (tag == 0x10u) ? 1u : 0u;
+    return remote_queue_plain_frame(plain, plain_len, is_tag10);
+}
+
+/**
+ * @brief  将明文数据域（TLV数据长度 + 若干 TLV）加密组帧并入发送队列
+ */
+static int remote_queue_plain_frame(const uint8_t *plain, uint16_t plain_len, uint8_t is_tag10)
+{
+    int rc;
+    uint8_t *frame;
+    uint16_t frame_len;
+
+    if (plain == NULL || plain_len < 2u)
     {
-        int rc;
-        uint8_t *frame = app_heap_alloc(CAT1_UDP_MAX_UDP_PDU);
-        if (!frame) return REMOTE_QUEUE_ERR;
-        rc = remote_frame_build(plain, plain_len, frame, CAT1_UDP_MAX_UDP_PDU, &frame_len);
-        is_tag10 = (tag == 0x10u) ? 1u : 0u;
-        if (!rc) rc = remote_queue_push(frame, frame_len, 0u, RC_PACK_INDEX_NONE, is_tag10);
-        else rc = REMOTE_QUEUE_ERR;
-        app_heap_free(frame);
-        return rc;
+        return REMOTE_QUEUE_ERR;
     }
+    frame = app_heap_alloc(CAT1_UDP_MAX_UDP_PDU);
+    if (!frame) return REMOTE_QUEUE_ERR;
+    rc = remote_frame_build(plain, plain_len, frame, CAT1_UDP_MAX_UDP_PDU, &frame_len);
+    if (!rc) rc = remote_queue_push(frame, frame_len, 0u, RC_PACK_INDEX_NONE, is_tag10);
+    else rc = REMOTE_QUEUE_ERR;
+    app_heap_free(frame);
+    return rc;
+}
+
+/**
+ * @brief  组装多条 Tag0x10 按键 TLV 并入队：TLV数据长度 + N×(Tag0x10 + ValueLen9 + Value9)
+ * @note   每条 Value = DataID0(0x00)+时间6B + DataID1(0x01)+键码1B，共 9B
+ */
+int remote_queue_tag10_batch(const uint8_t *keys, uint8_t (*times)[6], uint8_t n)
+{
+    uint8_t plain[RC_UDP_AES_PLAIN_DATA_MAX];
+    uint16_t pos = 2u;
+    uint8_t i;
+
+    if (keys == NULL || times == NULL || n == 0u)
+    {
+        return REMOTE_QUEUE_ERR;
+    }
+
+    for (i = 0u; i < n; i++)
+    {
+        if (keys[i] == 0u)
+        {
+            return REMOTE_QUEUE_ERR;
+        }
+        /* Tag(1) + ValueLen(2) + Value(9) = 12B/条 */
+        if ((uint16_t)(pos + 12u) > RC_UDP_AES_PLAIN_DATA_MAX)
+        {
+            return REMOTE_QUEUE_ERR;
+        }
+        plain[pos++] = 0x10u;              /* Tag 0x10 */
+        plain[pos++] = 0x00u;              /* ValueLen 高 */
+        plain[pos++] = 0x09u;              /* ValueLen 低 = 9 */
+        plain[pos++] = 0x00u;              /* DataID 0：操作时间 */
+        memcpy(plain + pos, times[i], 6u);
+        pos = (uint16_t)(pos + 6u);
+        plain[pos++] = 0x01u;              /* DataID 1：按键 */
+        plain[pos++] = keys[i];
+    }
+
+    plain[0] = (uint8_t)((pos >> 8) & 0xFFu);
+    plain[1] = (uint8_t)(pos & 0xFFu);
+
+    return remote_queue_plain_frame(plain, pos, 1u);
+}
+
+/**
+ * @brief  获取上报用操作时间 BCD6（CCLK 墙钟 + 东八区；未对时回退占位）
+ */
+void remote_get_report_time_bcd6(uint8_t out[6])
+{
+    remote_fill_report_time_bcd6(out);
 }
 
 /**

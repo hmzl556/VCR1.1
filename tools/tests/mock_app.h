@@ -40,7 +40,8 @@ static bool hid_kbd_map_key_to_usage(unsigned k,uint16_t *u,bool *c){*u=(uint16_
 static void hid_kbd_send_key_id_current(unsigned k){last_hid_key=k;++hid_presses;hid_order[hid_order_len++]='P';}
 static void hid_kbd_send_release_current(void){++hid_releases;hid_order[hid_order_len++]='R';}
 static void hid_kbd_send_consumer_release_current(void){++hid_releases;hid_order[hid_order_len++]='R';}
-static void rc_key_input_event(unsigned t,unsigned a,unsigned u,unsigned k){(void)t;last_rc_key=k;last_rc_usage=u;if(!a)++rc_releases;}
+static void rc_key_input_event(unsigned t,unsigned a,unsigned u,unsigned k,unsigned ir){(void)t;(void)ir;last_rc_key=k;last_rc_usage=u;if(!a)++rc_releases;}
+static void rc_key_input_report_tag10(unsigned k,unsigned a){last_rc_key=k;if(!a)++rc_releases;}
 static int voice_ctrl_post_start(void){++voice_starts;return 0;}
 static int voice_ctrl_post_stop(void){++voice_stops;return 0;}
 static unsigned manual_check_calls;

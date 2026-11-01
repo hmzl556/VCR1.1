@@ -8,7 +8,7 @@
 #ifndef BSP_CAT1_UDP_CONFIG_H
 #define BSP_CAT1_UDP_CONFIG_H
 
-#if 1   /* 0=自己 106.53.179.53，1=赛科 120.48.54.123 */
+#if 0   /* 0=自己 106.53.179.53，1=赛科 120.48.54.123 */
 #define CAT1_UDP_REMOTE_HOST   "120.48.54.123"     // 服务器地址 赛科
 #else
 #define CAT1_UDP_REMOTE_HOST   "106.53.179.53"     // 服务器地址 自己
@@ -84,10 +84,10 @@
  * 1 = 开启遥控器自身 Tag10 按键采集上报功能，受服务器 Tag11 (DataID 0x01) 控制
  * 0 = 关闭 Tag10 按键采集上报功能，忽略服务器 Tag11 控制，整条上报链路关闭
  */
-#define RC_TAG10_SELF_REPORT_ENABLE  0u   /* 按需改为 0 关闭 */
+#define RC_TAG10_SELF_REPORT_ENABLE  1u   /* 按需改为 0 关闭 */
 
 /** Tag0x10 按键采集默认开关（Tag11 DataID 0x01：1=开启，2=关闭） */
-#define REMOTE_KEY_CAPTURE_DEFAULT  2u
+#define REMOTE_KEY_CAPTURE_DEFAULT  1u
 
 /** 连续业务上行 ECSOST 失败（含 Tag10/Tag01/RC-TRANS）达到此次数后触发 UDP 软重建 */
 #define CAT1_UDP_REBUILD_FAIL_THRESH  3u
