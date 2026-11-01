@@ -1,6 +1,10 @@
 """Compile and execute actual firmware modules against deterministic hardware mocks.
 Usage: python tools/test_ir.py [--cc path/to/gcc]
 """
+import os
+if os.name=="nt":
+    import ctypes
+    ctypes.windll.kernel32.SetErrorMode(2)
 from pathlib import Path
 import argparse, subprocess, tempfile
 parser=argparse.ArgumentParser();parser.add_argument('--cc',default='gcc');args=parser.parse_args()
@@ -18,7 +22,7 @@ with tempfile.TemporaryDirectory(prefix='vcr_ir_tests_') as temp:
     start=ota.index('void udp_ota_download_led_poll(void)')
     end=ota.index('uint8_t udp_ota_poll_watchdog',start)
     (tmp/'actual_ota_led.h').write_text(ota[start:end],encoding='utf-8')
-    for name in ['nec','raw_capture','receive','wave_store','tx','keys','combo','matrix','driver','rc6_encode','rc6_driver']:
+    for name in ['protocols','nec','raw_capture','receive','wave_store','tx','keys','combo','matrix','driver','rc6_encode','rc6_driver']:
         exe=tmp/(name+'.exe')
         subprocess.run([args.cc,'-std=c99','-O2','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-unused-variable','-Wno-misleading-indentation','-I'+str(tmp),'-I'+str(tests),'-I'+str(root/'bleuart/IR'),'-I'+str(root/'bleuart/src'),'-I'+str(root/'bleuart/inc'),'-I'+str(root/'bleuart/cat1/cat1/OTA'),str(tests/('test_'+name+'.c')),'-o',str(exe)],check=True)
         subprocess.run([str(exe)],check=True)

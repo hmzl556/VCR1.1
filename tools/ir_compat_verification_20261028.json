@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-28",
+  "project": "20IWDG",
+  "version": "02010000",
+  "flash_record_bytes": 524,
+  "flash_slot_count": 18,
+  "learnable_keys": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    16,
+    17,
+    18
+  ],
+  "flash_format_version": 1,
+  "preserve_old_learning": true,
+  "host_groups_passed": 29,
+  "keil_errors": 0,
+  "keil_existing_warnings": 2,
+  "static_units": 73,
+  "static_existing_diagnostics": 12,
+  "binary_size": 192592,
+  "sha256": "1dfd117fdeff8c9d048f81ab1c66555ec5e3fdcf28a345ceb9cc8ff9bba0521a",
+  "hardware_validation": "pending",
+  "limitations": [
+    "255 segments per slot",
+    "250ms total envelope limit",
+    "NEC single frame cannot distinguish NEC2",
+    "RC6 mode 0 and existing Gehua handling; other variants raw",
+    "unknown protocol timings retained; no Flash compression"
+  ]
+}

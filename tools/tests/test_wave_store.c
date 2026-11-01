@@ -29,7 +29,7 @@ int main(void)
      h.crc=~crc_add(crc,flash+off+sizeof(h),BYTES);memcpy(flash+off,&h,sizeof(h));
      ir_wave_store_load();assert(!s_bank&&!ir_wave_store_has(1));}
     assert(ir_wave_store_save(1,&old));
-    assert(!ir_wave_store_has(4));assert(!ir_wave_store_save(4,&old));
+    assert(!ir_wave_store_has(4));assert(ir_wave_store_save(4,&old));
     assert(!ir_wave_store_save(15,&old));assert(!ir_wave_store_get(15,&out));
     assert(ir_wave_store_save(17,&old));first=s_bank;assert(ir_wave_store_has(1)&&ir_wave_store_has(17));
     memcpy(snapshot,flash,sizeof(flash));
@@ -68,5 +68,8 @@ int main(void)
     operations=0;fail_at=1;ir_wave_store_load();fail_at=0;assert(!s_metadata_ready);
     assert(ir_wave_store_clear());ir_wave_store_load();assert(!ir_wave_store_has(2)&&!ir_wave_store_has(17));
     assert(!ir_wave_store_frame(17,&first));
+    /* All 17 keys survive reboot in the unchanged bank geometry. */
+    for(i=1;i<=18;++i)if(i!=15u)assert(ir_wave_store_save(i,&old));
+    ir_wave_store_load();for(i=1;i<=18;++i)assert(ir_wave_store_has(i)==(i!=15u));
     printf("wave store: %u torn/read/erase failure points, boot restore, CRC fallback, compacted layout, clear/no resurrection, page limits, policy/OTA/CAT1 PASS\n",total);return 0;
 }

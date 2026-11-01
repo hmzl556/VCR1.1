@@ -133,3 +133,162 @@ int ir_capture_complete(ir_capture_t *c)
     if(!ir_raw_valid(&c->wave)){c->error=IR_RX_FRAME;return -1;}
     return 1;
 }
+
+/* Protocol analysis uses the stored envelope itself, not new Flash fields.
+ * A learned exchange may contain two frames separated by an idle space. */
+static uint32_t wave_sum(const ir_raw_t *w,unsigned n)
+{unsigned i;uint32_t t=0;for(i=0;i<n;++i)t+=w->widths[i];return t;}
+static int pd_bits(const ir_raw_t *w,unsigned start,unsigned n,unsigned hm,unsigned hs,uint32_t *bits)
+{
+    unsigned i;uint32_t b=0;
+    if(n!=67u || !near(w->widths[start],hm,hm/5u) || !near(w->widths[start+1u],hs,hs/5u))return 0;
+    for(i=0;i<32u;++i){
+        if(!near(w->widths[start+2u+2u*i],562u,160u))return 0;
+        if(near(w->widths[start+3u+2u*i],1687u,340u))b|=1ul<<i;
+        else if(!near(w->widths[start+3u+2u*i],562u,160u))return 0;
+    }
+    if(!near(w->widths[start+66u],562u,160u))return 0;
+    *bits=b;return 1;
+}
+static int biphase(const ir_raw_t *w,unsigned n,unsigned start,unsigned unit,unsigned rc6,uint32_t *value)
+{
+    uint8_t h[48];unsigned i,j,k=0,u,target=rc6?44u:28u,at=0,b;uint32_t v=0;
+    if(!rc6)h[k++]=0; /* RC5 starts with an unrecorded SPACE half-bit. */
+    for(i=start;i<n;++i){
+        u=(w->widths[i]+unit/2u)/unit;
+        if(!u || u>3u || !near(w->widths[i],u*unit,unit/4u) || k+u>target)return 0;
+        for(j=0;j<u;++j)h[k++]=(uint8_t)(!(i&1u));
+    }
+    if(k+1u==target)h[k++]=0; /* Capture ends at last mark. */
+    if(k!=target)return 0;
+    for(i=0;i<(rc6?21u:14u);++i){
+        u=(rc6 && i==4u)?2u:1u;
+        if(h[at]==h[at+u])return 0;
+        if(u==2u && (h[at]!=h[at+1u] || h[at+2u]!=h[at+3u]))return 0;
+        b=rc6?h[at]:!h[at];v=(v<<1)|b;at+=2u*u;
+    }
+    if(rc6){if((v>>17)!=8u)return 0;} /* RC6 mode 0 only. Other modes stay raw. */
+    else if(!(v&0x2000u))return 0;
+    *value=v;return 1;
+}
+/* Two timing clusters; weighted mean instead of selecting one noisy sample.
+ * Reject ambiguous outliers, never force an arbitrary waveform into bits. */
+static int clusters(const ir_raw_t *w,unsigned n,unsigned offset,uint16_t *short_us,uint16_t *long_us)
+{
+    unsigned i,min=65535u,max=0,lo=0,hi=0;uint32_t ls=0,hs=0;unsigned split;
+    for(i=offset;i<n-1u;i+=2u){unsigned x=w->widths[i];if(x<min)min=x;if(x>max)max=x;}
+    if(!max)return 0;
+    if(max<=min+min/3u){
+        for(i=offset;i<n-1u;i+=2u){ls+=w->widths[i];++lo;}
+        *short_us=(uint16_t)((ls+lo/2u)/lo);*long_us=*short_us;return 1;
+    }
+    split=(min+max)/2u;
+    for(i=offset;i<n-1u;i+=2u){unsigned x=w->widths[i];if(x<split){ls+=x;++lo;}else{hs+=x;++hi;}}
+    if(!lo || !hi)return 0;
+    *short_us=(uint16_t)((ls+lo/2u)/lo);*long_us=(uint16_t)((hs+hi/2u)/hi);
+    for(i=offset;i<n-1u;i+=2u){unsigned x=w->widths[i];
+        if(!near(x,*short_us,*short_us/4u) && !near(x,*long_us,*long_us/4u))return 0;}
+    return 1;
+}
+void ir_raw_analyze(const ir_raw_t *w,ir_protocol_t *p)
+{
+    unsigned i,n,second;uint32_t b=0,b2;
+    memset(p,0,sizeof(*p));
+    if(!w || w->count<7u || w->count>IR_RAW_MAX || !(w->count&1u))return;
+    n=w->count;
+    for(i=3;i<w->count;i+=2u)if(w->widths[i]>=8000u){n=i;break;}
+    p->first_count=n;p->repeat_count=n;p->interval_us=108000u;
+    second=n+1u;
+    if(second<w->count){p->repeat_offset=second;p->repeat_count=w->count-second;p->interval_us=wave_sum(w,second);}
+    if(pd_bits(w,0,n,9000,4500,&b) && (((b>>16)^(b>>24))&255u)==255u){
+        p->data=b;p->bits=32u;
+        p->protocol=((b^(b>>8))&255u)==255u?IR_PROTO_NEC:IR_PROTO_NEC_EXT;
+        if(second<w->count){
+            if(pd_bits(w,second,w->count-second,9000,4500,&b2) && b==b2)p->protocol=IR_PROTO_NEC2;
+            else if(w->count-second!=3u || !near(w->widths[second],9000,1800) ||
+                    !near(w->widths[second+1u],2250,450) || !near(w->widths[second+2u],562,160)){
+                p->protocol=IR_PROTO_RAW;p->repeat_offset=0;p->repeat_count=w->count;p->first_count=w->count;
+            }
+        }
+        return;
+    }
+    if(pd_bits(w,0,n,4500,4500,&b) && (((b>>16)^(b>>24))&255u)==255u){p->protocol=IR_PROTO_SAMSUNG;p->bits=32;p->data=b;return;}
+    if((n==25u || n==31u || n==41u) && near(w->widths[0],2400,480)){
+        p->bits=(n-1u)/2u;
+        for(i=0;i<p->bits;++i){
+            if(!near(w->widths[1u+2u*i],600,150))break;
+            if(near(w->widths[2u+2u*i],1200,240))b|=1ul<<i;
+            else if(!near(w->widths[2u+2u*i],600,150))break;
+        }
+        if(i==p->bits){p->protocol=IR_PROTO_SONY;p->data=b;if(!p->repeat_offset)p->interval_us=45000u;return;}
+    }
+    if(biphase(w,n,0,889u,0,&b)){p->protocol=IR_PROTO_RC5;p->bits=14;p->data=b;p->interval_us=114000u;return;}
+    if(near(w->widths[0],2666,400) && near(w->widths[1],889,180) && biphase(w,n,2,444u,1,&b)){
+        p->protocol=IR_PROTO_RC6;p->bits=21;p->data=b;return;
+    }
+    if(n>=19u && clusters(w,n,2,&p->mark0,&p->mark1) && clusters(w,n,3,&p->space0,&p->space1)){
+        if(p->mark0==p->mark1 && p->space0!=p->space1)p->protocol=IR_PROTO_DISTANCE;
+        else if(p->space0==p->space1 && p->mark0!=p->mark1)p->protocol=IR_PROTO_WIDTH;
+        /* Unsupported combined-distance/width encodings stay unmodified. */
+        if(p->protocol){
+            p->bits=(n-3u)/2u;
+            /* Data preview uses LSB-first internally; raw envelope remains
+             * authoritative, so this choice never changes the wire bit order. */
+            for(i=0;i<p->bits && i<32u;++i){
+                unsigned x=w->widths[(p->protocol==IR_PROTO_DISTANCE?3u:2u)+2u*i];
+                unsigned threshold=p->protocol==IR_PROTO_DISTANCE?(p->space0+p->space1)/2u:(p->mark0+p->mark1)/2u;
+                if(x>threshold)p->data|=1ul<<i;
+            }
+        }
+    }
+}
+static void append_level(ir_raw_t *w,unsigned mark,unsigned us)
+{
+    if(!w->count){if(mark)w->widths[w->count++]=(uint16_t)us;return;}
+    if(mark==((w->count&1u)!=0))w->widths[w->count-1u]+=(uint16_t)us;
+    else if(w->count<IR_RAW_MAX)w->widths[w->count++]=(uint16_t)us;
+}
+void ir_raw_prepare(ir_raw_t *w,unsigned repeat,unsigned toggle)
+{
+    ir_protocol_t p;unsigned i,bit,unit,mark;uint32_t v;
+    ir_raw_analyze(w,&p);
+    if(!p.first_count || p.protocol==IR_PROTO_RAW || p.protocol==IR_PROTO_DISTANCE || p.protocol==IR_PROTO_WIDTH)return;
+    if(p.protocol==IR_PROTO_RC5 || p.protocol==IR_PROTO_RC6){
+        v=p.data;
+        if(p.protocol==IR_PROTO_RC5)v=(v&~0x800ul)|(toggle?0x800ul:0);else v=(v&~0x10000ul)|(toggle?0x10000ul:0);
+        w->count=0;
+        if(p.protocol==IR_PROTO_RC6){append_level(w,1,2664);append_level(w,0,888);}
+        for(i=p.bits;i>0;--i){
+            bit=(v>>(i-1u))&1u;unit=p.protocol==IR_PROTO_RC5?889u:444u;
+            if(p.protocol==IR_PROTO_RC6 && i==17u)unit*=2u;
+            mark=p.protocol==IR_PROTO_RC6?bit:!bit;
+            append_level(w,mark,unit);append_level(w,!mark,unit);
+        }
+        if(!(w->count&1u))--w->count;
+        return;
+    }
+    /* Only observed short repeat frames authorize NEC short repeats.
+     * Legacy single-frame NEC records repeat the full frame conservatively. */
+    if(repeat && p.repeat_offset){
+        memmove(w->widths,w->widths+p.repeat_offset,p.repeat_count*sizeof(w->widths[0]));w->count=(uint16_t)p.repeat_count;
+    }else w->count=(uint16_t)p.first_count;
+    if(p.protocol==IR_PROTO_NEC || p.protocol==IR_PROTO_NEC_EXT || p.protocol==IR_PROTO_NEC2 || p.protocol==IR_PROTO_SAMSUNG){
+        if(w->count==3u){w->widths[0]=9000;w->widths[1]=2250;w->widths[2]=562;return;}
+        if(w->count!=67u)return;
+        w->widths[0]=p.protocol==IR_PROTO_SAMSUNG?4500:9000;w->widths[1]=4500;
+        for(i=0;i<32u;++i){w->widths[2u+2u*i]=562;w->widths[3u+2u*i]=(p.data&(1ul<<i))?1687:562;}
+        w->widths[66]=562;
+    }else if(p.protocol==IR_PROTO_SONY){
+        w->widths[0]=2400;
+        for(i=0;i<p.bits;++i){w->widths[1u+2u*i]=600;w->widths[2u+2u*i]=(p.data&(1ul<<i))?1200:600;}
+    }else if(p.protocol==IR_PROTO_DISTANCE || p.protocol==IR_PROTO_WIDTH){
+        /* Do not rewrite unknown timing without an independent matching frame.
+         * Analysis remains available, while raw replay retains the evidence. */
+    }
+}
+const char *ir_raw_protocol_name(const ir_raw_t *w)
+{
+    static const char *const names[]={"RAW","NEC","NECext","NEC2","Sony","Samsung","RC5","RC6","Distance","Width"};
+    ir_protocol_t p;if(w && w->kind==IR_GEHUA_KIND)return "GehuaRC6";
+    ir_raw_analyze(w,&p);return names[p.protocol];
+}

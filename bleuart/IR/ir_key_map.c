@@ -36,13 +36,18 @@ static bool s_sent;
 static uint32_t s_repeat_interval=108u;
 static bool send_learned(uint8_t key,bool repeat,uint32_t frame)
 {
-    ir_raw_t *w=app_heap_alloc(sizeof(*w));bool ok=false;uint32_t us=0;unsigned i;
+    ir_raw_t *w=app_heap_alloc(sizeof(*w));bool ok=false;uint32_t us=0;unsigned i,n;ir_protocol_t info;
     if(!w)return false;
     if(ir_wave_store_get(key,w)){
         if(w->kind==IR_GEHUA_KIND)ok=ir_rc6_send(frame);
         else ok=ir_rc6_send_wave(w,repeat);
-        for(i=0;i<w->count;++i)us+=w->widths[i];
-        s_repeat_interval=(us+999u)/1000u+20u;if(s_repeat_interval<108u)s_repeat_interval=108u;
+        ir_raw_analyze(w,&info);
+        n=info.first_count?info.first_count:w->count;
+        if(info.protocol==IR_PROTO_RAW || info.protocol==IR_PROTO_DISTANCE || info.protocol==IR_PROTO_WIDTH)n=w->count;
+        for(i=0;i<n;++i)us+=w->widths[i];
+        s_repeat_interval=(us+999u)/1000u+20u;
+        if(s_repeat_interval<(info.interval_us+999u)/1000u)s_repeat_interval=(info.interval_us+999u)/1000u;
+        if(info.protocol==IR_PROTO_SONY)s_repeat_interval=repeat?45u:135u;
     }app_heap_free(w);return ok;
 }
 bool ir_user_switch_stb(void)

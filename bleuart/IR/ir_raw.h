@@ -32,4 +32,16 @@ unsigned ir_raw_diagnose_rc6(const ir_raw_t *w,uint32_t *frame,unsigned *positio
 unsigned ir_raw_rc6_header(const ir_raw_t *w);
 unsigned ir_raw_rc6_damaged(const ir_raw_t *w);
 int ir_raw_is_nec(const ir_raw_t *w);
+/* Runtime analysis only: on-flash layout and version remain unchanged. */
+enum {IR_PROTO_RAW,IR_PROTO_NEC,IR_PROTO_NEC_EXT,IR_PROTO_NEC2,
+      IR_PROTO_SONY,IR_PROTO_SAMSUNG,IR_PROTO_RC5,IR_PROTO_RC6,IR_PROTO_DISTANCE,IR_PROTO_WIDTH};
+typedef struct {
+    unsigned protocol, bits, first_count, repeat_offset, repeat_count;
+    uint32_t data, interval_us;
+    uint16_t mark0,mark1,space0,space1;
+} ir_protocol_t;
+void ir_raw_analyze(const ir_raw_t *wave,ir_protocol_t *info);
+/* Canonicalize known timings and select press/repeat; never changes stored data. */
+void ir_raw_prepare(ir_raw_t *wave,unsigned repeat,unsigned toggle);
+const char *ir_raw_protocol_name(const ir_raw_t *wave);
 #endif

@@ -1,4 +1,4 @@
-#include "ir_wave_store.h"
+﻿#include "ir_wave_store.h"
 #include "ir_key_policy.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -429,7 +429,7 @@ static void ir_learn_mode_process(uint32_t now_ms, uint16_t key_id, const uint32
         return;
     }
     if (new_press && ir_key_learnable(hw)) {
-        /* Only four policy-approved keys are learnable. Stop old capture
+        /* All keys except voice are learnable. Stop old capture
          * before retargeting; a cancellation must not exit the UI session. */
         s_ir_learn_mode = IR_LEARN_MODE_WAIT_KEY;
         ir_learn_stop();
@@ -772,7 +772,9 @@ static void task_keyscan_process_core(void)
 
             if (hw_key == key_active) {
                 pm_activity_notify(PM_ACTIVITY_KEY);
-                if (s_ir_key_routed && now_ms-key_press_start_ms>=400u &&
+                /* Learned protocols own their repeat interval. A fixed 400ms
+                 * delay would make NEC short repeats arrive after receiver expiry. */
+                if (s_ir_key_routed && (ir_wave_store_has(key_active) || now_ms-key_press_start_ms>=400u) &&
                     (ir_wave_store_has(key_active) || key_active==5u || key_active==6u ||
                      key_active==7u || key_active==11u || key_active==12u ||
                      key_active==13u || key_active==14u || key_active==16u))

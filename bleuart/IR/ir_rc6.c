@@ -23,6 +23,7 @@
 
 static uint16_t s_segments[IR_RC6_MAX_SEGMENTS];
 static uint16_t s_length;
+static unsigned s_raw_toggle;
 static ir_raw_t *s_wave;
 static uint16_t s_carrier_high = CARRIER_HIGH;
 static uint16_t s_carrier_period = CARRIER_PERIOD;
@@ -146,10 +147,22 @@ bool ir_rc6_send(uint32_t frame)
 }
 bool ir_rc6_send_wave(const ir_raw_t *wave,bool repeat)
 {
-    uint32_t duration=0;unsigned i;
+    uint32_t duration=0;unsigned i,first;ir_protocol_t info;
     if(ir_rc6_is_busy() || ir_learn_is_active() || irc_is_busy() || !wave || !ir_raw_valid(wave))return false;
     s_wave=app_heap_alloc(sizeof(*s_wave));if(!s_wave)return false;*s_wave=*wave;
-    if(repeat && wave->kind==IR_NEC_KIND){s_wave->count=3;s_wave->widths[0]=9000;s_wave->widths[1]=2250;s_wave->widths[2]=562;}
+    ir_raw_analyze(wave,&info);
+    if(!repeat)s_raw_toggle^=1u;
+    ir_raw_prepare(s_wave,repeat,s_raw_toggle);
+    /* Sony requires a short burst even on a brief press. Build it once in the
+     * existing TX buffer; TIM6 still sends every segment without blocking. */
+    if(!repeat && info.protocol==IR_PROTO_SONY){
+        first=s_wave->count;duration=0;for(i=0;i<first;++i)duration+=s_wave->widths[i];
+        if(info.interval_us>duration && info.interval_us-duration<=65535u && first*3u+2u<=IR_RAW_MAX){
+            for(i=0;i<2u;++i){s_wave->widths[s_wave->count++]=(uint16_t)(info.interval_us-duration);
+                memcpy(s_wave->widths+s_wave->count,s_wave->widths,first*sizeof(uint16_t));s_wave->count+=(uint16_t)first;}
+        }
+    }
+    duration=0;
     s_length=s_wave->count;s_carrier_period=s_wave->period_ticks;s_carrier_high=(s_carrier_period+1u)/3u;
     for(i=0;i<s_length;++i)duration+=s_wave->widths[i];
     s_timeout_ms=(duration+999u)/1000u+30u;

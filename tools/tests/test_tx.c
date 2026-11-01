@@ -1,9 +1,11 @@
 #include "mock_hw.h"
 #include "ir_rc6_encode.c"
+#include "ir_raw.c"
 #include "ir_key_map.c"
 static bool nec_busy,rc6_busy,learning;
 static bool start_failure;
 static unsigned raw_duration=600u,store_reads;
+static const ir_raw_t *store_fixture;
 static unsigned nec_sent,nec_repeats,rc6_sent,raw_sent;static bool raw_repeat;static unsigned learned_kind;
 static uint8_t user,command,learned_key,learned_user,learned_cmd;
 static uint32_t frame;
@@ -17,7 +19,7 @@ void irc_send_repeat(void){assert(!nec_busy&&!rc6_busy);++nec_repeats;nec_busy=t
 bool ir_learn_is_active(void){return learning;}
 bool ir_wave_store_frame(unsigned k,uint32_t *f){if(learned_kind!=1 || !learned_key || k!=learned_key)return false;*f=0x80102658u;return true;}
 bool ir_wave_store_has(unsigned k){return learned_key && k==learned_key;}
-bool ir_wave_store_get(unsigned k,ir_raw_t *w){assert(!rc6_busy&&!nec_busy);++store_reads;if(!ir_wave_store_has(k))return false;memset(w,0,sizeof(*w));w->count=7;w->period_ticks=1684;w->widths[0]=(uint16_t)raw_duration;w->kind=learned_kind;w->frame=0x80102658u;return true;}
+bool ir_wave_store_get(unsigned k,ir_raw_t *w){assert(!rc6_busy&&!nec_busy);++store_reads;if(!ir_wave_store_has(k))return false;if(store_fixture){*w=*store_fixture;return true;}memset(w,0,sizeof(*w));w->count=7;w->period_ticks=1684;w->widths[0]=(uint16_t)raw_duration;w->kind=learned_kind;w->frame=0x80102658u;return true;}
 bool ir_rc6_send_wave(const ir_raw_t *w,bool repeat){if(start_failure)return false;(void)w;++raw_sent;raw_repeat=repeat;rc6_busy=true;return true;}
 static void advance(unsigned ms){now_ms+=ms;nec_busy=rc6_busy=false;ir_tx_process();}
 int main(void)
@@ -55,5 +57,16 @@ int main(void)
  advance(108);rc6_busy=false;start_failure=true;assert(ir_send_key(17));assert(!s_count&&!ir_tx_pending()&&!s_repeat_key);start_failure=false;
  rc6_busy=true;assert(ir_send_key(4));ota_busy=1;ir_tx_process();assert(!s_count&&!ir_tx_pending()&&!s_repeat_key&&!ir_send_key(18));
  ota_busy=0;advance(108);assert(ir_send_key(18));ir_tx_cancel();assert(!ir_tx_pending());
+ /* Learned protocol repeats start at their own interval, not a 400ms gate. */
+ {ir_raw_t fixture;unsigned j,before;memset(&fixture,0,sizeof(fixture));
+  fixture.count=71;fixture.period_ticks=1684;fixture.widths[0]=9000;fixture.widths[1]=4500;fixture.widths[66]=562;
+  for(j=0;j<32;++j){fixture.widths[2+2*j]=562;fixture.widths[3+2*j]=(0xcb34df20u&(1ul<<j))?1687:562;}
+  fixture.widths[67]=(uint16_t)(108000u-wave_sum(&fixture,67));fixture.widths[68]=9000;fixture.widths[69]=2250;fixture.widths[70]=562;
+  store_fixture=&fixture;learned_key=12;learned_kind=0;advance(200);assert(ir_send_key(12));assert(s_repeat_interval==108);
+  before=raw_sent;rc6_busy=false;now_ms+=107;ir_tx_repeat(12);assert(raw_sent==before);
+  now_ms+=1;ir_tx_repeat(12);assert(raw_sent==before+1&&raw_repeat);ir_tx_release();advance(200);
+  fixture.count=25;fixture.period_ticks=1600;fixture.widths[0]=2400;for(j=1;j<25;++j)fixture.widths[j]=600;
+  assert(ir_send_key(12));assert(s_repeat_interval==135);rc6_busy=false;now_ms+=135;ir_tx_repeat(12);assert(s_repeat_interval==45);
+  ir_tx_cancel();store_fixture=0;learned_key=0;}
  puts("TX routing: RC6 STB/toggle/repeats, NEC TV/learned/zero, undefined silence, queue/full, pair targets, wrap PASS");return 0;
 }

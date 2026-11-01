@@ -1,6 +1,6 @@
 #include "app_heap.h"
 /* Reference-compatible 18-slot format, streamed to keep RAM bounded.
- * Only four policy-approved keys may be read/written. Commit magic last.
+ * Seventeen keys may be read/written; the voice slot stays empty. Commit magic last.
  */
 #include "ir_wave_store.h"
 #include "ir_key_policy.h"
@@ -26,10 +26,10 @@ typedef struct {uint32_t magic,version,sequence,crc;} header_t;
 #endif
 /* Keep zero state out of the small RW area before the SDK's 256-byte aligned
  * data section; otherwise four words can consume an extra alignment page. */
-static uint32_t s_bank IR_ZI,s_sequence IR_ZI,s_mask IR_ZI,s_rc6_mask IR_ZI,s_frames[4];
+static uint32_t s_bank IR_ZI,s_sequence IR_ZI,s_mask IR_ZI,s_rc6_mask IR_ZI;
+static uint32_t s_frames[18] IR_ZI;
 static bool s_read_failed, s_metadata_ready;
-static unsigned slot(unsigned key)
-{static const uint8_t keys[4]={1,2,3,17};unsigned i;for(i=0;i<4;++i)if(keys[i]==key)return i;return 0;}
+static unsigned slot(unsigned key){return key-1u;}
 bool ir_wave_store_frame(unsigned key,uint32_t *f)
 {if(!ir_key_learnable(key) || !(s_rc6_mask&(1ul<<key)))return false;*f=s_frames[slot(key)];return true;}
 static int read_chunks(uint32_t addr,void *out,uint32_t n)

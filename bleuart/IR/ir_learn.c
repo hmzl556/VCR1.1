@@ -18,6 +18,8 @@ static volatile uint8_t s_error;
 static volatile uint32_t s_high;
 static uint32_t s_start_ms;
 static uint8_t s_target;
+static uint16_t s_first_count, s_period_samples;
+static uint32_t s_observe_until;
 static ir_learn_cb_t s_cb;
 #define RX_ERR_OVERCAPTURE 1u
 #define RX_ERR_BOUNDS     2u
@@ -56,7 +58,7 @@ static void configure(void)
     ic.IcPrescaler=TIM_IC_PSC_DIV1;ic.IcSelection=TIM_IC_SELECTION_DIRECTTI;ic.IcFilter=0;
     TIM_ICInit(TIM3,&ic);NVIC_SetPriority(TIM3_IRQn,3);
 }
-static void reset_frame(uint32_t now){ir_capture_init(s_capture,now,1);s_error=0;}
+static void reset_frame(uint32_t now){ir_capture_init(s_capture,now,1);s_error=0;s_first_count=0;s_period_samples=0;s_observe_until=0;}
 bool ir_learn_start(void)
 {
     if(s_active || !ir_key_learnable(s_target) || udp_ota_session_busy() || ir_tx_pending() || cat1_modem_is_busy())return false;
@@ -77,7 +79,8 @@ static uint32_t capture_now(void)
     uint32_t hi;uint16_t lo;uint32_t flags;
     NVIC_DisableIRQ(TIM3_IRQn);hi=s_high;lo=TIM3->CNT;flags=TIM3->STS;
     if((flags&TIM_FLAG_UPDATE) && lo<32768u)hi+=65536u;
-    NVIC_EnableIRQ(TIM3_IRQn);return hi+lo;
+    /* Caller keeps this IRQ masked until the capture snapshot is inspected. */
+    return hi+lo;
 }
 static void capture_push(uint32_t width)
 {
@@ -95,7 +98,9 @@ void TIM3_IRQHandler(void)
     if(s_error){TIM3->DINTEN=TIM_INT_UPDATE;return;}
     if(flags&TIM_FLAG_CC2){
         t=base+cap;if(!c->armed){c->quiet_at=t;return;}
-        if(c->seen_fall){d=t-c->last_fall;if(d>=10u && d<=64u && c->periods[d]<65535u)++c->periods[d];}
+        /* Once enough cycles are recorded, avoid histogram work on every edge.
+         * Keep envelope tracking and overcapture detection active throughout. */
+        if(c->seen_fall && s_period_samples<192u){d=t-c->last_fall;if(d>=10u && d<=64u){++c->periods[d];++s_period_samples;}}
         if(c->mark && t-c->last_fall>100u){c->mark_end=c->last_fall+8u;capture_push(c->mark_end-c->mark_start);c->mark=0;}
         if(!c->mark){if(c->wave.count)capture_push(t-c->mark_end);else c->started=t;c->mark_start=t;c->mark=1;}
         c->last_fall=t;c->seen_fall=1;
@@ -106,7 +111,7 @@ void TIM3_IRQHandler(void)
 }
 void ir_learn_process(void)
 {
-    uint32_t now;bool complete,failed;int ok;ir_capture_t *c=s_capture;
+    uint32_t now;bool complete,failed;int ok;ir_capture_t *c=s_capture;ir_protocol_t info;
     if(!s_active || !c)return;
     if(udp_ota_session_busy()){ir_learn_stop();return;}
     if(app_now_ms()-s_start_ms>=15000u){capture_off();report_retries();ir_learn_discard();if(s_cb)s_cb(IR_LEARN_EVT_TIMEOUT,0,0);return;}
@@ -114,15 +119,32 @@ void ir_learn_process(void)
     if(!c->armed && now-c->quiet_at>=20000u && (GPIOB->PID&GPIO_PIN_5))c->armed=1;
     complete=c->seen_fall && !c->mark && c->wave.count && now-c->last_fall>=20000u;
     failed=s_error || (c->seen_fall && now-c->started>270000u);
-    if(complete || failed)TIM3->DINTEN=TIM_INT_UPDATE;
-    NVIC_EnableIRQ(TIM3_IRQn);if(!complete && !failed)return;
+    /* Freeze only after a complete envelope. Analysis must never race IRQ writes. */
+    if(complete || failed){TIM3->DINTEN=0;NVIC_DisableIRQ(TIM3_IRQn);}
+    if(!complete && !failed){NVIC_EnableIRQ(TIM3_IRQn);return;}
+    if(!failed){
+        ir_raw_analyze(&c->wave,&info);
+        if(!s_first_count && (info.protocol==IR_PROTO_NEC || info.protocol==IR_PROTO_NEC_EXT)){
+            s_first_count=c->wave.count;s_observe_until=c->mark_end+100000u;
+        }
+        if(s_first_count && c->wave.count==s_first_count && (int32_t)(now-s_observe_until)<0){
+            TIM3->DINTEN=TIM_INT_UPDATE|TIM_INT_CC2;
+            NVIC_EnableIRQ(TIM3_IRQn);return;
+        }
+        if(s_first_count && c->wave.count!=s_first_count && info.protocol==IR_PROTO_RAW)failed=true;
+    }
+    /* A pending capture while the task analyzed a frozen frame invalidates it;
+     * never silently append a partly missed next frame. */
+    if(TIM3->STS&(TIM_FLAG_CC2|TIM_FLAG_CC2OF))s_error|=RX_ERR_OVERCAPTURE;
+    failed=failed || s_error;
     ok=!failed && ir_capture_complete(c)==1;
-    if(ok){capture_off();report_retries();if(s_cb)s_cb(IR_LEARN_EVT_DONE,0,0);}
+    if(ok){capture_off();report_retries();co_printf("[IR] KEY%u %s %ukHz\r\n",(unsigned)s_target,ir_raw_protocol_name(&c->wave),(unsigned)((64000u+c->wave.period_ticks/2u)/c->wave.period_ticks));if(s_cb)s_cb(IR_LEARN_EVT_DONE,0,0);}
     else{
         if(s_retry_count<65535u)++s_retry_count;
         if((s_error&RX_ERR_OVERCAPTURE) && s_overcapture_count<65535u)++s_overcapture_count;
         s_retry_errors|=s_error;
         NVIC_DisableIRQ(TIM3_IRQn);reset_frame(now);s_capture->quiet_at=now;
+        if(TIM3->STS&TIM_FLAG_UPDATE)s_high+=65536u;
         TIM3->STS=0;TIM3->DINTEN=TIM_INT_UPDATE|TIM_INT_CC2;NVIC_EnableIRQ(TIM3_IRQn);
     }
 }

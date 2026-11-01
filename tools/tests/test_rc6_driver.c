@@ -41,8 +41,16 @@ int main(void)
      assert(ir_rc6_send_wave(&w,false));assert(TIM3->AR==1142);
      for(i=0;i<7;++i){assert(TIM6->AR==(unsigned)w.widths[i]-1u);TIM6->CNT=0;TIM6->STS=TIM_FLAG_UPDATE;TIM6_IRQHandler();}
      assert(!ir_rc6_is_busy()&&!s_wave);
-     w.kind=IR_NEC_KIND;assert(ir_rc6_send_wave(&w,true));assert(s_length==3);
-     for(i=0;i<3;++i){TIM6->CNT=0;TIM6->STS=TIM_FLAG_UPDATE;TIM6_IRQHandler();}
+     w.kind=IR_NEC_KIND;assert(ir_rc6_send_wave(&w,true));assert(s_length==7);
+     for(i=0;i<7;++i){TIM6->CNT=0;TIM6->STS=TIM_FLAG_UPDATE;TIM6_IRQHandler();}
      assert(!ir_rc6_is_busy());}
+    /* The real nonblocking driver sends a Sony press as three frames. */
+    {ir_raw_t w;unsigned i;memset(&w,0,sizeof(w));w.count=25;w.period_ticks=1600;w.widths[0]=2400;
+     for(i=1;i<25;++i)w.widths[i]=600;
+     assert(ir_rc6_send_wave(&w,false));assert(s_length==77);
+     assert(s_wave->widths[25]==45000u-16800u);
+     for(i=0;i<s_length;++i){TIM6->CNT=0;TIM6->STS=TIM_FLAG_UPDATE;TIM6_IRQHandler();}
+     assert(!ir_rc6_is_busy()&&!s_wave);
+     assert(ir_rc6_send_wave(&w,true));assert(s_length==25);ir_rc6_stop();assert(!ir_rc6_is_busy());}
     puts("RC6 driver: 512 nonblocking frames, PWM/segments, NEC/capture exclusion, mux restore, late IRQ/timeout/wrap PASS");return 0;
 }

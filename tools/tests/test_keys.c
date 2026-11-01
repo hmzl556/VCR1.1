@@ -50,7 +50,7 @@ int main(void){unsigned i;
  assert(s_ir_feedback_left==10);for(i=1;i<=10;i++)scan(13160+100*i,0,0);
  assert(s_ir_learn_mode==IR_LEARN_MODE_WAIT_KEY);
  scan(14160,1u<<15,15);assert(!learn_active);scan(14160,0,0);
- scan(14161,1u<<12,12);assert(!learn_active);scan(14162,0,0);scan(14163,1u<<2,2);assert(learn_active);ota_busy=1;scan(14170,1u<<12,0);
+ scan(14161,1u<<12,12);assert(learn_active&&last_target==12);scan(14162,0,0);scan(14163,1u<<2,2);assert(learn_active);ota_busy=1;scan(14170,1u<<12,0);
  assert(!learn_active&&s_ir_learn_mode==IR_LEARN_MODE_OFF);ota_busy=0;scan(14180,0,0);
  /* TV short sends only on release, never repeats or sends on learning entry. */
  i=ir_presses;scan(14181,2,1);scan(14201,2,0);assert(ir_presses==i);
@@ -70,8 +70,8 @@ int main(void){unsigned i;
  scan(30000,0,0);scan(30010,0,0);learned_test_key=15;
  i=voice_starts;scan(30100,1u<<15,15);scan(30120,1u<<15,0);scan(30200,1u<<15,0);assert(voice_starts==i+1);
  scan(30210,0,0);scan(30240,0,0);
- connected=false;learned_test_key=17;i=ir_repeats;scan(31000,1u<<17,17);scan(31020,1u<<17,0);scan(31300,1u<<17,0);assert(ir_repeats==i);
- scan(31420,1u<<17,0);assert(ir_repeats==i+1);scan(31430,0,0);scan(31460,0,0);learned_test_key=0;
+ connected=false;learned_test_key=17;i=ir_repeats;scan(31000,1u<<17,17);scan(31020,1u<<17,0);scan(31300,1u<<17,0);assert(ir_repeats==i+1);
+ scan(31420,1u<<17,0);assert(ir_repeats==i+2);scan(31430,0,0);scan(31460,0,0);learned_test_key=0;
  connected=false;i=ir_presses;scan(32000,1u<<18,18);scan(32020,1u<<18,0);
  assert(ir_presses==i+1&&last_ir_key==18);scan(32030,0,0);scan(32060,0,0);
  /* Even a stale voice record cannot suppress Bluetooth voice. No BLE
@@ -90,12 +90,12 @@ int main(void){unsigned i;
  scan(35510,0,0);scan(35550,0,0);}
  learned_test_key=0;
  /* Every remaining non-power learned key preserves its Bluetooth mapping. */
- {unsigned list[3]={2,3,17},n;
- for(n=0;n<3;n++){
-  unsigned k=list[n],t=36000+n*1000,h=hid_presses,ir=ir_presses;
+ {unsigned list[16]={2,3,4,5,6,7,8,9,10,11,12,13,14,16,17,18},n;
+ for(n=0;n<16;n++){
+  unsigned k=list[n],t=36000+n*250,h=hid_presses,ir=ir_presses;
   connected=true;learned_test_key=k;
   scan(t,1u<<k,k);scan(t+20,1u<<k,0);
-  assert(hid_presses==h+1&&last_hid_key==k&&ir_presses==ir);
+  assert(hid_presses==h+1&&last_hid_key==(k==18u?1u:k)&&ir_presses==ir);
   scan(t+30,0,0);scan(t+70,0,0);
   connected=false;
   scan(t+100,1u<<k,k);scan(t+120,1u<<k,0);
