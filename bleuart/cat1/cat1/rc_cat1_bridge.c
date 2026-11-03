@@ -171,7 +171,7 @@ static void rc_cat1_cloud_policy_load_from_flash(void)
 	remote_set_key_capture_enable(REMOTE_KEY_CAPTURE_DEFAULT);
 
 	co_printf("[RC   ] CloudPolicy restored: capture=%u(forced) interval=%u count=%u\r\n",
-	          (unsigned)REMOTE_KEY_CAPTURE_DEFAULT,
+	          (unsigned)remote_key_capture_flag(),
 	          (unsigned)store.interval_sec,
 	          (unsigned)store.item_count);
 }

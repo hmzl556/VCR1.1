@@ -84,6 +84,12 @@ int remote_is_key_capture_enabled(void);
 /** 设置按键采集开关（1=开启，2=关闭，与 Tag11 DataID 0x01 一致） */
 void remote_set_key_capture_enable(uint8_t enable);
 
+/**
+ * @brief  按键采集的“实际生效”开关标志（用于日志与实际行为一致）
+ * @return 1=实际开启；2=实际关闭（RC_TAG10_SELF_REPORT_ENABLE=0 时恒为 2）
+ */
+uint8_t remote_key_capture_flag(void);
+
 /** BLE 断连钩子：保留 Tag11/Flash 下发的按键采集状态，不断连清零 */
 void remote_key_capture_on_ble_disconnect(void);
 

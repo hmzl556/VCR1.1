@@ -933,6 +933,25 @@ int remote_queue_tlv_blob(const uint8_t *plain, uint16_t plain_len,
 }
 
 /**
+ * @brief  按键采集的“实际生效”开关标志
+ * @return 1=实际开启；2=实际关闭（编译关闭时恒为 2，保证日志与行为一致）
+ */
+uint8_t remote_key_capture_flag(void)
+{
+#if RC_TAG10_SELF_REPORT_ENABLE
+    uint8_t enable;
+
+    taskENTER_CRITICAL();
+    enable = (s_key_capture_enable == 1u) ? 1u : 2u;
+    taskEXIT_CRITICAL();
+    return enable;
+#else
+    (void)s_key_capture_enable; /* 编译关闭：对外一律报告关闭 */
+    return 2u;
+#endif
+}
+
+/**
  * @brief  初始化发送队列与 MID 计数器
  */
 void remote_reports_init(void)
@@ -944,8 +963,12 @@ void remote_reports_init(void)
     s_key_capture_enable = REMOTE_KEY_CAPTURE_DEFAULT;
     s_tag10_enqueue_paused = 0u;
     (void)rc_udp_aes_init();
+#if RC_TAG10_SELF_REPORT_ENABLE
     co_printf("[RC   ] Tag10 key capture default=%s (Tag11 0x01=1 to enable)\r\n",
-              (s_key_capture_enable == 1u) ? "ON" : "OFF");
+              (remote_key_capture_flag() == 1u) ? "ON" : "OFF");
+#else
+    co_printf("[RC   ] Tag10 key capture disabled by build (RC_TAG10_SELF_REPORT_ENABLE=0)\r\n");
+#endif
 }
 
 /**
@@ -978,8 +1001,10 @@ void remote_tag10_enqueue_set_paused(uint8_t paused)
     taskEXIT_CRITICAL();
 
     if (prev != now) {
+#if RC_TAG10_SELF_REPORT_ENABLE
         co_printf("[RC   ] Tag10 enqueue %s\r\n",
                   (now != 0u) ? "PAUSED" : "RESUME");
+#endif
     }
 }
 
@@ -1012,8 +1037,12 @@ void remote_set_key_capture_enable(uint8_t enable)
     taskENTER_CRITICAL();
     s_key_capture_enable = enable;
     taskEXIT_CRITICAL();
+#if RC_TAG10_SELF_REPORT_ENABLE
     co_printf("[RC   ] Tag10 key capture %s (Tag11 0x01=%u)\r\n",
-              (enable == 1u) ? "ON" : "OFF", (unsigned)enable);
+              (remote_key_capture_flag() == 1u) ? "ON" : "OFF", (unsigned)enable);
+#else
+    (void)enable; /* 编译关闭：不打印 ON/OFF，避免与实际行为不一致 */
+#endif
 }
 
 void remote_key_capture_on_ble_disconnect(void)

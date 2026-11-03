@@ -10,6 +10,7 @@
 #include "task.h"
 #include <string.h>
 
+#if RC_TAG10_SELF_REPORT_ENABLE
 /* 单帧 0x6868 数据域最多容纳 (RC_UDP_AES_PLAIN_DATA_MAX-2)/12 条按键 TLV */
 #define TAG10_BATCH_MAX  46u
 
@@ -18,6 +19,7 @@ static uint8_t s_tag10_times[TAG10_BATCH_MAX][6];
 static uint8_t s_tag10_count;
 static uint32_t s_tag10_first_ms;
 static uint8_t s_tag10_qfull_logged;		//处理warning时不要删
+#endif /* RC_TAG10_SELF_REPORT_ENABLE */
 
 /**
  * @brief  硬件 key_id → Tag0x10 DataID1 协议键值（《4.3 遥控器按键采集》1~18）
@@ -56,9 +58,11 @@ static uint8_t rc_key_id_to_tag10(uint16_t key_id, uint8_t action)
 
 void rc_key_input_init(void)
 {
+#if RC_TAG10_SELF_REPORT_ENABLE
     s_tag10_count = 0u;
     s_tag10_first_ms = 0u;
     s_tag10_qfull_logged = 0u;
+#endif
 }
 
 /**
