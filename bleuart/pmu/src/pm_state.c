@@ -180,7 +180,6 @@ static void pm_enter_sleep(void)
      * 释放内存, 实测该 SDK 不释放 → malloc fail → HardFault → 冷启动,
      * 心跳计时与唤醒按键业务被复位打断 (见 doc/休眠唤醒模式回退说明.md)。
      * STB 带旧缓存跳过订阅的问题由回连自旋强开 + RC 会话恢复补偿
-     * (见 doc/回连语音RC失效问题追踪.md), 根因已提 STB 侧问题单。
      */
     ble_adv_start_by_bonding();
 
