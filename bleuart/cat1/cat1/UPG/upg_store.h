@@ -94,6 +94,9 @@ bool upg_store_read_at(upg_store_type_t type, uint16_t off, uint8_t *buf, uint16
 /** @brief 记录 payload 长度；0 表示无记录 */
 uint16_t upg_store_size(upg_store_type_t type);
 
+/** @brief 该类型当前生效记录的提交序号；0 表示无记录（用于判断"谁更新"） */
+uint16_t upg_store_seq_of(upg_store_type_t type);
+
 /** @brief 该类型记录是否存在且 CRC 正确 */
 bool upg_store_has(upg_store_type_t type);
 

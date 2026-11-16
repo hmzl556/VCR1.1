@@ -56,6 +56,8 @@ with tempfile.TemporaryDirectory(prefix='vcr_upg_flow_') as temp:
         '-I' + str(upg),
         '-I' + str(ota),
         '-I' + str(tests),
+        '-I' + str(root / 'bleuart/IR'),
+        '-I' + str(root / 'bleuart/inc'),
         str(tests / 'test_upg_flow.c'),
         '-o', str(exe),
     ], check=True)

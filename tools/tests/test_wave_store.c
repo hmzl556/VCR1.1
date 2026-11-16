@@ -1,3 +1,4 @@
+#define MOCK_NO_WAVE_STORE_SEQ
 #include "mock_hw.h"
 #include "ir_raw.c"
 #include <stdlib.h>

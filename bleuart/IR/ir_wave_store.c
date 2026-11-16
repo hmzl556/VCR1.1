@@ -92,6 +92,7 @@ void ir_wave_store_load(void)
     s_metadata_ready = !s_read_failed && (!s_bank || allocated);
     co_printf("[IR STORE] A=%u B=%u selected=%08lx seq=%lu mask=%lx\r\n",va,vb,(unsigned long)s_bank,(unsigned long)s_sequence,(unsigned long)s_mask);
 }
+uint32_t ir_wave_store_seq(void){return s_sequence;}
 bool ir_wave_store_has(unsigned key)
 {return ir_key_learnable(key) && s_bank && (s_mask&(1ul<<key))!=0;}
 bool ir_wave_store_get(unsigned key,ir_raw_t *w)

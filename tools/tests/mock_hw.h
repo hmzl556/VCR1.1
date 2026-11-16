@@ -77,6 +77,18 @@ static bool upg_session_busy(void){return upg_busy_mock != 0u;}
 /* 恢复出厂清键值覆盖层：用例可通过 store_erase_mock 观察调用 */
 static unsigned store_erase_mock;
 static bool upg_store_erase_all(void){++store_erase_mock;return true;}
+
+/* 下载层（ETV）：默认无下载值，用例可通过 ir_dl_mock / ir_dl_seq_mock 打开 */
+static uint8_t ir_dl_mock;
+static uint16_t ir_dl_seq_mock, ir_learn_seq_mock;
+static unsigned ir_dl_sent;
+static bool ir_dl_available(uint8_t key, bool tv){(void)key;(void)tv;return ir_dl_mock != 0u;}
+static uint16_t ir_dl_seq(bool tv){(void)tv;return ir_dl_seq_mock;}
+static bool ir_dl_send(uint8_t key, bool tv){(void)key;(void)tv;++ir_dl_sent;return true;}
+/* 学习区序号：test_wave_store 直接用真实的 ir_wave_store.c，那里已有实现 */
+#ifndef MOCK_NO_WAVE_STORE_SEQ
+static uint32_t ir_wave_store_seq(void){return ir_learn_seq_mock;}
+#endif
 static void RCC_EnableAPB1PeriphClk(unsigned a,unsigned b){(void)a;(void)b;}
 static void RCC_EnableAPB2PeriphClk(unsigned a,unsigned b){(void)a;(void)b;}
 static void GPIO_InitStruct(GPIO_InitType *p){memset(p,0,sizeof(*p));}

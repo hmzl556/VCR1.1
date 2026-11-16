@@ -848,6 +848,11 @@
               <FileType>1</FileType>
               <FilePath>..\IR\ir_key_map.c</FilePath>
             </File>
+            <File>
+              <FileName>ir_dl.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\IR\ir_dl.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

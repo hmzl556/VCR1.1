@@ -14,10 +14,12 @@
 #include "co_printf.h"
 #include "udp_ota.h"
 #include "upg_session.h"   /* upg_session_busy — 键值下载会话期间禁止红外发送 */
+#include "ir_dl.h"         /* 下载层：APP 下发的 ETV 键值 */
 #define TX_CAPACITY 4u
 #define TX_NEC 0u
 #define TX_RC6 1u
 #define TX_RAW 2u
+#define TX_DL  3u
 #define TX_INTERVAL_MS 108u
 
 typedef struct {
@@ -88,10 +90,23 @@ static bool enqueue(uint8_t user, uint8_t cmd, uint8_t key, uint8_t kind)
 bool ir_send_key(uint8_t key)
 {
     uint8_t cmd;
+    bool learn;
+    bool dl;
+    bool tv;
+
     s_repeat_key = 0u;
     /* Voice is never an IR/learning key, including stale stored data. */
     if (!key || key > IR_KEY_COUNT || key == 15u) return false;
-    if(ir_wave_store_has(key))return enqueue(0u,0u,key,TX_RAW);
+
+    tv = (key == IR_KEY_TV_POWER || key == IR_KEY_TV_BUSINESS);
+    learn = ir_wave_store_has(key);
+    dl = ir_dl_available(key, tv);
+    /* 规范 7.4：以最后更新的为准。两层各自维护写入序号，取较大者；
+     * 序号相同（例如都是 1）时让学习值优先——那是用户当面的显式操作 */
+    if (dl && (!learn || (uint32_t)ir_dl_seq(tv) > ir_wave_store_seq())) {
+        return enqueue(0u, 0u, key, TX_DL);
+    }
+    if (learn) return enqueue(0u, 0u, key, TX_RAW);
     if (key == IR_KEY_TV_POWER)
         return enqueue(s_ir_user_tv, ir_default_cmd(key), key, TX_NEC);
     /* No NEC fallback for unspecified Gehua keys: mute/TV business/replay/
@@ -111,7 +126,9 @@ void ir_tx_process(void)
         (s_sent && now - s_tx_ms < s_repeat_interval)) return;
     item = &s_queue[s_head];
     started = item->kind == TX_RAW ? send_learned(item->key,false,item->frame) :
-        (item->kind == TX_RC6 ? ir_rc6_send(item->frame) : irc_send(item->user, item->cmd));
+        (item->kind == TX_DL ? ir_dl_send(item->key, item->key == IR_KEY_TV_POWER ||
+                                                       item->key == IR_KEY_TV_BUSINESS) :
+        (item->kind == TX_RC6 ? ir_rc6_send(item->frame) : irc_send(item->user, item->cmd)));
     if(item->kind!=TX_RAW)s_repeat_interval=108u;
     if (started) {
         s_repeat_key = item->key; s_repeat_kind = item->kind;
@@ -134,6 +151,9 @@ void ir_tx_repeat(uint8_t key)
         udp_ota_session_busy() || upg_session_busy() ||
         now - s_tx_ms < s_repeat_interval || irc_is_busy() || ir_rc6_is_busy()) return;
     if(s_repeat_kind==TX_RAW){if(!send_learned(key,true,s_repeat_frame))return;}
+    else if (s_repeat_kind == TX_DL) {
+        if (!ir_dl_send(key, key == IR_KEY_TV_POWER || key == IR_KEY_TV_BUSINESS)) return;
+    }
     else if (s_repeat_kind == TX_RC6) {
         if (!ir_rc6_send(s_repeat_frame)) return;
     } else irc_send_repeat();

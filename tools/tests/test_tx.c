@@ -35,6 +35,15 @@ int main(void)
  assert(!ir_user_switch_tv());assert(ir_send_key(1));assert(user==0x53&&command==0xDC);ir_tx_release();advance(108);
  learned_kind=2;learned_key=2;learned_user=0x51;learned_cmd=0;
  assert(ir_send_key(2));assert(raw_sent==1&&!raw_repeat);advance(108);ir_tx_repeat(2);assert(raw_sent==2&&raw_repeat);ir_tx_release();advance(108);learned_key=0;
+ /* 三层查表优先级（规范 7.4：以最后更新的为准）：下载层 vs 学习层按各自写入序号比较 */
+ ir_dl_mock=1;learned_kind=2;learned_key=3;           /* 同一个键两层都有 */
+ ir_dl_seq_mock=5;ir_learn_seq_mock=3;                /* 下载更新 */
+ assert(ir_send_key(3));assert(ir_dl_sent==1&&raw_sent==2);advance(108);ir_tx_release();
+ ir_dl_seq_mock=3;ir_learn_seq_mock=3;                /* 序号相同 → 学习值优先（用户显式操作） */
+ assert(ir_send_key(3));assert(ir_dl_sent==1&&raw_sent==3);advance(108);ir_tx_release();
+ ir_dl_seq_mock=2;ir_learn_seq_mock=4;                /* 学习更新 */
+ assert(ir_send_key(3));assert(ir_dl_sent==1&&raw_sent==4);advance(108);ir_tx_release();
+ ir_dl_mock=0;learned_key=0;ir_dl_seq_mock=0;ir_learn_seq_mock=0;
  nec_busy=true;assert(ir_send_key(12));assert(s_count==1);ir_tx_repeat(12);assert(rc6_sent==3);advance(108);
  assert((frame&0xFFFF7FFFu)==0x80102610u&&rc6_sent==4);ir_tx_release();advance(108);
  ir_send_pair_code_target(false);assert((frame&0xFFFF7FFFu)==0x801026ADu);

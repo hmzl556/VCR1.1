@@ -13,6 +13,7 @@
 #include "upg_proto.c"
 #include "upg_store.c"
 #include "etv.c"
+#include "ir_dl.c"
 
 /* ---------------- 桩：时间 ---------------- */
 static uint32_t s_now;
@@ -133,6 +134,21 @@ uint32_t Qflash_Erase_Sector(uint32_t addr)
     ks_region(idx, &base, &data);
     memset(data, 0xFF, 4096u);
     return FlashOperationSuccess;
+}
+
+/* ---------------- 桩：红外发送（下载层） ---------------- */
+static ir_raw_t s_dl_wave;
+static unsigned s_dl_sent;
+static bool s_dl_ok = true;
+bool ir_rc6_send_wave(const ir_raw_t *w, bool repeat)
+{
+    (void)repeat;
+    if (w == NULL || !s_dl_ok) {
+        return false;
+    }
+    s_dl_wave = *w;
+    ++s_dl_sent;
+    return true;
 }
 
 /* ---------------- 捕获 notify ---------------- */
@@ -535,6 +551,40 @@ static void encode_case(void)
     (void)f;
 }
 
+/* ---------------- P3.3：下载层发码（store → etv → 波形 → TX） ---------------- */
+
+static void dl_case(void)
+{
+    uint8_t blob[256];
+    uint16_t n;
+
+    n = build_etv_pw(blob, sizeof(blob));
+    store_blob(UPG_ST_IRTV, blob, n);
+
+    /* 电视机键查 irtv、机顶盒键查 irstb */
+    assert(ir_dl_available(7u, true));
+    assert(ir_dl_available(7u, false) == false);
+    assert(ir_dl_seq(true) != 0u);
+
+    /* 发码：走真实 etv_encode，波形交给 ir_rc6_send_wave */
+    s_dl_sent = 0u;
+    assert(ir_dl_send(7u, true));
+    assert(s_dl_sent == 1u);
+    assert(s_dl_wave.count == 68u);            /* 引导 2 + 32 位×2 + 结束 2 */
+    assert(s_dl_wave.kind == IR_RAW_KIND);
+    assert(s_dl_wave.period_ticks == 1684u);   /* ratio_freq 0x32 → 38 kHz */
+    assert(s_dl_wave.widths[0] == 9000u && s_dl_wave.widths[1] == 4500u);
+
+    /* 文件里没有的键：不发 */
+    assert(ir_dl_send(5u, true) == false);
+    assert(s_dl_sent == 1u);
+
+    /* 发送器拒绝时如实返回失败 */
+    s_dl_ok = false;
+    assert(ir_dl_send(7u, true) == false);
+    s_dl_ok = true;
+}
+
 static void write_case(void)
 {
 
@@ -728,6 +778,9 @@ int main(void)
     /* ================= P3.1：ETV 解析 ================= */
     etv_case();
 
+    /* ================= P3.3：下载层发码 ================= */
+    dl_case();
+
     /* ================= P3.2：PW/BP 波形 ================= */
     encode_case();
 
@@ -736,6 +789,6 @@ int main(void)
          "disconnect restores adv, OTA takeover keeps adv untouched, "
          "read after idle timeout still delivers, "
          "write irstb commit + crc reject + A/B rotate, "
-         "flag persist, ETV parse (header/table/key/carrier), encode PW/BP waveform PASS");
+         "flag persist, ETV parse (header/table/key/carrier), encode PW/BP waveform, download-layer send PASS");
     return 0;
 }

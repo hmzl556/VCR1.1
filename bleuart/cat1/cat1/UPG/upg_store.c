@@ -464,6 +464,21 @@ uint16_t upg_store_size(upg_store_type_t type)
     return find_best(type, &pay, &len, &crc) ? len : 0u;
 }
 
+uint16_t upg_store_seq_of(upg_store_type_t type)
+{
+    find_ctx_t f;
+    uint8_t i;
+
+    memset(&f, 0, sizeof(f));
+    f.want = type;
+    for (i = 0u; i < 2u; ++i) {
+        if (sec_valid(i, NULL)) {
+            scan_records(i, find_visit, &f);
+        }
+    }
+    return f.found ? f.best_seq : 0u;
+}
+
 bool upg_store_read_at(upg_store_type_t type, uint16_t off, uint8_t *buf, uint16_t len)
 {
     uint32_t pay;

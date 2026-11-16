@@ -1,6 +1,6 @@
 {
   "tool": "Cppcheck 2.10",
-  "translation_unit_count": 81,
+  "translation_unit_count": 82,
   "translation_units": [
     "bleuart/prj/system_br1601x.c",
     "bleuart/freertos/tasks.c",
@@ -75,6 +75,7 @@
     "bleuart/IR/irc.c",
     "bleuart/IR/ir_learn.c",
     "bleuart/IR/ir_key_map.c",
+    "bleuart/IR/ir_dl.c",
     "bleuart/cat1/cat1/UPG/ble_upg_svc.c",
     "bleuart/cat1/cat1/UPG/upg_proto.c",
     "bleuart/cat1/cat1/UPG/upg_auth.c",
