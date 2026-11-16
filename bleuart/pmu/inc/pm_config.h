@@ -27,8 +27,8 @@ extern "C" {
 #define PM_DEBUG_LONG_IDLE              1U   /* 1=联调期放宽到 5 分钟；量产必须改回 0 */
 
 #if PM_DEBUG_LONG_IDLE
-/* 联调阶段：避免手机上点 Notify 之前设备已进待机，反复触发 30s 超时 */
-#define PM_WORK_TO_STANDBY_MS         4500000U
+/* 联调阶段：5 分钟内不会被待机打断，便于用手机 APP 逐步操作 */
+#define PM_WORK_TO_STANDBY_MS         300000U
 #else
 #define PM_WORK_TO_STANDBY_MS         30000U
 #endif
