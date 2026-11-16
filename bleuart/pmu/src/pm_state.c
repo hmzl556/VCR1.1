@@ -39,6 +39,12 @@ extern volatile bool g_pairing_active; /* ble_gap.c: 组合键配对广播标志
 
 /** @brief 当前电源状态，初始为静默态（后续由 pm_state_init 根据绑定修正） */
 static pm_state_t   g_pm_state              = PM_STATE_SILENT;
+/** @brief 拒绝进入低功耗的日志去抖时间戳（每 5 秒最多一条） */
+static uint32_t     s_block_log_ms;
+/** @brief 软阻止（CAT1 待发）等待窗口起点，0=未开始 */
+static uint32_t     s_cat1_wait_start_ms;
+/** @brief 本次数据积压是否已放行过一次低功耗 */
+static uint8_t      s_cat1_wait_granted;
 
 /** @brief 最后一次业务活动发生的时间戳（app_now_ms 值） */
 static uint32_t     g_pm_last_activity_ms   = 0U;
@@ -291,17 +297,100 @@ pm_state_t pm_state_get(void)
  * @note   此函数会先执行旧状态的退出操作，再执行新状态的进入操作。
  *         如果新旧状态相同则直接返回（幂等）。
  */
+/**
+ * @brief  拒绝进入低功耗时，指出真正卡住的那个条件
+ * @note   守卫条件有 6 个，原来日志统一写"OTA/UPG/IR busy"，现场无法判断到底是谁，
+ *         无网时被误判成 OTA 会话导致排查方向错误。
+ */
+static const char *pm_block_reason(void)
+{
+    if (udp_ota_session_busy() != 0u) {
+        return "OTA session";
+    }
+    if (upg_session_busy()) {
+        return "UPG session";
+    }
+    if (task_keyscan_ir_busy()) {
+        return "IR timing";
+    }
+    if (g_audio_pcm_enabled) {
+        return "voice PCM";
+    }
+    if (rc_cat1_has_work()) {
+        return "CAT1 pending work";
+    }
+    if (heartbeat_needs_cat1_poll()) {
+        return "heartbeat";
+    }
+    return "unknown";
+}
+
+/** @brief 硬阻止：正在干活，打断会出错，必须无条件拒绝低功耗 */
+static bool pm_hard_blocked(void)
+{
+    return (udp_ota_session_busy() != 0u) || upg_session_busy()
+        || task_keyscan_ir_busy() || (g_audio_pcm_enabled != 0);
+}
+
+/** @brief 软阻止：有数据想上报，可以等一会儿，但不能无限等 */
+static bool pm_soft_blocked(void)
+{
+    return rc_cat1_has_work() || heartbeat_needs_cat1_poll();
+}
+
+/**
+ * @brief  低功耗守卫
+ * @return true 允许进入待机/休眠
+ * @note   软阻止有 PM_CAT1_WAIT_BEFORE_SLEEP_MS 上限：4G 无网导致队列永远清不空时，
+ *         等满窗口就放行，数据留在队列里下次再发，避免电池被活活耗光。
+ */
+static bool pm_allow_low_power(void)
+{
+    uint32_t now;
+
+    if (pm_hard_blocked()) {
+        return false;
+    }
+    if (!pm_soft_blocked()) {
+        s_cat1_wait_start_ms = 0u;
+        s_cat1_wait_granted = 0u;
+        return true;
+    }
+    if (s_cat1_wait_granted != 0u) {
+        return true;              /* 本次数据积压已放行过一次 */
+    }
+    now = app_now_ms();
+    if (now == 0u) {
+        now = 1u;                 /* 0 保留给"未开始计时" */
+    }
+    if (s_cat1_wait_start_ms == 0u) {
+        s_cat1_wait_start_ms = now;
+        return false;
+    }
+    if ((uint32_t)(now - s_cat1_wait_start_ms) >= PM_CAT1_WAIT_BEFORE_SLEEP_MS) {
+        s_cat1_wait_granted = 1u; /* 记一次放行，避免下一轮重新计 60 秒 */
+        PM_LOG("CAT1 pending, waited %u ms, allow low power",
+               (unsigned)PM_CAT1_WAIT_BEFORE_SLEEP_MS);
+        return true;
+    }
+    return false;
+}
+
 void pm_state_transition(pm_state_t new_state)
 {
     pm_state_t old_state = g_pm_state;
 
-    /* OTA/键值下载会话期间禁止进入待机/休眠（combo/工厂复位等可能绕过 process 直接 transition） */
-    if ((udp_ota_session_busy() != 0u || upg_session_busy() || task_keyscan_ir_busy() ||
-         g_audio_pcm_enabled ||
-         rc_cat1_has_work() || heartbeat_needs_cat1_poll())
-        && (new_state == PM_STATE_STANDBY || new_state == PM_STATE_SLEEP)) {
-        PM_LOG("OTA/UPG/IR busy, reject transition to %s",
-               pm_state_name(new_state));
+    /* OTA/键值下载/红外/语音期间禁止进入待机/休眠（combo/工厂复位等可能绕过 process 直接 transition） */
+    if ((new_state == PM_STATE_STANDBY || new_state == PM_STATE_SLEEP)
+        && !pm_allow_low_power()) {
+        /* 去抖：pm_state_process 每 ~10ms 重试一次，此处最多 5 秒打一条，
+         * 否则无网/待发数据长期存在时会把串口刷爆 */
+        uint32_t now = app_now_ms();
+
+        if ((uint32_t)(now - s_block_log_ms) >= 5000u) {
+            s_block_log_ms = now;
+            PM_LOG("reject %s: %s", pm_state_name(new_state), pm_block_reason());
+        }
         return;
     }
 
@@ -464,18 +553,15 @@ void pm_state_process(void)
             {
                 uint32_t now_ms = app_now_ms();
                 if ((now_ms - g_pm_silent_start_ms) >= PM_SILENT_TO_SLEEP_MS) {
-                    co_printf("SILENT timeout %lu ms -> SLEEP",
-                              (unsigned long)(now_ms - g_pm_silent_start_ms));
                     pm_state_transition(PM_STATE_SLEEP);
                 }
             }
             break;
 
         case PM_STATE_WORKING:
-            /* 检查工作态 → 待机态超时 */
+            /* 检查工作态 → 待机态超时；每轮都会重试，成功/拒绝统一由 transition 打印 */
             idle_ms = pm_idle_duration_ms();
             if (idle_ms >= PM_WORK_TO_STANDBY_MS) {
-                co_printf("WORKING idle %lu ms timeout -> STANDBY", idle_ms);
                 pm_state_transition(PM_STATE_STANDBY);
             }
             break;
@@ -484,7 +570,6 @@ void pm_state_process(void)
             /* 检查待机态 → 休眠态超时 */
             idle_ms = pm_idle_duration_ms();
             if (idle_ms >= PM_STANDBY_TO_SLEEP_MS) {
-                co_printf("STANDBY idle %lu ms timeout -> SLEEP", idle_ms);
                 pm_state_transition(PM_STATE_SLEEP);
             }
             break;
@@ -494,8 +579,6 @@ void pm_state_process(void)
             {
                 uint32_t now_ms = app_now_ms();
                 if ((now_ms - g_pm_reconnect_start_ms) >= PM_RECONNECT_TIMEOUT_MS) {
-                    co_printf("RECONNECT timeout %lu ms -> SLEEP",
-                              (unsigned long)(now_ms - g_pm_reconnect_start_ms));
                     pm_state_transition(PM_STATE_SLEEP);
                 }
             }
@@ -506,8 +589,6 @@ void pm_state_process(void)
             {
                 uint32_t now_ms = app_now_ms();
                 if ((now_ms - g_pm_pairing_start_ms) >= PM_PAIRING_TIMEOUT_MS) {
-                    co_printf("PAIRING timeout %lu ms -> SLEEP",
-                              (unsigned long)(now_ms - g_pm_pairing_start_ms));
                     pm_state_transition(PM_STATE_SLEEP);
                 }
             }
