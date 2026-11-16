@@ -21,3 +21,9 @@ ble.bin
 *.lst
 *.rpt
 *.htm
+# bootloader project build outputs (ASCII only: .gitignore mixes encodings)
+prj/Objects/
+prj/Listings/
+*.lnp
+*.iex
+boot_build.log
