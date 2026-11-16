@@ -120,6 +120,53 @@ def cmd_write(type_name, pack_len, payload_hex):
     print("   收 : FA1600")
 
 
+def build_etv_demo():
+    """造一份符合表 E.24 的红外基础信息文件（PW 编码，单协议表，3 个按键）。
+
+    参数取自附录 I 的 PW 示例：38kHz/1:3、unit 560、0=560/560、1=560/1680、
+    header 9000/4500、burst 567/40117。按键给 3 个，码值各不相同便于分辨。
+    """
+    table = bytes([
+        0x01,               # enc = PW
+        0x02, 0x30,         # unit 560
+        0x00,               # has_start
+        0x00,               # has_toggle_bit
+        0x20,               # data_bit_num 32
+        0x00,               # header2_pos
+        0x01,               # col_num 1
+    ]) + b"".join(v.to_bytes(2, "big") for v in (
+        560, 560,           # b0 0/1
+        560, 1680,          # b1 0/1
+        0, 0,               # b2
+        0, 0,               # b3
+        9000, 4500,         # header
+        0, 0,               # header2
+    )) + bytes([
+        0x20,               # bit_num 32
+        0x00,               # ref_col_index 0
+        0x01,               # has_header 1
+    ]) + b"".join(v.to_bytes(2, "big") for v in (567, 40117))   # burst
+
+    keys = b""
+    for key_id, code in ((3, 0x10), (10, 0x11), (18, 0x12)):
+        keys += key_id.to_bytes(2, "big") + bytes([0x00]) + code.to_bytes(8, "little")
+
+    body = table + keys
+    hdr = (b"ETV\0" + (1).to_bytes(2, "big") + bytes(6)
+           + (1).to_bytes(4, "big") + (28 + len(body)).to_bytes(4, "big")
+           + bytes([0x32, 0x01, 0x01, 0x01]) + (3).to_bytes(2, "big") + bytes(2))
+    return hdr + body
+
+
+def cmd_etv(type_name):
+    """生成演示 ETV 文件并打印整段写入流程的帧。"""
+    blob = build_etv_demo()
+    print(f"演示 ETV 文件 {len(blob)} 字节，含按键 key_id=3/10/18"
+          f"（按键 3 对应物理 KEY3「电视」，key_id 按物理键号占位）")
+    print("码值：key_id=3 → 0x10、10 → 0x11、18 → 0x12（NEC 风格，便于用学习机/示波器分辨）\n")
+    cmd_write(type_name, 128, blob.hex())
+
+
 def main(argv):
     if len(argv) < 2:
         print(__doc__)
@@ -135,6 +182,8 @@ def main(argv):
         cmd_write(argv[2] if len(argv) > 2 else "irstb",
                   argv[3] if len(argv) > 3 else 64,
                   argv[4] if len(argv) > 4 else "")
+    elif what == "etv":
+        cmd_etv(argv[2] if len(argv) > 2 else "irstb")
     else:
         print(__doc__)
         return 1
