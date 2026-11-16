@@ -7,6 +7,7 @@
 #include "ble_upg_svc.h"
 #include "upg_proto.h"
 #include "upg_session.h"
+#include "pm_state.h"       /* pm_activity_notify — 对端数据下发，退出待机 */
 #include "gatt.h"
 #include "gap.h"
 #include "co_printf.h"
@@ -49,6 +50,8 @@ static void upg_chr_cbk(gatt_event_t event, void *context, void *param)
             }
             return;
         }
+        /* 对端（APP）下发数据 → 刷新空闲计时并退出待机，与 HID OUT 写入同一处理 */
+        pm_activity_notify(PM_ACTIVITY_PEER_DATA);
         if (!upg_session_begin()) {
             if (event == GATTS_EV_CHR_VALUE_WRITE_REQ) {
                 gatts_chr_val_write_rsp(in->peer, in->chr, GATT_RES_WRITE_NOT_PERMITTED);
@@ -77,6 +80,8 @@ static void upg_chr_cbk(gatt_event_t event, void *context, void *param)
         upg_ws_t *ws;
 
         co_printf("[UPG ] send start type=%d\r\n", (int)in->type);
+        /* 订阅动作也属于对端交互：立即退出待机，否则待机分支不会推进协议状态机 */
+        pm_activity_notify(PM_ACTIVITY_PEER_DATA);
         if (!upg_session_begin()) {
             return;
         }

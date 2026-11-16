@@ -19,7 +19,6 @@
 #include "heartbeat.h"      /* 服务器心跳 — 工作/待机循环检查 */
 #include "ble_bas.h"
 #include "upg_proto.h"      /* 键值下载协议状态机（独占会话内运行） */
-#include "upg_session.h"    /* upg_session_busy() — 会话期间不在待机分支停留 */
 #include "bat_adc.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -110,16 +109,6 @@ void task_ble_entry(void *pvParameters)
         IWDG_ReloadKey();
 		cs_schedule();
 		ble_gap_process_disconnect_pending();
-
-		/*
-		 * 键值下载会话是在 GATT 回调里建立的（CCCD 订阅），而待机分支不跑
-		 * upg_proto_poll()，会让会话卡住、认证帧发不出去。此处发现会话即唤醒。
-		 */
-		if (upg_session_busy()) {
-			pm_activity_notify(PM_ACTIVITY_KEY);
-			continue;
-		}
-
 		if (key_receive || app_keyscan_any_pressed())
 		{ pm_activity_notify(PM_ACTIVITY_KEY); continue; }
 
