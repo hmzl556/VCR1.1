@@ -80,8 +80,12 @@ upg_store_type_t upg_store_type_of(const uint8_t *field8)
 
 bool upg_store_type_writable(upg_store_type_t t)
 {
-    /* fw01 是固件包，走既有 UDP OTA；本通道只处理键值与信息段 */
-    return (t < UPG_ST_NUM) && (t != UPG_ST_FW01);
+    /* fw01 是固件包，走既有 UDP OTA；bletv 不实现——电视机只走红外，
+     * 本机不与电视机建立任何蓝牙连接（产品范围，见 docs/待客户确认事项.md D1） */
+    if (t >= UPG_ST_NUM) {
+        return false;
+    }
+    return (t != UPG_ST_FW01) && (t != UPG_ST_BLETV);
 }
 
 static uint32_t sec_base(uint8_t idx)
@@ -449,6 +453,30 @@ bool upg_store_has(upg_store_type_t type)
     uint16_t crc;
 
     return find_best(type, &pay, &len, &crc);
+}
+
+uint16_t upg_store_size(upg_store_type_t type)
+{
+    uint32_t pay;
+    uint16_t len;
+    uint16_t crc;
+
+    return find_best(type, &pay, &len, &crc) ? len : 0u;
+}
+
+bool upg_store_read_at(upg_store_type_t type, uint16_t off, uint8_t *buf, uint16_t len)
+{
+    uint32_t pay;
+    uint16_t total;
+    uint16_t crc;
+
+    if (buf == NULL || len == 0u || !find_best(type, &pay, &total, &crc)) {
+        return false;
+    }
+    if ((uint32_t)off + len > total) {
+        return false;
+    }
+    return flash_read_span(pay + off, buf, len);
 }
 
 bool upg_store_erase_all(void)

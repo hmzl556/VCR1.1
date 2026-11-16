@@ -81,6 +81,19 @@ void upg_store_abort(upg_store_wr_t *w);
  */
 uint16_t upg_store_load(upg_store_type_t type, uint8_t *buf, uint16_t cap);
 
+/**
+ * @brief 从记录里按偏移读一段（不整块载入，供流式解析用）
+ * @param type  数据类型
+ * @param off   payload 内的偏移
+ * @param buf   输出缓冲
+ * @param len   读取长度
+ * @return true 成功且完全在记录范围内
+ */
+bool upg_store_read_at(upg_store_type_t type, uint16_t off, uint8_t *buf, uint16_t len);
+
+/** @brief 记录 payload 长度；0 表示无记录 */
+uint16_t upg_store_size(upg_store_type_t type);
+
 /** @brief 该类型记录是否存在且 CRC 正确 */
 bool upg_store_has(upg_store_type_t type);
 

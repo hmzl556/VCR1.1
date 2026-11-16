@@ -888,6 +888,11 @@
               <FileType>1</FileType>
               <FilePath>..\cat1\cat1\UPG\upg_store.c</FilePath>
             </File>
+            <File>
+              <FileName>etv.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\UPG\etv.c</FilePath>
+            </File>
           </Files>
         </Group>
       </Groups>

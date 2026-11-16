@@ -12,6 +12,7 @@
 #include "upg_session.c"
 #include "upg_proto.c"
 #include "upg_store.c"
+#include "etv.c"
 
 /* ---------------- 桩：时间 ---------------- */
 static uint32_t s_now;
@@ -279,6 +280,261 @@ static void run_write(const char *tag, const uint8_t *data, uint16_t dlen,
     assert(s_cap_len[0] == 5u);
 }
 
+/* ================= P3.1：ETV 解析（自造规范文件） ================= */
+
+static void put16(uint8_t *p, uint16_t v)
+{
+    p[0] = (uint8_t)(v >> 8);
+    p[1] = (uint8_t)(v & 0xFFu);
+}
+
+static void put32(uint8_t *p, uint32_t v)
+{
+    p[0] = (uint8_t)(v >> 24);
+    p[1] = (uint8_t)(v >> 16);
+    p[2] = (uint8_t)(v >> 8);
+    p[3] = (uint8_t)v;
+}
+
+/** @brief 按表 E.24 造一个 PW 编码文件：1 个协议表（col_num=1）+ 3 个按键
+ *  字段取值照抄附录 I 表 I.1 的 PW 示例，便于与规格书逐字段对齐 */
+static uint16_t build_etv_pw(uint8_t *buf, uint16_t cap)
+{
+    uint16_t o = 0u;
+    uint16_t start;
+    uint16_t end;
+
+    memset(buf, 0, cap);
+    /* ---- 文件头 28B ---- */
+    buf[o++] = 'E'; buf[o++] = 'T'; buf[o++] = 'V'; buf[o++] = 0u;
+    put16(buf + o, 0x0001u); o += 2;              /* spec_version */
+    o += 6;                                        /* reserved */
+    put32(buf + o, 1u); o += 4;                    /* file_version */
+    start = o;                                     /* file_size 稍后回填 */
+    o += 4;
+    buf[o++] = 0x32u;                              /* ratio_freq: 38kHz + 1/3 */
+    buf[o++] = 0x01u;                              /* data_set_flag：无映射表/无扩展 */
+    buf[o++] = 0x01u;                              /* scale */
+    buf[o++] = 0x01u;                              /* table_num = 1 */
+    put16(buf + o, 3u); o += 2;                    /* key_num = 3 */
+    buf[o++] = 0x00u;                              /* repeat_mode */
+    buf[o++] = 0x00u;                              /* reserved */
+
+    /* ---- 协议表 0（列数 1 → 39B）---- */
+    buf[o++] = 0x01u;                              /* enc = PW */
+    put16(buf + o, 560u); o += 2;                  /* unit */
+    buf[o++] = 0x00u;                              /* has_start */
+    buf[o++] = 0x00u;                              /* has_toggle_bit */
+    buf[o++] = 0x20u;                              /* data_bit_num = 32 */
+    buf[o++] = 0x00u;                              /* header2_pos */
+    buf[o++] = 0x01u;                              /* col_num = 1 */
+    put16(buf + o, 560u);  o += 2;                 /* b0[0] */
+    put16(buf + o, 560u);  o += 2;                 /* b0[1] */
+    put16(buf + o, 560u);  o += 2;                 /* b1[0] */
+    put16(buf + o, 1680u); o += 2;                 /* b1[1] */
+    put16(buf + o, 0u);    o += 2;                 /* b2[0] */
+    put16(buf + o, 0u);    o += 2;                 /* b2[1] */
+    put16(buf + o, 0u);    o += 2;                 /* b3[0] */
+    put16(buf + o, 0u);    o += 2;                 /* b3[1] */
+    put16(buf + o, 9000u); o += 2;                 /* header[0] */
+    put16(buf + o, 4500u); o += 2;                 /* header[1] */
+    put16(buf + o, 0u);    o += 2;                 /* header2[0] */
+    put16(buf + o, 0u);    o += 2;                 /* header2[1] */
+    buf[o++] = 0x20u;                              /* bit_num = 32 */
+    buf[o++] = 0x00u;                              /* ref_col_index = 0 */
+    buf[o++] = 0x01u;                              /* has_header = 1 */
+    put16(buf + o, 567u);  o += 2;                 /* burst[0] */
+    put16(buf + o, 40117u); o += 2;                /* burst[1] */
+
+    /* ---- 按键 3 条，每条 11B ---- */
+    put16(buf + o, 7u); o += 2;                    /* key_id 7 */
+    buf[o++] = 0u;                                 /* table_index 0 */
+    buf[o++] = 0x01u; buf[o++] = 0xFDu;
+    buf[o++] = 0x87u; buf[o++] = 0x78u;
+    o += 4;
+
+    put16(buf + o, 8u); o += 2;                    /* key_id 8 */
+    buf[o++] = 0u;
+    buf[o++] = 0x01u; buf[o++] = 0xFDu;
+    buf[o++] = 0x92u; buf[o++] = 0x6Du;
+    o += 4;
+
+    put16(buf + o, 1002u); o += 2;                 /* 重复码 key_id = 1002 */
+    buf[o++] = 0u;
+    buf[o++] = 0x00u; buf[o++] = 0x00u;
+    buf[o++] = 0x00u; buf[o++] = 0x00u;
+    o += 4;
+
+    end = o;
+    put32(buf + start, end);                       /* file_size 回填实际长度 */
+    return end;
+}
+
+/** @brief 把字节流写成一条 irtv 记录（走真实 store 落盘路径） */
+static void store_blob(upg_store_type_t type, const uint8_t *blob, uint16_t len)
+{
+    upg_store_wr_t w;
+    uint32_t addr = 0u;
+
+    memset(&w, 0, sizeof(w));
+    assert(upg_store_begin(&w, type, len, &addr));
+    assert(upg_store_write(&w, blob, len));
+    assert(upg_store_commit(&w, upg_crc16(blob, len, 0u)));
+}
+
+static void etv_case(void)
+{
+    uint8_t blob[256];
+    uint16_t n;
+    etv_file_t f;
+    etv_table_t t;
+    etv_key_t k;
+
+    n = build_etv_pw(blob, sizeof(blob));
+    /* 28（文件头）+ 39（单表 col_num=1）+ 3×11（按键） */
+    assert(n == 100u);
+    store_blob(UPG_ST_IRTV, blob, n);
+
+    /* 打开：解析文件头并算出两张表的位置 */
+    assert(etv_open(&f, UPG_ST_IRTV));
+    assert(f.table_num == 1u);
+    assert(f.key_num == 3u);
+    assert(f.table_off == 28u);
+    assert(f.key_off == 67u);            /* 28 + 39 */
+    assert(f.len == 100u);
+    assert(f.scale == 1u);
+    assert(f.repeat_mode == 0u);
+    assert(etv_carrier_hz(f.ratio_freq) == 38000u);
+    assert(etv_duty_percent(f.ratio_freq) == 33u);
+
+    /* 协议表：逐字段与附录 I 表 I.1 对齐 */
+    assert(etv_read_table(&f, 0u, &t));
+    assert(t.enc == 1u && t.col_num == 1u);
+    assert(t.unit == 560u);
+    assert(t.data_bit_num == 32u && t.bit_num == 32u);
+    assert(t.b0[0] == 560u && t.b0[1] == 560u);
+    assert(t.b1[0] == 560u && t.b1[1] == 1680u);   /* 0 与 1 的差别在低电平时长 */
+    assert(t.b2[0] == 0u && t.b2[1] == 0u);
+    assert(t.b3[0] == 0u && t.b3[1] == 0u);
+    assert(t.header[0] == 9000u && t.header[1] == 4500u);
+    assert(t.header2[0] == 0u && t.header2[1] == 0u);
+    assert(t.has_header == 1u && t.ref_col_index == 0u);
+    assert(t.burst[0] == 567u && t.burst[1] == 40117u);
+    assert(etv_read_table(&f, 1u, &t) == false);    /* 越界索引 */
+
+    /* 按键查询 */
+    assert(etv_find_key(&f, 7u, &k));
+    assert(k.table_index == 0u);
+    assert(k.value[0] == 0x01u && k.value[1] == 0xFDu
+           && k.value[2] == 0x87u && k.value[3] == 0x78u);
+    assert(k.value[4] == 0u && k.value[7] == 0u);
+    assert(etv_find_key(&f, 8u, &k));
+    assert(k.value[2] == 0x92u && k.value[3] == 0x6Du);
+    assert(etv_find_key(&f, 1002u, &k));            /* 重复码独立 key_id */
+    assert(etv_find_key(&f, 999u, &k) == false);    /* 不存在的按键 */
+
+    /* 没下载记录 / tag 不对，都要安全拒绝 */
+    assert(etv_open(&f, UPG_ST_BLETV) == false);
+    blob[0] = 'X';
+    store_blob(UPG_ST_IRTV, blob, n);
+    assert(etv_open(&f, UPG_ST_IRTV) == false);
+
+    /* D1：电视机只走红外，不建立任何蓝牙连接 → bletv 写入必须被拒（F2） */
+    assert(upg_store_type_writable(UPG_ST_IRSTB));
+    assert(upg_store_type_writable(UPG_ST_IRTV));
+    assert(upg_store_type_writable(UPG_ST_BLESTB));
+    assert(upg_store_type_writable(UPG_ST_BLETV) == false);
+    assert(upg_store_type_writable(UPG_ST_FW01) == false);
+    {
+        uint8_t req[19];
+
+        s_cap_n = 0u;
+        build_write_start(req, 64u, "bletv", 64u);
+        deliver(req, 19u);
+        assert(s_cap_n == 1u);
+        assert(s_cap[0][1] == 0x12u && s_cap[0][2] == 0xF2u);
+    }
+}
+
+/* ---------------- P3.2：PW / BP → 波形 ---------------- */
+
+static void encode_case(void)
+{
+    etv_file_t f;
+    etv_table_t t;
+    etv_key_t k;
+    uint16_t w[300];
+    uint16_t n;
+
+    /* --- PW：key_id=7，value = 01 FD 87 78，bit_num 32，scale 1 --- */
+    memset(&t, 0, sizeof(t));
+    t.enc = 1u;
+    t.has_header = 1u;
+    t.data_bit_num = 32u;
+    t.bit_num = 32u;
+    t.b0[0] = 560u;  t.b0[1] = 560u;
+    t.b1[0] = 560u;  t.b1[1] = 1680u;
+    t.header[0] = 9000u; t.header[1] = 4500u;
+    t.burst[0] = 567u;   t.burst[1] = 40117u;
+    memset(&k, 0, sizeof(k));
+    k.value[0] = 0x01u; k.value[1] = 0xFDu;
+    k.value[2] = 0x87u; k.value[3] = 0x78u;
+
+    assert(etv_encode(&t, &k, 1u, w, sizeof(w) / sizeof(w[0]), &n));
+    /* 引导 2 + 32 位 × 2 + 结束 2 = 68 条，偶数 */
+    assert(n == 68u);
+    assert(w[0] == 9000u && w[1] == 4500u);
+    assert(w[n - 2u] == 567u && w[n - 1u] == 40117u);
+    /* value[0]=0x01，低字节低位先发 → 第 1 位是 1 → b1（560/1680） */
+    assert(w[2] == 560u && w[3] == 1680u);
+    /* 第 2 位是 0 → b0（560/560） */
+    assert(w[4] == 560u && w[5] == 560u);
+    /* 32 位里 value[0] 只有最低位为 1，其余 7 位为 0：
+     * 第 8 位（value[1]=0xFD 的最低位）为 1 → 索引 2+2*8 */
+    assert(w[2u + 16u] == 560u && w[2u + 17u] == 1680u);
+
+    /* --- PW：b2/b3 非 0 → 2 bit/符号（00/01/10/11） --- */
+    t.b2[0] = 340u; t.b2[1] = 340u;
+    t.b3[0] = 340u; t.b3[1] = 1020u;
+    assert(etv_encode(&t, &k, 1u, w, sizeof(w) / sizeof(w[0]), &n));
+    assert(n == 2u + 32u + 2u);          /* 32 位 ÷ 2 = 16 符号 × 2 */
+    assert(w[2] == 560u && w[3] == 1680u);   /* 低 2 位 = 01 → b1 */
+
+    /* --- BP：1→1P1S，0→0S0P，toggle 第 4 位翻倍 --- */
+    memset(&t, 0, sizeof(t));
+    t.enc = 2u;
+    t.has_header = 1u;
+    t.has_toggle_bit = 1u;
+    t.unit = 446u;
+    t.data_bit_num = 8u;
+    t.bit_num = 8u;
+    t.header[0] = 2650u; t.header[1] = 880u;
+    t.burst[0] = 65534u; t.burst[1] = 0u;   /* 规范：只有 burst[0] 时是低电平 */
+    memset(&k, 0, sizeof(k));
+    k.value[0] = 0x0Fu;                     /* 低字节低位 → 1111 0000 */
+
+    assert(etv_encode(&t, &k, 1u, w, sizeof(w) / sizeof(w[0]), &n));
+    assert((n & 1u) == 0u);
+    assert(w[0] == 2650u && w[1] == 880u);
+    /* 前 4 位是 1 → 每组 1P1S，相邻不同电平不合并：446/446/446/446… */
+    assert(w[2] == 446u && w[3] == 446u && w[4] == 446u && w[5] == 446u);
+    /* 第 5 位（索引 4）是 1 且 has_toggle_bit → 时长翻倍 */
+    assert(w[10] == 892u || w[11] == 892u || w[12] == 892u || w[13] == 892u);
+    /* 结尾 burst 是一段长 space：与最后一位的 space 合并后接近 65 ms */
+    assert(w[n - 1u] >= 60000u);
+    assert((n & 1u) == 0u);
+
+    /* --- 容量不足必须安全失败 --- */
+    assert(etv_encode(&t, &k, 1u, w, 8u, &n) == false);
+
+    /* --- 载波周期：38 kHz → 1684 tick（与学习通路实测一致） --- */
+    assert(etv_period_ticks(38000u) == 1684u);
+    assert(etv_period_ticks(36000u) == 1778u);
+
+    /* etv_open 的返回值用于确认"文件仍然有效"，避免编译告警 */
+    (void)f;
+}
+
 static void write_case(void)
 {
 
@@ -469,10 +725,17 @@ int main(void)
     /* ================= P2：写入链路 + A/B 覆盖层 ================= */
     write_case();
 
+    /* ================= P3.1：ETV 解析 ================= */
+    etv_case();
+
+    /* ================= P3.2：PW/BP 波形 ================= */
+    encode_case();
+
     puts("UPG flow: subscribe->auth 52B, rel0 total=40 + 44B packet + terminator, "
          "usr1 total=72 with body len 68, retry keeps seq, irtv->F2, "
          "disconnect restores adv, OTA takeover keeps adv untouched, "
          "read after idle timeout still delivers, "
-         "write irstb commit + crc reject + A/B rotate PASS");
+         "write irstb commit + crc reject + A/B rotate, "
+         "flag persist, ETV parse (header/table/key/carrier), encode PW/BP waveform PASS");
     return 0;
 }
