@@ -28,7 +28,7 @@
 #define UPG_AUTH_STATUS_FAIL    0x02u
 
 /** @brief 取会话态；未在会话中返回 NULL */
-static upg_state_t *st(void)
+static upg_state_t *auth_st(void)
 {
     upg_ws_t *ws = upg_ws();
 
@@ -37,7 +37,7 @@ static upg_state_t *st(void)
 
 void upg_auth_rand(uint8_t *out, uint16_t len)
 {
-    upg_state_t *s = st();
+    upg_state_t *s = auth_st();
     uint16_t i;
 
     if (s == NULL || out == NULL) {
@@ -60,7 +60,7 @@ void upg_auth_rand(uint8_t *out, uint16_t len)
 
 void upg_auth_reset(void)
 {
-    upg_state_t *s = st();
+    upg_state_t *s = auth_st();
 
     if (s != NULL) {
         s->auth_state = (uint8_t)UPG_AUTH_IDLE;
@@ -73,7 +73,7 @@ void upg_auth_reset(void)
 static void auth_hash(const uint8_t *rand, uint8_t out[16])
 {
     upg_md5_ctx_t ctx;
-    upg_state_t *s = st();
+    upg_state_t *s = auth_st();
     uint8_t key[UPG_KEY_LEN];
     uint8_t idcode[UPG_IDCODE_LEN];
     uint8_t idx = (s != NULL) ? s->key_index : 0u;
@@ -92,7 +92,7 @@ static void auth_hash(const uint8_t *rand, uint8_t out[16])
 
 uint16_t upg_auth_start(uint8_t *out, uint16_t cap)
 {
-    upg_state_t *s = st();
+    upg_state_t *s = auth_st();
     uint8_t idcode[UPG_IDCODE_LEN];
     uint8_t rand1[16];
 
@@ -117,7 +117,7 @@ uint16_t upg_auth_start(uint8_t *out, uint16_t cap)
 
 uint16_t upg_auth_on_host_hash(const uint8_t *hash, uint16_t len, uint8_t *out, uint16_t cap)
 {
-    upg_state_t *s = st();
+    upg_state_t *s = auth_st();
     uint8_t diff = 0u;
     uint16_t i;
 
@@ -147,7 +147,7 @@ uint16_t upg_auth_on_host_hash(const uint8_t *hash, uint16_t len, uint8_t *out, 
 
 uint16_t upg_auth_on_rc_request(const uint8_t *frame, uint16_t len, uint8_t *out, uint16_t cap)
 {
-    upg_state_t *s = st();
+    upg_state_t *s = auth_st();
     uint8_t status;
 
     if (s == NULL || frame == NULL || len < 3u) {
@@ -182,14 +182,14 @@ uint16_t upg_auth_on_rc_request(const uint8_t *frame, uint16_t len, uint8_t *out
 
 upg_auth_state_t upg_auth_state(void)
 {
-    upg_state_t *s = st();
+    upg_state_t *s = auth_st();
 
     return (s != NULL) ? (upg_auth_state_t)s->auth_state : UPG_AUTH_IDLE;
 }
 
 bool upg_auth_is_done(void)
 {
-    upg_state_t *s = st();
+    upg_state_t *s = auth_st();
 
     return (s != NULL) && (s->auth_state == (uint8_t)UPG_AUTH_DONE);
 }

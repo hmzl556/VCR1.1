@@ -24,4 +24,10 @@ int ble_upg_svc_init(void);
  */
 bool ble_upg_notify(const uint8_t *buf, uint16_t len);
 
+/**
+ * @brief  断链处理：清订阅缓存
+ * @note   订阅状态不能放在借来的会话工作区（会话重建会清零），故由本模块持有
+ */
+void ble_upg_on_link_lost(void);
+
 #endif /* _BLE_UPG_SVC_H_ */

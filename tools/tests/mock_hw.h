@@ -71,6 +71,9 @@ static IRC_Module irc;
 static uint32_t now_ms, ota_busy;
 static uint32_t app_now_ms(void){return now_ms;}
 static uint32_t udp_ota_session_busy(void){return ota_busy;}
+/* 键值下载会话：默认未激活，用例可通过 upg_busy_mock 置位 */
+static uint8_t upg_busy_mock;
+static bool upg_session_busy(void){return upg_busy_mock != 0u;}
 static void RCC_EnableAPB1PeriphClk(unsigned a,unsigned b){(void)a;(void)b;}
 static void RCC_EnableAPB2PeriphClk(unsigned a,unsigned b){(void)a;(void)b;}
 static void GPIO_InitStruct(GPIO_InitType *p){memset(p,0,sizeof(*p));}

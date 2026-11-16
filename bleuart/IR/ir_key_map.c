@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include "co_printf.h"
 #include "udp_ota.h"
+#include "upg_session.h"   /* upg_session_busy — 键值下载会话期间禁止红外发送 */
 #define TX_CAPACITY 4u
 #define TX_NEC 0u
 #define TX_RC6 1u
@@ -66,7 +67,8 @@ uint8_t ir_user_for_key(uint8_t key)
 static bool enqueue(uint8_t user, uint8_t cmd, uint8_t key, uint8_t kind)
 {
     uint8_t i;
-    if (s_count == TX_CAPACITY || ir_learn_is_active() || udp_ota_session_busy()) return false;
+    if (s_count == TX_CAPACITY || ir_learn_is_active() || udp_ota_session_busy() ||
+        upg_session_busy()) return false;
     i = (uint8_t)((s_head + s_count) % TX_CAPACITY);
     s_queue[i].user = user; s_queue[i].cmd = cmd;
     s_queue[i].key = key; s_queue[i].kind = kind;
@@ -104,7 +106,7 @@ void ir_tx_process(void)
     bool rc6_busy = ir_rc6_is_busy();
     tx_t *item;
     bool started;
-    if (udp_ota_session_busy()) { ir_tx_cancel(); return; }
+    if (udp_ota_session_busy() || upg_session_busy()) { ir_tx_cancel(); return; }
     if (!s_count || nec_busy || rc6_busy || ir_learn_is_active() ||
         (s_sent && now - s_tx_ms < s_repeat_interval)) return;
     item = &s_queue[s_head];
@@ -128,7 +130,8 @@ void ir_tx_process(void)
 void ir_tx_repeat(uint8_t key)
 {
     uint32_t now = app_now_ms();
-    if (!key || key != s_repeat_key || s_count || ir_learn_is_active() || udp_ota_session_busy() ||
+    if (!key || key != s_repeat_key || s_count || ir_learn_is_active() ||
+        udp_ota_session_busy() || upg_session_busy() ||
         now - s_tx_ms < s_repeat_interval || irc_is_busy() || ir_rc6_is_busy()) return;
     if(s_repeat_kind==TX_RAW){if(!send_learned(key,true,s_repeat_frame))return;}
     else if (s_repeat_kind == TX_RC6) {

@@ -25,7 +25,6 @@ typedef struct {
     uint16_t rd_len;           /**< 待上行发送总长 */
     uint16_t rd_off;           /**< 已发送长度 */
     uint8_t  hash1[16];        /**< 本端计算的 rand1 摘要 */
-    void    *peer;             /**< 当前对端句柄（peer_t） */
     uint8_t  reading;          /**< 正在分包发送读结果 */
     uint8_t  pack_len;         /**< 请求的每包长度 16/32/64/128 */
     uint8_t  seq;              /**< 上行包序号 */
@@ -33,7 +32,6 @@ typedef struct {
     uint8_t  cfg_has;          /**< 是否收到过 0x22 */
     uint8_t  auth_state;       /**< upg_auth_state_t */
     uint8_t  key_index;        /**< 认证密钥索引 */
-    uint8_t  cccd_on;          /**< 通知订阅状态 */
     uint8_t  entered;          /**< 独占资源已获取（在任务上下文完成） */
     uint8_t  auth_pending;     /**< 待发起认证（由任务发送，避免在 CCCD 回调中发通知） */
 } upg_state_t;

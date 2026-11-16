@@ -40,7 +40,7 @@ void upg_proto_init(void)
 }
 
 /** @brief 取会话态；未在会话中返回 NULL */
-static upg_state_t *st(void)
+static upg_state_t *proto_st(void)
 {
     upg_ws_t *ws = upg_ws();
 
@@ -189,7 +189,8 @@ static void on_read_start(const uint8_t *f, uint16_t len)
     co_printf("[UPG ] read ready, total=%u pack=%u\r\n", (unsigned)total, (unsigned)pack);
 }
 
-/** @brief 分包发送读结果；发完补一帧终止数据传输（FA 14 00 00） */
+/** @brief 分包发送读结果；发完补一帧终止数据传输（FA 14 00 00）
+ *  @note  发送失败时不推进偏移，下一轮重试，避免丢包。 */
 static void poll_read(void)
 {
     upg_ws_t *ws = upg_ws();
@@ -210,13 +211,16 @@ static void poll_read(void)
         }
         out[0] = UPG_CMD_RC;
         out[1] = UPG_OP_WRITE_DATA;
-        out[2] = ws->st.seq++;
+        out[2] = ws->st.seq;
         out[3] = (uint8_t)chunk;
         for (i = 0u; i < chunk; ++i) {
             out[4u + i] = ws->scratch[ws->st.rd_off + i];
         }
+        if (!ble_upg_notify(out, (uint16_t)(chunk + 4u))) {
+            return;   /* 未订阅或协议栈忙：本轮不发，也不推进 */
+        }
+        ws->st.seq++;
         ws->st.rd_off = (uint16_t)(ws->st.rd_off + chunk);
-        (void)ble_upg_notify(out, (uint16_t)(chunk + 4u));
         return;
     }
 
@@ -224,14 +228,16 @@ static void poll_read(void)
     out[1] = UPG_OP_WRITE_DATA;
     out[2] = 0u;
     out[3] = 0u;
-    (void)ble_upg_notify(out, 4u);
+    if (!ble_upg_notify(out, 4u)) {
+        return;
+    }
     ws->st.reading = 0u;
     co_printf("[UPG ] read done\r\n");
 }
 
 static void on_flag_get(void)
 {
-    upg_state_t *s = st();
+    upg_state_t *s = proto_st();
     uint8_t buf[7];
 
     if (s == NULL) {
@@ -249,7 +255,7 @@ static void on_flag_get(void)
 
 static void on_flag_set(const uint8_t *f, uint16_t len)
 {
-    upg_state_t *s = st();
+    upg_state_t *s = proto_st();
 
     if (s == NULL) {
         return;
@@ -266,7 +272,7 @@ static void on_flag_set(const uint8_t *f, uint16_t len)
 
 static void on_write_cfg(const uint8_t *f, uint16_t len)
 {
-    upg_state_t *s = st();
+    upg_state_t *s = proto_st();
     uint8_t cmd;
     uint8_t n;
 
@@ -388,12 +394,15 @@ void upg_proto_poll(void)
 {
     upg_ws_t *ws;
 
-    if (!upg_session_busy()) {
+    /* 断链后订阅状态失效：即使会话已结束也要清，否则重连后 notification 会被误判 */
+    if (ble_gap_get_peer() == NULL) {
+        ble_upg_on_link_lost();
+        if (upg_session_busy()) {
+            upg_session_end();      /* 恢复广播，须在任务上下文 */
+        }
         return;
     }
-    /* 连接已断开则立即结束会话，恢复 CAT1 与广播 */
-    if (ble_gap_get_peer() == NULL) {
-        upg_session_end();
+    if (!upg_session_busy()) {
         return;
     }
     ws = upg_ws();

@@ -24,7 +24,7 @@ extern "C" {
  * @note   业务包括：按键操作、语音开始/停止、对端数据下发、CAT1 数据
  *         范围建议：5000 ~ 15000 ms
  */
-#define PM_DEBUG_LONG_IDLE              1U   /* 1=联调期放宽到 5 分钟；量产必须改回 0 */
+#define PM_DEBUG_LONG_IDLE              1U   /* 1=联调期放宽到 1 小时；量产必须改回 0 */
 
 #if PM_DEBUG_LONG_IDLE
 /* 联调阶段：1 小时内不会被待机打断，便于用手机 APP 从容操作 */
@@ -34,22 +34,18 @@ extern "C" {
 #endif
 
 /**
- * @brief  最后一次活动 → 休眠态：总空闲超时（测试阶段暂时 30 分钟）
+ * @brief  最后一次活动 → 休眠态：总空闲超时（测试阶段暂时 2.5 小时）
  * @note   从最后一次业务活动开始计时，跨工作态和待机态连续计算
  *         实际待在待机态的时长 = PM_STANDBY_TO_SLEEP_MS - PM_WORK_TO_STANDBY_MS
  */
-//#define PM_STANDBY_TO_SLEEP_MS       9000000U
-#define PM_STANDBY_TO_SLEEP_MS       9000000U /* 暂时30分钟；原值90000U */
+#define PM_STANDBY_TO_SLEEP_MS       9000000U /* 暂时 2.5 小时（9000 秒）；原值 90000U（90 秒） */
 
 /**
- * @brief  回连态 → 休眠态：持续广播无连接超时（45 秒）
+ * @brief  回连态 → 休眠态：持续广播无连接超时（60 秒）
  * @note   回连广播期间若无 STB 连接，超时后进入休眠节省功耗
  *         范围建议：30000 ~ 60000 ms
- *
- *         【测试模式】改为 45000ms，方便验证状态切换
  */
-//#define PM_RECONNECT_TIMEOUT_MS      9000000U
-#define PM_RECONNECT_TIMEOUT_MS      60000U   /* 60秒 */
+#define PM_RECONNECT_TIMEOUT_MS      60000U   /* 60 秒 */
 
 /**
  * @brief  静默态 → 休眠态：上电/唤醒后无按键超时（暂时 5 分钟）
@@ -61,11 +57,11 @@ extern "C" {
 #define PM_SILENT_TO_SLEEP_MS          300000U
 
 /**
- * @brief  配对态 → 休眠态：广播无连接超时（120 秒）
+ * @brief  配对态 → 休眠态：广播无连接超时（30 秒）
  * @note   从 KEY14+KEY3 组合键触发配对广播时开始计时，
  *         与静默态超时独立，确保配对窗口完整。
  */
-#define PM_PAIRING_TIMEOUT_MS         30000U
+#define PM_PAIRING_TIMEOUT_MS         30000U   /* 30 秒 */
 
 /*===========================================================================
  * 二、待机态 BLE 连接参数

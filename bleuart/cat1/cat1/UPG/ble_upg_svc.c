@@ -8,6 +8,7 @@
 #include "upg_proto.h"
 #include "upg_session.h"
 #include "pm_state.h"       /* pm_activity_notify — 对端数据下发，退出待机 */
+#include "ble_gap.h"        /* ble_gap_get_peer — 通知目标对端 */
 #include "gatt.h"
 #include "gap.h"
 #include "co_printf.h"
@@ -26,6 +27,10 @@ static const uint8_t k_chr_uuid[16] = {
 
 static gatt_svc_t s_svc;
 static gatt_chr_t s_chr;
+
+/* ATT 层订阅状态：其生命周期长于键值下载会话，因此不能放在借来的会话工作区，
+ * 否则会话重建时被清零，之后所有通知都会被误判为"未订阅"而发不出去。 */
+static uint8_t s_cccd_on;
 
 static void upg_svc_cbk(gatt_event_t event, void *context, void *param)
 {
@@ -65,7 +70,6 @@ static void upg_chr_cbk(gatt_event_t event, void *context, void *param)
             }
             return;
         }
-        ws->st.peer = in->peer;
         memcpy(ws->io, in->val, in->val_len);
         if (event == GATTS_EV_CHR_VALUE_WRITE_REQ) {
             gatts_chr_val_write_rsp(in->peer, in->chr, GATT_OK);
@@ -82,21 +86,16 @@ static void upg_chr_cbk(gatt_event_t event, void *context, void *param)
         co_printf("[UPG ] send start type=%d\r\n", (int)in->type);
         /* 订阅动作也属于对端交互：立即退出待机，否则待机分支不会推进协议状态机 */
         pm_activity_notify(PM_ACTIVITY_PEER_DATA);
-        if (!upg_session_begin()) {
-            return;
-        }
-        ws = upg_ws();
-        if (ws == NULL) {
-            return;
-        }
-        ws->st.peer = in->peer;
-        ws->st.cccd_on = (in->type == GATT_SEND_VAL_NOTIFICATION) ? 1u : 0u;
-        if (ws->st.cccd_on != 0u) {
+        s_cccd_on = (in->type == GATT_SEND_VAL_NOTIFICATION) ? 1u : 0u;
+        if (s_cccd_on != 0u) {
             upg_proto_on_link_ready();
         } else {
             /* 取消订阅：清掉待发动作，避免向未订阅端发通知；会话由空闲超时回收 */
-            ws->st.auth_pending = 0u;
-            ws->st.reading = 0u;
+            ws = upg_ws();
+            if (ws != NULL) {
+                ws->st.auth_pending = 0u;
+                ws->st.reading = 0u;
+            }
         }
     }
 }
@@ -131,16 +130,15 @@ int ble_upg_svc_init(void)
 
 bool ble_upg_notify(const uint8_t *buf, uint16_t len)
 {
-    upg_ws_t *ws;
-    peer_t peer;
+    peer_t peer = ble_gap_get_peer();
 
-    if (buf == NULL || len == 0u) {
+    if (buf == NULL || len == 0u || peer == NULL || s_cccd_on == 0u) {
         return false;
     }
-    ws = upg_ws();
-    if (ws == NULL || ws->st.peer == NULL || ws->st.cccd_on == 0u) {
-        return false;
-    }
-    peer = (peer_t)ws->st.peer;
     return (gatts_chr_val_notif(peer, s_chr, (uint8_t *)buf, len) == GATT_OK);
+}
+
+void ble_upg_on_link_lost(void)
+{
+    s_cccd_on = 0u;
 }

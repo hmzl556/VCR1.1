@@ -5,6 +5,12 @@
 #include "upg_session.h"
 #include "udp_bootload.h"
 #include "udp_ota.h"
+#include "ble_adv.h"          /* ble_adv_stop / ble_adv_start_by_bonding */
+#include "ble_gap.h"          /* ble_gap_get_peer */
+#include "ir_key_map.h"       /* ir_tx_cancel */
+#include "ir_learn.h"         /* ir_learn_stop */
+#include "app_voice_ctrl.h"   /* voice_ctrl_post_stop */
+#include "app_audio_pcm.h"    /* Audio_Pcm_Stop / g_audio_pcm_enabled */
 #include "gmem.h"
 #include "co_printf.h"
 #include <stddef.h>
@@ -17,8 +23,40 @@
 static bool      s_active;
 static upg_ws_t *s_ws;
 
-/* 编译期保证工作区不超过借来的 512B（另有 ≤4B 对齐余量） */
-typedef char upg_ws_size_check[(sizeof(upg_ws_t) <= UPG_WS_NEED) ? 1 : -1];
+/* 编译期保证工作区塞得进借来的 512B；32 位目标另留 4B 对齐余量。
+   PC 主机测试的指针是 8 字节，结构体会多出对齐填充，故只在 4 字节指针时校验。 */
+typedef char upg_ws_size_check[((sizeof(void *) == 4u) && (sizeof(upg_ws_t) > UPG_WS_NEED)) ? -1 : 1];
+
+/**
+ * @brief 会话期间独占外设资源
+ * @note  与 udp_ota_session_enter() 做同样的事，但**不占用 OTA 的 s_ota_session**。
+ *        一旦占用，task_ble 的 OTA 专属分支会 continue，跳过 upg_proto_poll()，
+ *        导致读数据分包永远发不出去。
+ */
+static void upg_enter_resources(void)
+{
+    ir_tx_cancel();
+    ir_learn_stop();
+    (void)ble_adv_stop();
+    (void)voice_ctrl_post_stop();
+    if (g_audio_pcm_enabled != 0u) {
+        Audio_Pcm_Stop();
+    }
+    co_printf("[UPG ] resources held: IR/learn/adv/voice off\r\n");
+}
+
+/** @brief 会话结束：无连接时恢复广播（与 udp_ota_session_exit 一致）
+ *  @note  OTA 若已接管独占资源（广播/语音开关是共享的），此处不再恢复，
+ *         避免两个会话互相踩踏；UPG 之后仍会按空闲超时正常收尾。 */
+static void upg_exit_resources(void)
+{
+    if (udp_ota_session_busy() != 0u) {
+        return;
+    }
+    if (ble_gap_get_peer() == NULL) {
+        ble_adv_start_by_bonding();
+    }
+}
 
 bool upg_session_begin(void)
 {
@@ -63,7 +101,7 @@ void upg_session_end(void)
         return;
     }
     if (s_ws != NULL && s_ws->st.entered != 0u) {
-        udp_ota_session_exit();   /* 恢复广播，须在任务上下文 */
+        upg_exit_resources();   /* 恢复广播，须在任务上下文 */
     }
     s_active = false;
     s_ws = NULL;
@@ -89,7 +127,7 @@ void upg_session_poll(void)
     }
     /* 停广播/停语音会调用协议栈，必须在任务上下文执行，不能放在 GATT 回调里 */
     if (s_ws->st.entered == 0u) {
-        udp_ota_session_enter();
+        upg_enter_resources();
         s_ws->st.entered = 1u;
         co_printf("[UPG ] session begin\r\n");
     }

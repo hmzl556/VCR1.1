@@ -13,6 +13,7 @@
 #include "ble_adv.h"          /* ble_adv_start_pairing */
 #include "pm_state.h"         /* pm_state_transition, PM_STATE_PAIRING, PM_STATE_SLEEP */
 #include "udp_ota.h"
+#include "upg_session.h"      /* upg_session_busy — 键值下载会话期间不执行配对副作用 */
 #include "userhard.h"         /* SETLED1, CLRLED1 */
 #include "co_printf.h"
 #include "ir_key_map.h"       /* ir_send_pair_code, ir_user_switch_stb/tv */
@@ -210,9 +211,9 @@ void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
             }
             c->release_pending = false;
             if ((now_ms - c->state_ts_ms) >= COMBO_KEY_HOLD_MS) {
-                /* OTA 会话期间保留组合键检测，但不执行配对/解配副作用 */
-                if (udp_ota_session_busy() != 0u) {
-                    co_printf("[COMBO] ignored: OTA session busy\r\n");
+                /* OTA/键值下载会话期间保留组合键检测，但不执行配对/解配副作用 */
+                if (udp_ota_session_busy() != 0u || upg_session_busy()) {
+                    co_printf("[COMBO] ignored: session busy\r\n");
                     c->state = COMBO_WAIT_RELEASE;
                     break;
                 }
