@@ -34,6 +34,8 @@ typedef struct {
     uint8_t  auth_state;       /**< upg_auth_state_t */
     uint8_t  key_index;        /**< 认证密钥索引 */
     uint8_t  cccd_on;          /**< 通知订阅状态 */
+    uint8_t  entered;          /**< 独占资源已获取（在任务上下文完成） */
+    uint8_t  auth_pending;     /**< 待发起认证（由任务发送，避免在 CCCD 回调中发通知） */
 } upg_state_t;
 
 typedef struct {
@@ -43,9 +45,10 @@ typedef struct {
 } upg_ws_t;
 
 /**
- * @brief  进入独占会话：停红外/学习/语音/广播，并借用 Flash 写缓冲
+ * @brief  进入独占会话：借出工作区，并置忙标志
  * @return true 成功；false 已在 OTA 会话中或缓冲不可借
- * @note   幂等。必须在任务上下文或 BLE 协议栈回调（非 ISR）中调用。
+ * @note   幂等。**可在 GATT 回调中调用**——这里只做指针赋值和清零，
+ *         停广播/停语音等协议栈相关动作延后到任务上下文的 upg_session_poll()。
  */
 bool upg_session_begin(void);
 

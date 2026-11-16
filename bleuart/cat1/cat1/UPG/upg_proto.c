@@ -93,8 +93,8 @@ static uint8_t auth_allows(uint8_t op)
 void upg_proto_on_link_ready(void)
 {
     upg_ws_t *ws;
-    uint16_t n;
 
+    /* 回调里只借工作区并置标志；发通知与停广播都留到任务上下文 */
     if (!upg_session_begin()) {
         co_printf("[UPG ] link ready but session denied\r\n");
         return;
@@ -104,6 +104,18 @@ void upg_proto_on_link_ready(void)
         return;
     }
     ws->st.reading = 0u;
+    ws->st.auth_pending = 1u;
+}
+
+/** @brief 在任务上下文发起双向认证第一步 */
+static void start_auth(void)
+{
+    upg_ws_t *ws = upg_ws();
+    uint16_t n;
+
+    if (ws == NULL) {
+        return;
+    }
     upg_auth_reset();
     n = upg_auth_start(ws->io, UPG_IO_MAX);
     if (n != 0u) {
@@ -374,6 +386,8 @@ void upg_proto_on_frame(const uint8_t *data, uint16_t len)
 
 void upg_proto_poll(void)
 {
+    upg_ws_t *ws;
+
     if (!upg_session_busy()) {
         return;
     }
@@ -382,6 +396,15 @@ void upg_proto_poll(void)
         upg_session_end();
         return;
     }
+    ws = upg_ws();
+    if (ws == NULL) {
+        return;
+    }
+    upg_session_poll();          /* 首次调用时在任务上下文获取独占资源 */
+
+    if (ws->st.auth_pending != 0u) {
+        ws->st.auth_pending = 0u;
+        start_auth();
+    }
     poll_read();
-    upg_session_poll();
 }

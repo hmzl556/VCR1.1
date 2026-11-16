@@ -29,8 +29,10 @@ bool upg_session_begin(void)
     if (s_active) {
         return true;
     }
-    /* OTA 会话优先；两者不可并存（共用 Flash 写缓冲与独占语义） */
-    if (udp_ota_is_active() != 0u) {
+    /* OTA 会话优先；两者不可并存（共用 Flash 写缓冲与独占语义）。
+     * 用 session_busy 而非 is_active：PAUSE 退避期间 phase 已回 IDLE，
+     * 但 OTA 仍占用 Flash 写缓冲与独占资源。 */
+    if (udp_ota_session_busy() != 0u) {
         co_printf("[UPG ] begin denied: OTA active\r\n");
         return false;
     }
@@ -49,10 +51,9 @@ bool upg_session_begin(void)
     s_ws = (upg_ws_t *)(void *)raw;
     memset(s_ws, 0, sizeof(*s_ws));
 
-    udp_ota_session_enter();       /* 复用既有独占语义：停红外/学习/语音/广播 */
     s_active = true;
     s_ws->st.last_ms = app_now_ms();
-    co_printf("[UPG ] session begin\r\n");
+    s_ws->st.entered = 0u;      /* 独占资源在任务上下文中获取，见 upg_session_poll() */
     return true;
 }
 
@@ -61,9 +62,11 @@ void upg_session_end(void)
     if (!s_active) {
         return;
     }
+    if (s_ws != NULL && s_ws->st.entered != 0u) {
+        udp_ota_session_exit();   /* 恢复广播，须在任务上下文 */
+    }
     s_active = false;
     s_ws = NULL;
-    udp_ota_session_exit();
     co_printf("[UPG ] session end\r\n");
 }
 
@@ -83,6 +86,12 @@ void upg_session_poll(void)
 {
     if (!s_active || s_ws == NULL) {
         return;
+    }
+    /* 停广播/停语音会调用协议栈，必须在任务上下文执行，不能放在 GATT 回调里 */
+    if (s_ws->st.entered == 0u) {
+        udp_ota_session_enter();
+        s_ws->st.entered = 1u;
+        co_printf("[UPG ] session begin\r\n");
     }
     if ((uint32_t)(app_now_ms() - s_ws->st.last_ms) >= UPG_SESSION_IDLE_MS) {
         co_printf("[UPG ] idle timeout\r\n");

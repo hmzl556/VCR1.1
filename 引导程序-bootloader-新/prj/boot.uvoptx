@@ -140,7 +140,7 @@
         <SetRegEntry>
           <Number>0</Number>
           <Key>CMSIS_AGDI</Key>
-          <Name>-X"Any" -UAny -O206 -S8 -C0 -P00000000 -N00("ARM CoreSight SW-DP") -D00(0BB11477) -L00(0) -TO65554 -TC10000000 -TT10000000 -TP20 -TDS8007 -TDT0 -TDC1F -TIEFFFFFFFF -TIP8 -FO31 -FD20000000 -FC1000 -FN1 -FF0BR1601A01 -FS01000000 -FL040000</Name>
+          <Name>-X"Any" -UAny -O206 -S8 -C0 -P00000000 -TO65554 -TC10000000 -TT10000000 -TP20 -TDS8007 -TDT0 -TDC1F -TIEFFFFFFFF -TIP8 -FO31 -FD20000000 -FC1000 -FN1 -FF0BR1601A01 -FS01000000 -FL040000</Name>
         </SetRegEntry>
         <SetRegEntry>
           <Number>0</Number>
@@ -207,7 +207,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\..\total-随时更新\bleuart\prj\system_br1601x.c</PathWithFileName>
+      <PathWithFileName>..\..\bleuart\prj\system_br1601x.c</PathWithFileName>
       <FilenameWithoutPath>system_br1601x.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -219,7 +219,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\..\total-随时更新\bleuart\prj\startup_br1601x.s</PathWithFileName>
+      <PathWithFileName>..\..\bleuart\prj\startup_br1601x.s</PathWithFileName>
       <FilenameWithoutPath>startup_br1601x.s</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -259,7 +259,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\..\total-随时更新\bsp\common\src\co_printf.c</PathWithFileName>
+      <PathWithFileName>..\..\bsp\common\src\co_printf.c</PathWithFileName>
       <FilenameWithoutPath>co_printf.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -279,7 +279,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\..\total-随时更新\bleuart\cat1\OTA\udp_bootload.c</PathWithFileName>
+      <PathWithFileName>..\..\bleuart\cat1\cat1\OTA\udp_bootload.c</PathWithFileName>
       <FilenameWithoutPath>udp_bootload.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -291,7 +291,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\..\total-随时更新\bleuart\cat1\OTA\flash_layout.h</PathWithFileName>
+      <PathWithFileName>..\..\bleuart\cat1\cat1\OTA\flash_layout.h</PathWithFileName>
       <FilenameWithoutPath>flash_layout.h</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -311,7 +311,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\..\total-随时更新\cs\src\cs.lib</PathWithFileName>
+      <PathWithFileName>..\..\cs\src\cs.lib</PathWithFileName>
       <FilenameWithoutPath>cs.lib</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -331,7 +331,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\..\total-随时更新\bsp\driver\src\qflash.c</PathWithFileName>
+      <PathWithFileName>..\..\bsp\driver\src\qflash.c</PathWithFileName>
       <FilenameWithoutPath>qflash.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -343,7 +343,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\..\total-随时更新\bsp\driver\src\misc.c</PathWithFileName>
+      <PathWithFileName>..\..\bsp\driver\src\misc.c</PathWithFileName>
       <FilenameWithoutPath>misc.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -355,7 +355,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\..\total-随时更新\bsp\driver\src\gpio.c</PathWithFileName>
+      <PathWithFileName>..\..\bsp\driver\src\gpio.c</PathWithFileName>
       <FilenameWithoutPath>gpio.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -367,7 +367,7 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\..\total-随时更新\bsp\driver\src\lpuart.c</PathWithFileName>
+      <PathWithFileName>..\..\bsp\driver\src\lpuart.c</PathWithFileName>
       <FilenameWithoutPath>lpuart.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
@@ -379,8 +379,20 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\..\total-随时更新\bsp\driver\src\rcc.c</PathWithFileName>
+      <PathWithFileName>..\..\bsp\driver\src\rcc.c</PathWithFileName>
       <FilenameWithoutPath>rcc.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>6</GroupNumber>
+      <FileNumber>13</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\..\bsp\driver\src\iwdg.c</PathWithFileName>
+      <FilenameWithoutPath>iwdg.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -394,7 +406,7 @@
     <RteFlg>0</RteFlg>
     <File>
       <GroupNumber>7</GroupNumber>
-      <FileNumber>13</FileNumber>
+      <FileNumber>14</FileNumber>
       <FileType>5</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>

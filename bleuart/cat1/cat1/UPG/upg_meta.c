@@ -8,10 +8,11 @@
 #include "upg_meta.h"
 #include "flash_layout.h"
 #include "qflash.h"
+#include "rc_protocol.h"      /* RC_READ_VAL_DEVICE_SW_VERSION：与主版本号同源 */
 #include "co_printf.h"
 #include <string.h>
 
-#define UPG_META_APP_BUILD   "02010000"   /* 与版本号保持同步，联调阶段使用 */
+#define UPG_META_APP_BUILD   RC_READ_VAL_DEVICE_SW_VERSION
 
 typedef struct {
     uint32_t magic;
