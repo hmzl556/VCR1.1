@@ -16,8 +16,7 @@
 #include <stddef.h>
 #include <string.h>
 
-/** 会话空闲超时：超过该时间无帧交互即退出，恢复 CAT1 与广播 */
-#define UPG_SESSION_IDLE_MS   30000u
+/* 会话空闲超时见 upg_session.h 的 UPG_DEBUG_LONG_IDLE / UPG_SESSION_IDLE_MS */
 
 /* 会话态放在借来的缓冲里，静态只保留两个标志 */
 static bool      s_active;

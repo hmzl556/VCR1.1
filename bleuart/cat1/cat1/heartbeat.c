@@ -12,6 +12,7 @@
 #include "rc_cat1_bridge.h"  /* rc_cat1_power_up / is_powered       */
 #include "cat1_skt_udp.h"    /* cat1_modem_is_busy()                */
 #include "udp_ota.h"         /* udp_ota_session_busy()              */
+#include "upg_session.h"     /* upg_session_busy() — 键值下载会话   */
 #include "remote_reports.h"  /* remote_queue_tag0A_heartbeat()      */
 #include "pm_state.h"        /* pm_state_get — 待机态禁止执行业务   */
 #include "co_printf.h"
@@ -129,8 +130,10 @@ void heartbeat_poll(void)
         return;
     }
 
-    /* OTA / CAT1 业务忙: 不打断, 挂起等业务结束 (不丢本次心跳) */
-    if (udp_ota_session_busy() != 0u || cat1_modem_is_busy() != 0u) {
+    /* OTA / 键值下载 / CAT1 业务忙: 不打断, 挂起等业务结束 (不丢本次心跳)
+     * 键值下载会话期间若上电建链, rc_cat1_poll 会因独占而停推 → 无人在 boot delay
+     * 之后继续 setup (待机态踩过同一个坑), 故这里必须一起挡住。 */
+    if (udp_ota_session_busy() != 0u || upg_session_busy() || cat1_modem_is_busy() != 0u) {
         return;
     }
 

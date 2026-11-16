@@ -16,7 +16,10 @@ uint32_t Qflash_Write(uint32_t a,uint8_t *b,uint32_t n){unsigned o=offset(a,n),i
 int main(void)
 {
     ir_raw_t old,next,out;unsigned i,total,before;uint32_t first;
-    assert(A==0x01075000u && B==0x01078000u && FLASH_UNALLOCATED_START==0x0107D000u);
+    assert(A==0x01075000u && B==0x01078000u && FLASH_UNALLOCATED_START==0x0107F000u);
+    assert(FLASH_KEYSTORE_A_START==0x0107B000u && FLASH_KEYSTORE_B_START==0x0107C000u);
+    assert(FLASH_AUTHKEY_START==0x0107D000u && FLASH_AUTHKEY_START+FLASH_AUTHKEY_SIZE==0x0107E000u);
+    assert(FLASH_UPG_FLAG_START==0x0107E000u && FLASH_UPG_FLAG_START+FLASH_UPG_FLAG_SIZE==0x0107F000u);
     assert(A==FLASH_USER_CFG_START+FLASH_USER_CFG_SIZE && B==A+FLASH_IR_RAW_BANK_SIZE);
     memset(flash,255,sizeof(flash));ir_wave_store_load();assert(!s_bank&&!ir_wave_store_has(1));assert(!ir_wave_store_get(1,&old));
     memset(&old,0,sizeof(old));old.count=67;old.period_ticks=1684;old.kind=IR_NEC_KIND;

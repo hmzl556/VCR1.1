@@ -13,9 +13,27 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "upg_store.h"   /* upg_store_wr_t：写过程态借用会话工作区 */
+
 #define UPG_IO_MAX          140u   /**< 收包/组包：MTU 139 - 3 = 136，按 140 预留 */
-#define UPG_SCRATCH_MAX     320u   /**< 解析/文本生成临时区 */
+#define UPG_SCRATCH_MAX     256u   /**< 读：文本生成临时区；写：整页对齐余量 */
 #define UPG_WS_NEED         508u   /**< 总需求，留 4 字节做 4 字节对齐余量 */
+
+/**
+ * 联调期放宽会话空闲超时：手机手动敲帧/换数据需要时间，30 秒容易超时。
+ * **量产必须改回 0**（会与「暂时改动文档」一起检查）。
+ * 注意：会话期间不广播、不发红外、不跑 CAT1 上报，放宽等于把这几项一起挂起这么久；
+ * 一旦 BLE 断开仍会立即收尾，所以风险仅限"连着但一直不操作"。
+ */
+#ifndef UPG_DEBUG_LONG_IDLE
+#define UPG_DEBUG_LONG_IDLE 1u
+#endif
+
+#if UPG_DEBUG_LONG_IDLE
+#define UPG_SESSION_IDLE_MS  600000u   /**< 10 分钟（联调） */
+#else
+#define UPG_SESSION_IDLE_MS   30000u   /**< 30 秒（设计值） */
+#endif
 
 /** 会话态：生命周期与借来的缓冲一致，不占静态 RAM */
 typedef struct {
@@ -34,6 +52,18 @@ typedef struct {
     uint8_t  key_index;        /**< 认证密钥索引 */
     uint8_t  entered;          /**< 独占资源已获取（在任务上下文完成） */
     uint8_t  auth_pending;     /**< 待发起认证（由任务发送，避免在 CCCD 回调中发通知） */
+    /* ---- 键值写入（0x12/0x14/0x13）：回调只置标志，Flash 操作全部在任务上下文 ---- */
+    uint8_t  writing;          /**< 写会话进行中 */
+    uint8_t  wr_type;          /**< upg_type_t */
+    uint8_t  wr_expect;        /**< 期望的下一个包序号 */
+    uint8_t  wr_pkt_ready;     /**< 已收到一包待落盘（数据在 io 里） */
+    uint8_t  wr_start;         /**< 已收到启动写请求，待擦扇区/压实 */
+    uint8_t  wr_abort;         /**< 已收到终止读写请求，待提交或回滚 */
+    uint8_t  flag_pending;     /**< 待写入升级标志（擦扇区在任务上下文） */
+    uint16_t wr_len;           /**< 本次数据总长 */
+    upg_store_wr_t wo;         /**< 存储层写过程态（不占静态 RAM） */
+    uint16_t wr_crc;           /**< 本端累计 CRC2 */
+    uint16_t wr_crc1;          /**< 主机下发的 CRC1 */
 } upg_state_t;
 
 typedef struct {

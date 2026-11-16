@@ -21,6 +21,8 @@
 #include "ir_key_map.h"     /* ir_send_key — BLE 未连接时发红外  */
 #include "irc.h"            /* irc_send_repeat — 长按重复码       */
 #include "ir_learn.h"       /* 红外学习模式（长按电源键触发）     */
+#include "upg_session.h"    /* upg_session_busy — 键值下载会话中禁改存储 */
+#include "upg_store.h"      /* upg_store_erase_all — 恢复出厂清键值覆盖层 */
 
 /* OTA owns LED1 red for the whole session, including pause/retry.
  * Preserve key handling; only suppress this module's ordinary LED writes. */
@@ -309,11 +311,11 @@ static void factory_reset_process(uint32_t now_ms, uint16_t key_id,
                 {
                     if (key_id == TASK_KEYSCAN_KEY4)
                     {
-                        /* OTA 会话期间不执行工厂复位清绑定/进休眠 */
-                        if (udp_ota_session_busy() != 0u) {
+                        /* OTA/键值下载会话期间不执行工厂复位清绑定/进休眠 */
+                        if (udp_ota_session_busy() != 0u || upg_session_busy()) {
                             CLRLED2;
                             factory_rst_state = FACTORY_RST_IDLE;
-                            co_printf("Factory reset: ignored, OTA session busy.\r\n");
+                            co_printf("Factory reset: ignored, session busy.\r\n");
                             break;
                         }
                         CLRLED2;
@@ -327,6 +329,8 @@ static void factory_reset_process(uint32_t now_ms, uint16_t key_id,
                             co_printf("Factory reset: IR flash clear failed\r\n");
                             break;
                         }
+                        /* 键值下载覆盖层一并清除：恢复出厂后回到 ROM 默认键值 */
+                        (void)upg_store_erase_all();
                         ir_user_reset();
                         ble_gap_clear_bonding_info();
                     }

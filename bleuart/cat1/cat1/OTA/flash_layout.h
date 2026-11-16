@@ -54,21 +54,33 @@
 #define FLASH_IR_RAW_BACKUP (FLASH_IR_RAW_START + FLASH_IR_RAW_BANK_SIZE) /* 0x01078000 */
 #define FLASH_IR_RAW_BANK_SIZE 0x3000u
 
-/* 按键键值下载覆盖层（GY/T 407-2024）：下载值记录，恢复出厂即擦除 */
-#define FLASH_KEYSTORE_START (FLASH_IR_RAW_BACKUP + FLASH_IR_RAW_BANK_SIZE) /* 0x0107B000 */
-#define FLASH_KEYSTORE_SIZE  0x00001000u   /* 4KB */
+/* 按键键值下载覆盖层（GY/T 407-2024）：下载值记录，恢复出厂即擦除。
+ * A/B 双扇区轮换：写 B → 回读校验 → B 标记有效 → 擦 A，断电最坏丢一次下载，
+ * 不会出现"正在写的那一份坏掉、旧的也擦没了"的两头失效。 */
+#define FLASH_KEYSTORE_A_START (FLASH_IR_RAW_BACKUP + FLASH_IR_RAW_BANK_SIZE) /* 0x0107B000 */
+#define FLASH_KEYSTORE_SIZE    0x00001000u   /* 4KB */
+#define FLASH_KEYSTORE_B_START (FLASH_KEYSTORE_A_START + FLASH_KEYSTORE_SIZE) /* 0x0107C000 */
+#define FLASH_KEYSTORE_START   FLASH_KEYSTORE_A_START   /* 兼容旧引用：默认主份 */
 #define KEYSTORE_MAGIC       0x4B53544Fu   /* 'KSTO' */
 #define KEYSTORE_VER         1u
 
 /* 认证识别码 idcode + 多组 key（GY/T 407-2024 附录 E.1.2），产测写入 */
-#define FLASH_AUTHKEY_START  (FLASH_KEYSTORE_START + FLASH_KEYSTORE_SIZE)   /* 0x0107C000 */
+#define FLASH_AUTHKEY_START  (FLASH_KEYSTORE_B_START + FLASH_KEYSTORE_SIZE)   /* 0x0107D000 */
 #define FLASH_AUTHKEY_SIZE   0x00001000u   /* 4KB */
 #define AUTHKEY_MAGIC        0x41554B59u   /* 'AUKY' */
 #define AUTHKEY_VER          1u
 
 /* 剩余分区保留至 Flash 末尾 0x01080000 */
-#define FLASH_UNALLOCATED_START (FLASH_AUTHKEY_START + FLASH_AUTHKEY_SIZE) /* 0x0107D000 */
-#define FLASH_UNALLOCATED_SIZE  0x00003000u   /* 12KB */
+/* 键值下载升级标志（GY/T 407-2024 表 E.14）：独立扇区，掉电保持，
+ * 与 OTA 配置区分离，避免设置标志时擦掉 OTA 断点/参数 */
+#define FLASH_UPG_FLAG_START    (FLASH_AUTHKEY_START + FLASH_AUTHKEY_SIZE) /* 0x0107E000 */
+#define FLASH_UPG_FLAG_SIZE     0x00001000u   /* 4KB */
+#define UPG_FLAG_MAGIC          0x55504746u   /* 'UPGF' */
+#define UPG_FLAG_VALID          0xF5F5F500u   /* 表 E.13/E.14：已设置有效升级标志 */
+#define UPG_FLAG_NONE           0x00000000u   /* 未设置 */
+
+#define FLASH_UNALLOCATED_START (FLASH_UPG_FLAG_START + FLASH_UPG_FLAG_SIZE) /* 0x0107F000 */
+#define FLASH_UNALLOCATED_SIZE  0x00001000u   /* 4KB */
 
 #define OTA_UPGRADE_FLAG           0x12345678u
 #define OTA_SUCCESS_FLAG           OTA_UPGRADE_FLAG

@@ -35,8 +35,10 @@ STUBS = {
     'app_audio_pcm.h': ('#ifndef APP_AUDIO_PCM_H\n#define APP_AUDIO_PCM_H\n#include <stdint.h>\n'
                         'extern volatile uint8_t g_audio_pcm_enabled;\nvoid Audio_Pcm_Stop(void);\n#endif\n'),
     'qflash.h': ('#ifndef QFLASH_H\n#define QFLASH_H\n#include <stdint.h>\n'
-                 '#define FlashOperationSuccess 0u\n'
-                 'uint32_t Qflash_Read(uint32_t addr, uint8_t *buf, uint32_t len);\n#endif\n'),
+                 '#define FlashOperationSuccess 0u\n#define FLASH_PAGE_SIZE 0x100\n#define FLASH_SECTOR_SIZE 0x1000\n'
+                 'uint32_t Qflash_Read(uint32_t addr, uint8_t *buf, uint32_t len);\n'
+                 'uint32_t Qflash_Write(uint32_t addr, uint8_t *buf, uint32_t len);\n'
+                 'uint32_t Qflash_Erase_Sector(uint32_t addr);\n#endif\n'),
     'rc_protocol.h': ('#ifndef RC_PROTOCOL_H\n#define RC_PROTOCOL_H\n'
                       '#define RC_READ_VAL_DEVICE_SW_VERSION "02020000"\n#endif\n'),
 }

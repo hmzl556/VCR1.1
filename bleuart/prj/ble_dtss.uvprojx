@@ -883,6 +883,11 @@
               <FileType>1</FileType>
               <FilePath>..\cat1\cat1\UPG\upg_session.c</FilePath>
             </File>
+            <File>
+              <FileName>upg_store.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\UPG\upg_store.c</FilePath>
+            </File>
           </Files>
         </Group>
       </Groups>

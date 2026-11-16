@@ -1,15 +1,20 @@
 /**
  * @file upg_proto.c
- * @brief 升级协议状态机（GY/T 407-2024 E.1.1 命令集，E.3 下载流程的读取部分）
+ * @brief 升级协议状态机（GY/T 407-2024 E.1.1 命令集，E.3 下载流程）
  *
- * P1 实现：双向认证、读取 rel0/usr1/usr2、升级标志、写指令配置。
- * 键值写入（0x12/0x13 落盘）留待 P2。
+ * P1：双向认证、读取 rel0/usr1/usr2、升级标志、写指令配置。
+ * P2：键值写入链路（0x12 启动写 / 0x14 下行数据 / 0x18 回执 / FA 14 00 00 接收完毕 /
+ *     0x13 终止 + CRC16 双向比对），数据经 upg_store 落 A/B 覆盖层。
+ *
+ * 约定：GATT 回调里只解析参数与置标志，**所有 Flash 操作都在任务上下文**
+ * （upg_proto_poll → poll_write），与现有 OTA / 学习波形一致。
  * 全部状态放在借来的会话工作区（upg_ws_t.st），不占静态 RAM。
  */
 #include "upg_proto.h"
 #include "upg_session.h"
 #include "upg_auth.h"
 #include "upg_meta.h"
+#include "upg_store.h"
 #include "ble_upg_svc.h"
 #include "ble_gap.h"
 #include "gmem.h"
@@ -45,6 +50,12 @@ static upg_state_t *proto_st(void)
     upg_ws_t *ws = upg_ws();
 
     return (ws != NULL) ? &ws->st : NULL;
+}
+
+/** @brief 每次读写的有效包长只允许 16/32/64/128（表 E.2 / E.4） */
+static uint8_t pack_valid(uint8_t pack)
+{
+    return (pack == 16u || pack == 32u || pack == 64u || pack == 128u) ? 1u : 0u;
 }
 
 /** @brief 判断 8 字节数据类型字段是否等于给定 ASCII 串（不足补 0） */
@@ -141,7 +152,7 @@ static void on_read_start(const uint8_t *f, uint16_t len)
         return;
     }
     pack = f[2];
-    if (pack != 16u && pack != 32u && pack != 64u && pack != 128u) {
+    if (pack_valid(pack) == 0u) {
         send_result(UPG_OP_READ_START, UPG_RES_NO_DATA);
         return;
     }
@@ -155,7 +166,11 @@ static void on_read_start(const uint8_t *f, uint16_t len)
     if (type_is(f + 3, UPG_TYPE_REL0)) {
         total = upg_meta_build_rel0(ws->scratch, UPG_SCRATCH_MAX);
     } else if (type_is(f + 3, UPG_TYPE_USR1)) {
-        total = upg_meta_build_usr1(ws->scratch, UPG_SCRATCH_MAX);
+        /* 下载过版本信息就以覆盖层里的为准（E.3.3：回读要反映最新版本） */
+        total = upg_store_load(UPG_ST_USR1, ws->scratch, UPG_SCRATCH_MAX);
+        if (total == 0u) {
+            total = upg_meta_build_usr1(ws->scratch, UPG_SCRATCH_MAX);
+        }
     } else if (type_is(f + 3, UPG_TYPE_USR2)) {
         (void)upg_meta_idcode(ws->scratch);
         total = (uint16_t)UPG_IDCODE_LEN;
@@ -237,22 +252,20 @@ static void poll_read(void)
 
 static void on_flag_get(void)
 {
-    upg_state_t *s = proto_st();
     uint8_t buf[7];
+    uint32_t flag = upg_flag_load();
 
-    if (s == NULL) {
-        return;
-    }
     buf[0] = UPG_CMD_RC;
     buf[1] = UPG_OP_GET_FLAG;
     buf[2] = UPG_RES_OK;
-    buf[3] = (uint8_t)(s->flag >> 24);
-    buf[4] = (uint8_t)(s->flag >> 16);
-    buf[5] = (uint8_t)(s->flag >> 8);
-    buf[6] = (uint8_t)s->flag;
+    buf[3] = (uint8_t)(flag >> 24);
+    buf[4] = (uint8_t)(flag >> 16);
+    buf[5] = (uint8_t)(flag >> 8);
+    buf[6] = (uint8_t)flag;
     (void)ble_upg_notify(buf, sizeof(buf));
 }
 
+/** @brief 设置升级标志：只记录，落盘与应答在任务上下文（擦扇区不能进回调） */
 static void on_flag_set(const uint8_t *f, uint16_t len)
 {
     upg_state_t *s = proto_st();
@@ -266,8 +279,7 @@ static void on_flag_set(const uint8_t *f, uint16_t len)
     }
     s->flag = ((uint32_t)f[2] << 24) | ((uint32_t)f[3] << 16)
             | ((uint32_t)f[4] << 8) | (uint32_t)f[5];
-    send_result(UPG_OP_SET_FLAG, UPG_RES_OK);
-    co_printf("[UPG ] flag=0x%08X\r\n", (unsigned)s->flag);
+    s->flag_pending = 1u;
 }
 
 static void on_write_cfg(const uint8_t *f, uint16_t len)
@@ -305,16 +317,97 @@ static void on_write_cfg(const uint8_t *f, uint16_t len)
 /** @brief 下行数据响应：FA 18 seq len（P1 不落盘，仅回执避免主机重发） */
 static void on_downlink_data(const uint8_t *f, uint16_t len)
 {
-    uint8_t buf[4];
+    upg_state_t *s = proto_st();
+    uint8_t ack[4];
 
-    if (len < 4u) {
+    if (s == NULL || len < 4u) {
         return;
     }
-    buf[0] = UPG_CMD_RC;
-    buf[1] = UPG_OP_DOWN_ACK;
-    buf[2] = f[2];
-    buf[3] = f[3];
-    (void)ble_upg_notify(buf, sizeof(buf));
+    ack[0] = UPG_CMD_RC;
+    ack[1] = UPG_OP_DOWN_ACK;
+    ack[2] = f[2];
+    ack[3] = f[3];
+
+    if (s->writing == 0u) {
+        /* 无写会话（例如读会话中收到数据包）：按规范回执，避免主机空等 */
+        (void)ble_upg_notify(ack, sizeof(ack));
+        return;
+    }
+    /* 包序/长度/越界校验通过后只置标志；落盘与回执都在任务上下文，
+     * 数据此刻就留在 ws->io 里，主机在收到 0x18 前不会发下一包 */
+    if (f[2] != s->wr_expect || f[3] == 0u || len < (uint16_t)(4u + (uint16_t)f[3])
+        || ((uint32_t)s->wo.written + (uint16_t)f[3]) > (uint32_t)s->wr_len) {
+        co_printf("[UPG ] bad data pkt seq=%u exp=%u len=%u/%u\r\n",
+                  (unsigned)f[2], (unsigned)s->wr_expect,
+                  (unsigned)f[3], (unsigned)s->wr_len);
+        return;
+    }
+    s->wr_pkt_ready = 1u;
+}
+
+/** @brief 启动写：只校验参数并记录，擦扇区/压实留到任务上下文 */
+static void on_write_start(const uint8_t *f, uint16_t len)
+{
+    upg_state_t *s = proto_st();
+    upg_store_type_t t;
+    uint32_t dlen;
+
+    if (s == NULL) {
+        return;
+    }
+    if (len < 19u || pack_valid(f[2]) == 0u) {
+        send_result(UPG_OP_WRITE_START, UPG_RES_NO_DATA);
+        return;
+    }
+    if (s->writing != 0u || s->reading != 0u || s->wr_start != 0u) {
+        send_result(UPG_OP_WRITE_START, UPG_RES_BUSY);
+        return;
+    }
+    t = upg_store_type_of(f + 3);
+    if (!upg_store_type_writable(t)) {
+        send_result(UPG_OP_WRITE_START, UPG_RES_NO_DATA);
+        return;
+    }
+    dlen = ((uint32_t)f[15] << 24) | ((uint32_t)f[16] << 16)
+         | ((uint32_t)f[17] << 8) | (uint32_t)f[18];
+    if (dlen == 0u || dlen > UPG_STORE_DATA_MAX) {
+        send_result(UPG_OP_WRITE_START, UPG_RES_NO_DATA);
+        return;
+    }
+    s->pack_len = f[2];
+    s->wr_type = (uint8_t)t;
+    s->wr_len = (uint16_t)dlen;
+    s->wr_crc = 0u;
+    memset(&s->wo, 0, sizeof(s->wo));
+    s->wr_expect = 0u;
+    s->wr_start = 1u;
+}
+
+/** @brief 终止读写：读流程立即应答；写流程只记录 CRC1，提交在任务上下文 */
+static void on_abort_io(const uint8_t *f, uint16_t len)
+{
+    upg_state_t *s = proto_st();
+    uint8_t resp[5];
+
+    if (s == NULL) {
+        return;
+    }
+    if (s->writing == 0u) {
+        s->reading = 0u;
+        resp[0] = UPG_CMD_RC;
+        resp[1] = UPG_OP_ABORT_IO;
+        resp[2] = UPG_RES_OK;
+        resp[3] = 0u;
+        resp[4] = 0u;
+        (void)ble_upg_notify(resp, sizeof(resp));
+        return;
+    }
+    if (len < 4u) {
+        send_result(UPG_OP_ABORT_IO, UPG_RES_NO_DATA);
+        return;
+    }
+    s->wr_crc1 = (uint16_t)(((uint16_t)f[2] << 8) | (uint16_t)f[3]);
+    s->wr_abort = 1u;
 }
 
 void upg_proto_on_frame(const uint8_t *data, uint16_t len)
@@ -351,9 +444,10 @@ void upg_proto_on_frame(const uint8_t *data, uint16_t len)
         on_read_start(data, len);
         break;
     case UPG_OP_WRITE_START:
+        on_write_start(data, len);
+        break;
     case UPG_OP_ABORT_IO:
-        /* 键值写入在 P2 实现 */
-        send_result(op, UPG_RES_NO_DATA);
+        on_abort_io(data, len);
         break;
     case UPG_OP_WRITE_DATA:
         on_downlink_data(data, len);
@@ -390,6 +484,117 @@ void upg_proto_on_frame(const uint8_t *data, uint16_t len)
     }
 }
 
+/**
+ * @brief 任务上下文推进写入：擦扇区/压实 → 回 FA 12；落盘 + 回执；提交或回滚
+ * @note  Flash 操作绝不能放在 GATT 回调里（擦扇区几十毫秒会打乱连接间隔）
+ */
+static void poll_write(void)
+{
+    upg_state_t *s = proto_st();
+    upg_ws_t *ws = upg_ws();
+    uint8_t out[11];
+
+    if (s == NULL || ws == NULL) {
+        return;
+    }
+
+    /* 0) 升级标志落盘（表 E.14）：擦扇区只能在任务上下文 */
+    if (s->flag_pending != 0u) {
+        s->flag_pending = 0u;
+        send_result(UPG_OP_SET_FLAG,
+                    upg_flag_save(s->flag) ? UPG_RES_OK : UPG_RES_NO_DATA);
+        return;
+    }
+
+    /* 1) 启动写：此处才擦扇区并压实其余记录，成功后再回 FA 12 */
+    if (s->wr_start != 0u) {
+        uint32_t addr = 0u;
+
+        s->wr_start = 0u;
+        if (!upg_store_begin(&s->wo, (upg_store_type_t)s->wr_type, s->wr_len, &addr)) {
+            send_result(UPG_OP_WRITE_START, UPG_RES_NO_DATA);
+            co_printf("[UPG ] write start fail\r\n");
+            return;
+        }
+        s->writing = 1u;
+        out[0] = UPG_CMD_RC;
+        out[1] = UPG_OP_WRITE_START;
+        out[2] = UPG_RES_OK;
+        out[3] = (uint8_t)(addr >> 24);
+        out[4] = (uint8_t)(addr >> 16);
+        out[5] = (uint8_t)(addr >> 8);
+        out[6] = (uint8_t)addr;
+        out[7] = 0u;
+        out[8] = 0u;
+        out[9] = (uint8_t)(s->wr_len >> 8);
+        out[10] = (uint8_t)s->wr_len;
+        (void)ble_upg_notify(out, sizeof(out));
+        co_printf("[UPG ] write ready, total=%u pack=%u\r\n",
+                  (unsigned)s->wr_len, (unsigned)s->pack_len);
+        return;
+    }
+
+    /* 2) 一包数据：落盘 → 累计 CRC2 → 回 0x18 → 收满则发 FA 14 00 00 */
+    if (s->wr_pkt_ready != 0u && s->writing != 0u) {
+        uint8_t seq = ws->io[2];
+        uint8_t n = ws->io[3];
+        uint8_t ack[4];
+
+        s->wr_pkt_ready = 0u;
+        if (!upg_store_write(&s->wo, ws->io + 4u, n)) {
+            co_printf("[UPG ] store write fail\r\n");
+            upg_store_abort(&s->wo);
+            s->writing = 0u;
+            return;
+        }
+        s->wr_crc = upg_crc16(ws->io + 4u, n, s->wr_crc);
+
+        s->wr_expect++;
+
+        ack[0] = UPG_CMD_RC;
+        ack[1] = UPG_OP_DOWN_ACK;
+        ack[2] = seq;
+        ack[3] = n;
+        (void)ble_upg_notify(ack, sizeof(ack));
+
+        if (s->wo.written >= s->wr_len) {
+            /* 数据传输完毕：由遥控器主动通知（E.3.4 g），等主机发 0x13 */
+            uint8_t done[4];
+
+            done[0] = UPG_CMD_RC;
+            done[1] = UPG_OP_WRITE_DATA;
+            done[2] = 0u;
+            done[3] = 0u;
+            (void)ble_upg_notify(done, sizeof(done));
+            co_printf("[UPG ] rx %u bytes done, wait abort\r\n", (unsigned)s->wo.written);
+        }
+        return;
+    }
+
+    /* 3) 终止读写：比对 CRC1/CRC2，一致才提交 */
+    if (s->wr_abort != 0u) {
+        bool ok = (s->wo.written == s->wr_len) && (s->wr_crc == s->wr_crc1);
+
+        s->wr_abort = 0u;
+        if (ok) {
+            ok = upg_store_commit(&s->wo, s->wr_crc);
+        }
+        if (!ok) {
+            upg_store_abort(&s->wo);
+        }
+        s->writing = 0u;
+        out[0] = UPG_CMD_RC;
+        out[1] = UPG_OP_ABORT_IO;
+        out[2] = UPG_RES_OK;
+        out[3] = (uint8_t)(s->wr_crc >> 8);
+        out[4] = (uint8_t)(s->wr_crc & 0xFFu);
+        (void)ble_upg_notify(out, 5u);
+        co_printf("[UPG ] %s crc2=%04X crc1=%04X\r\n",
+                  ok ? "write commit" : "write rejected",
+                  (unsigned)s->wr_crc, (unsigned)s->wr_crc1);
+    }
+}
+
 void upg_proto_poll(void)
 {
     upg_ws_t *ws;
@@ -415,5 +620,6 @@ void upg_proto_poll(void)
         ws->st.auth_pending = 0u;
         start_auth();
     }
+    poll_write();
     poll_read();
 }

@@ -1,6 +1,6 @@
 {
   "tool": "Cppcheck 2.10",
-  "translation_unit_count": 79,
+  "translation_unit_count": 80,
   "translation_units": [
     "bleuart/prj/system_br1601x.c",
     "bleuart/freertos/tasks.c",
@@ -80,7 +80,8 @@
     "bleuart/cat1/cat1/UPG/upg_auth.c",
     "bleuart/cat1/cat1/UPG/upg_md5.c",
     "bleuart/cat1/cat1/UPG/upg_meta.c",
-    "bleuart/cat1/cat1/UPG/upg_session.c"
+    "bleuart/cat1/cat1/UPG/upg_session.c",
+    "bleuart/cat1/cat1/UPG/upg_store.c"
   ],
   "process_exit_code": 0,
   "diagnostic_count": 12,

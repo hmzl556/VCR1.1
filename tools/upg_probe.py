@@ -76,6 +76,50 @@ def cmd_read(type_name, pack_len):
           "最后 FA 14 00 00")
 
 
+def crc16(buf, crc=0):
+    for b in buf:
+        ds = b
+        for _ in range(8):
+            crc = (crc >> 1) ^ (0xA001 if ((crc ^ ds) & 1) else 0)
+            ds >>= 1
+    return crc & 0xFFFF
+
+
+def cmd_write(type_name, pack_len, payload_hex):
+    """生成整段写入流程的所有帧（含 CRC16），逐条复制到 nRF Connect 即可。"""
+    tag = type_name.encode()
+    if len(tag) > 8:
+        raise SystemExit("类型最长 8 字节")
+    data = _clean(payload_hex) if payload_hex else bytes(range(64))
+    pack_len = int(pack_len)
+    crc = crc16(data)
+
+    start = (bytes([0xF9, 0x12, pack_len]) + tag + b"\x00" * (8 - len(tag))
+             + bytes(4) + len(data).to_bytes(4, "big"))
+    print(f"数据长度 {len(data)} 字节，包长 {pack_len}，CRC16 = {crc:04X}\n")
+    print("① 发 : F916F5F5F500")
+    print("   收 : FA1600")
+    print()
+    print("② 发 :", start.hex().upper())
+    print("   收 : FA1200 + 4字节地址 +", len(data).to_bytes(4, "big").hex().upper())
+    print()
+    seq = 0
+    for off in range(0, len(data), pack_len):
+        chunk = data[off:off + pack_len]
+        frame = bytes([0xF9, 0x14, seq, len(chunk)]) + chunk
+        print(f"③-{seq + 1} 发 :", frame.hex().upper())
+        print(f"      收 : FA18{seq:02X}{len(chunk):02X}")
+        seq += 1
+    print()
+    print("   最后一包之后还会再收到 : FA140000（接收完毕）")
+    print()
+    print(f"④ 发 : F913{crc >> 8:02X}{crc & 0xFF:02X}")
+    print(f"   收 : FA1300{crc >> 8:02X}{crc & 0xFF:02X}   ← 两个 CRC 相同时才算提交成功")
+    print()
+    print("⑤ 发 : F91600000000        （清除升级标志）")
+    print("   收 : FA1600")
+
+
 def main(argv):
     if len(argv) < 2:
         print(__doc__)
@@ -87,6 +131,10 @@ def main(argv):
         cmd_hash(argv[2])
     elif what == "read":
         cmd_read(argv[2] if len(argv) > 2 else "rel0", argv[3] if len(argv) > 3 else 128)
+    elif what == "write":
+        cmd_write(argv[2] if len(argv) > 2 else "irstb",
+                  argv[3] if len(argv) > 3 else 64,
+                  argv[4] if len(argv) > 4 else "")
     else:
         print(__doc__)
         return 1
