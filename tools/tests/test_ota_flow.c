@@ -44,5 +44,6 @@ int main(void){unsigned i,n;uint8_t f[547];BOOTLOAD_PARA_STRUCT para;OTA_CHECKPO
  /* Read failure at final verification cannot commit an install flag. */
  peer_connected=0;request();fail_read=reads+1;{const uint8_t *p;uint16_t len;(void)udp_ota_poll_tx_get(&p,&len);}fail_read=0;
  assert(!udp_ota_session_busy()&&system_resets==1&&restarted==1);assert(!udp_bootload_read_para(&para)&&para.prog_success_flag!=OTA_UPGRADE_FLAG);
- reset();udp_ota_init();n=erases;udp_ota_on_tag11_task(0x0202,401);udp_ota_on_tag11_task(0x0201,10);assert(!udp_ota_session_busy()&&erases==n);
+ /* 441 x 512 = 225,792 B exceeds the 220K APP1/APP2 partition, so the session must be refused. */
+ reset();udp_ota_init();n=erases;udp_ota_on_tag11_task(0x0202,441);udp_ota_on_tag11_task(0x0201,10);assert(!udp_ota_session_busy()&&erases==n);
  puts("OTA integrated flow: complete 400-chunk image, reset/resume at chunk 8, duplicate/out-of-order rejection, PAUSE/retry, IR-bank preservation, final read failure forbids install PASS");return 0;}

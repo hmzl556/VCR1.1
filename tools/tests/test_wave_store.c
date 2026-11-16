@@ -16,13 +16,13 @@ uint32_t Qflash_Write(uint32_t a,uint8_t *b,uint32_t n){unsigned o=offset(a,n),i
 int main(void)
 {
     ir_raw_t old,next,out;unsigned i,total,before;uint32_t first;
-    assert(A==0x0106B000u && B==0x0106E000u && FLASH_UNALLOCATED_START==0x01071000u);
+    assert(A==0x01075000u && B==0x01078000u && FLASH_UNALLOCATED_START==0x0107D000u);
     assert(A==FLASH_USER_CFG_START+FLASH_USER_CFG_SIZE && B==A+FLASH_IR_RAW_BANK_SIZE);
     memset(flash,255,sizeof(flash));ir_wave_store_load();assert(!s_bank&&!ir_wave_store_has(1));assert(!ir_wave_store_get(1,&old));
     memset(&old,0,sizeof(old));old.count=67;old.period_ticks=1684;old.kind=IR_NEC_KIND;
     old.widths[0]=9000;old.widths[1]=4500;old.widths[66]=562;
     for(i=0;i<32;++i){old.widths[2+2*i]=562;old.widths[3+2*i]=(0xFF00AE51u&(1ul<<i))?1687:562;}
-    /* Valid record at the previous 0x0106D000 base is intentionally ignored. */
+    /* Valid record at the previous 0x01077000 base is intentionally ignored. */
     {header_t h;uint32_t crc=0xffffffffu;unsigned off=0x2000;
      memset(flash+off,0,sizeof(h)+BYTES);memcpy(flash+off+sizeof(h),&old,sizeof(old));
      h.magic=MAGIC;h.version=VERSION;h.sequence=99;crc=crc_add(crc,&h.version,8);
