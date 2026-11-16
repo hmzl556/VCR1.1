@@ -26,6 +26,7 @@
 #include "heartbeat.h"
 #include "task_keyscan.h"
 #include "ble_adv.h"    /* ble_adv_start_by_bonding() — 唤醒后复用栈重启广播 */
+#include "upg_session.h" /* upg_session_busy() — 键值下载会话期间禁止休眠 */
 
 extern volatile uint8_t g_audio_pcm_enabled;
 extern void sdk_timer_pause(void);   /* main.c: 删 8ms 定时器让 WFI 深睡 */
@@ -294,11 +295,12 @@ void pm_state_transition(pm_state_t new_state)
 {
     pm_state_t old_state = g_pm_state;
 
-    /* OTA 会话期间禁止进入待机/休眠（combo/工厂复位等可能绕过 process 直接 transition） */
-    if ((udp_ota_session_busy() != 0u || task_keyscan_ir_busy() || g_audio_pcm_enabled ||
+    /* OTA/键值下载会话期间禁止进入待机/休眠（combo/工厂复位等可能绕过 process 直接 transition） */
+    if ((udp_ota_session_busy() != 0u || upg_session_busy() || task_keyscan_ir_busy() ||
+         g_audio_pcm_enabled ||
          rc_cat1_has_work() || heartbeat_needs_cat1_poll())
         && (new_state == PM_STATE_STANDBY || new_state == PM_STATE_SLEEP)) {
-        PM_LOG("OTA/IR busy, reject transition to %s",
+        PM_LOG("OTA/UPG/IR busy, reject transition to %s",
                pm_state_name(new_state));
         return;
     }
@@ -443,8 +445,8 @@ void pm_state_process(void)
 {
     uint32_t idle_ms;
 
-    /* OTA 会话期间跳过 PM 超时检查，仅刷新活动时间，避免 session 结束后立即误休眠 */
-    if (udp_ota_session_busy() != 0u) {
+    /* OTA/键值下载会话期间跳过 PM 超时检查，仅刷新活动时间，避免 session 结束后立即误休眠 */
+    if (udp_ota_session_busy() != 0u || upg_session_busy()) {
         pm_refresh_activity();
         return;
     }

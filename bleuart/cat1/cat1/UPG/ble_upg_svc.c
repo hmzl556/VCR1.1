@@ -88,6 +88,10 @@ static void upg_chr_cbk(gatt_event_t event, void *context, void *param)
         ws->st.cccd_on = (in->type == GATT_SEND_VAL_NOTIFICATION) ? 1u : 0u;
         if (ws->st.cccd_on != 0u) {
             upg_proto_on_link_ready();
+        } else {
+            /* 取消订阅：清掉待发动作，避免向未订阅端发通知；会话由空闲超时回收 */
+            ws->st.auth_pending = 0u;
+            ws->st.reading = 0u;
         }
     }
 }
