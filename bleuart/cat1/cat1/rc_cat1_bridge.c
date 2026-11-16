@@ -18,6 +18,7 @@
 #include "task.h"
 #include "udp_ota.h"
 #include "ota_frame.h"
+#include "upg_session.h"    /* 键值下载独占会话：期间暂停 CAT1 业务 */
 #include "cat1_time_sync.h"
 #include "flash_layout.h"
 #include "qflash.h"
@@ -973,6 +974,10 @@ static void rc_cat1_poll_core(uint8_t ota_exclusive)
 {
 	uint32_t now_ms;
 	cat1_modem_result_t mr;
+
+    /* 键值下载持有独占会话期间暂停 CAT1 业务：下载工作区借用了 Flash 写缓冲，
+     * 且 CAT1 组帧会与下载争用同一片资源。恢复由会话结束自动完成。 */
+    if (upg_session_busy()) return;
 
     /* Continue in-flight UART/OTA, but do not start idle Flash/AT work while
      * IR owns precise timing. Deferred cloud policy is saved before a reboot

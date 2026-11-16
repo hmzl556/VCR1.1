@@ -17,6 +17,7 @@
 #include "ble_diss.h"
 #include "ble_bas.h"
 #include "ble_rc_svc.h"
+#include "ble_upg_svc.h"    /* 三模通用遥控器升级服务（键值下载） */
 #include "rc_key_input.h"
 #include "rc_cat1_bridge.h"
 #include "rc_protocol.h"
@@ -121,6 +122,7 @@ uint8_t ble_stack_init_only(void)
 	hid_kbd_init();				// 初始化 HID 键盘服务
 	ble_dtss_init();			// 初始化 DTSS 服务
 	ble_rc_svc_init();			// 初始化 RC 服务
+	ble_upg_svc_init();			// 初始化三模通用遥控器升级服务（键值下载）
 	ble_bas_init();				// 初始化 BAS 电池服务
 
 	ble_gap_init();				// GAP 初始化 + peer_recover 绑定恢复

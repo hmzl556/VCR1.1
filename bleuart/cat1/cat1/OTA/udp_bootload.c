@@ -435,3 +435,19 @@ int udp_bootload_run_bootloader(void)
 	}
 	return 0;
 }
+
+/**
+ * @brief  借出 Flash 写缓冲给独占会话（键值下载）使用
+ * @note   缓冲仅在 OTA staging 使用，二者靠独占会话互斥；调用方必须已进入独占会话。
+ */
+uint8_t *udp_bootload_borrow_buf(uint16_t *len)
+{
+	if (len != NULL) {
+		*len = (uint16_t)OTA_CHUNK_SIZE;
+	}
+	/* 有未提交的分片时不可借出，避免破坏即将写入的数据 */
+	if (s_staged_valid != 0u) {
+		return NULL;
+	}
+	return s_flash_wr_buf;
+}

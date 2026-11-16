@@ -18,6 +18,7 @@
 #include "ir_wave_store.h" /* 学习键值加载（须在 BLE 栈/Qflash 就绪后） */
 #include "heartbeat.h"      /* 服务器心跳 — 工作/待机循环检查 */
 #include "ble_bas.h"
+#include "upg_proto.h"      /* 键值下载协议状态机（独占会话内运行） */
 #include "bat_adc.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -162,6 +163,9 @@ void task_ble_entry(void *pvParameters)
 		}
 
 		udp_ota_boot_indicate_poll();
+
+		/* 键值下载：推进读数据分包、检查会话超时与断连 */
+		upg_proto_poll();
 
 		// 处理 Cat.1 模块事件队列中的事件，确保系统能够及时响应来自 Cat.1 模块的事件和数据
 		cat1_ble_process_pending();

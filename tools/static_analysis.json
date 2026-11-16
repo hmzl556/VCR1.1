@@ -1,6 +1,6 @@
 {
   "tool": "Cppcheck 2.10",
-  "translation_unit_count": 73,
+  "translation_unit_count": 79,
   "translation_units": [
     "bleuart/prj/system_br1601x.c",
     "bleuart/freertos/tasks.c",
@@ -74,7 +74,13 @@
     "bleuart/IR/ir_wave_store.c",
     "bleuart/IR/irc.c",
     "bleuart/IR/ir_learn.c",
-    "bleuart/IR/ir_key_map.c"
+    "bleuart/IR/ir_key_map.c",
+    "bleuart/cat1/cat1/UPG/ble_upg_svc.c",
+    "bleuart/cat1/cat1/UPG/upg_proto.c",
+    "bleuart/cat1/cat1/UPG/upg_auth.c",
+    "bleuart/cat1/cat1/UPG/upg_md5.c",
+    "bleuart/cat1/cat1/UPG/upg_meta.c",
+    "bleuart/cat1/cat1/UPG/upg_session.c"
   ],
   "process_exit_code": 0,
   "diagnostic_count": 12,

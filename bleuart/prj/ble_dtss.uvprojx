@@ -339,7 +339,7 @@
               <MiscControls>--diag_suppress=188 --diag_suppress=177</MiscControls>
               <Define>BR1601A01,USB_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\bsp\common\inc;..\..\bsp\core\inc;..\..\bsp\driver\inc;..\..\audio\audio_encode;..\..\audio\audio_code_sbc;..\..\cs\inc;..\inc;..\src;..\prj;..\..\audio\audio_code_adpcm;..\freertos\include;..\freertos;..\freertos\portable\RVDS\ARM_CM0;..\cat1;..\cat1;..\cat1\tiny-aes;..\pmu\inc;..\cat1\OTA;..\cat1\cat1;..\cat1\cat1\OTA;..\cat1\cat1\tiny-aes;..\IR</IncludePath>
+              <IncludePath>..\..\bsp\common\inc;..\..\bsp\core\inc;..\..\bsp\driver\inc;..\..\audio\audio_encode;..\..\audio\audio_code_sbc;..\..\cs\inc;..\inc;..\src;..\prj;..\..\audio\audio_code_adpcm;..\freertos\include;..\freertos;..\freertos\portable\RVDS\ARM_CM0;..\cat1;..\cat1;..\cat1\tiny-aes;..\pmu\inc;..\cat1\OTA;..\cat1\cat1;..\cat1\cat1\OTA;..\cat1\cat1\tiny-aes;..\cat1\cat1\UPG;..\IR</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -847,6 +847,41 @@
               <FileName>ir_key_map.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\IR\ir_key_map.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>UPG</GroupName>
+          <Files>
+            <File>
+              <FileName>ble_upg_svc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\UPG\ble_upg_svc.c</FilePath>
+            </File>
+            <File>
+              <FileName>upg_proto.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\UPG\upg_proto.c</FilePath>
+            </File>
+            <File>
+              <FileName>upg_auth.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\UPG\upg_auth.c</FilePath>
+            </File>
+            <File>
+              <FileName>upg_md5.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\UPG\upg_md5.c</FilePath>
+            </File>
+            <File>
+              <FileName>upg_meta.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\UPG\upg_meta.c</FilePath>
+            </File>
+            <File>
+              <FileName>upg_session.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\UPG\upg_session.c</FilePath>
             </File>
           </Files>
         </Group>

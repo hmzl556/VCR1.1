@@ -109,7 +109,7 @@ static void delay_n_10us(unsigned n){(void)n;}
  voice=(r/'bleuart/src/app_voice_ctrl.c').read_text(encoding='utf-8-sig')
  (p/'actual_voice_control.c').write_text(voice[voice.index('static QueueHandle_t'):],encoding='utf-8')
 
- for name in ['heartbeat','at_urc','baud_sync','standby','pm_state','reports','sleep','sdk_tick','ota_safety','ble_lifecycle','voice_control','aes','ota_flow']:
+ for name in ['heartbeat','at_urc','baud_sync','standby','pm_state','reports','sleep','sdk_tick','ota_safety','ble_lifecycle','voice_control','aes','ota_flow','upg']:
   exe=p/(name+'.exe')
-  subprocess.run(['gcc','-std=c99','-O2','-Wall','-Wextra','-Werror','-Wno-comment','-Wno-unused-parameter','-Wno-pointer-to-int-cast','-Wno-unused-function','-Wno-unused-variable','-Wno-misleading-indentation','-ffunction-sections','-fdata-sections','-Wl,--gc-sections','-I'+str(p),'-I'+str(t),'-I'+str(r/'bleuart/cat1/cat1'),'-I'+str(r/'bleuart/pmu/inc'),'-I'+str(r/'bleuart/pmu/src'),'-I'+str(r/'bleuart/IR'),'-I'+str(r/'bleuart/cat1/cat1/OTA'),'-I'+str(r/'bleuart/inc'),str(t/('test_'+name+'.c')),'-o',str(exe)],check=True)
+  subprocess.run(['gcc','-std=c99','-O2','-Wall','-Wextra','-Werror','-Wno-comment','-Wno-unused-parameter','-Wno-pointer-to-int-cast','-Wno-unused-function','-Wno-unused-variable','-Wno-misleading-indentation','-ffunction-sections','-fdata-sections','-Wl,--gc-sections','-I'+str(p),'-I'+str(t),'-I'+str(r/'bleuart/cat1/cat1'),'-I'+str(r/'bleuart/pmu/inc'),'-I'+str(r/'bleuart/pmu/src'),'-I'+str(r/'bleuart/IR'),'-I'+str(r/'bleuart/cat1/cat1/OTA'),'-I'+str(r/'bleuart/cat1/cat1/UPG'),'-I'+str(r/'bleuart/inc'),str(t/('test_'+name+'.c')),'-o',str(exe)],check=True)
   subprocess.run([str(exe)],check=True)

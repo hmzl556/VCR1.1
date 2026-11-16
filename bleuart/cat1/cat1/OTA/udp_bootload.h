@@ -117,4 +117,13 @@ void udp_bootload_clear_checkpoint(void);
 /** Bootloader 入口：检测标志、复制 APP2→APP1、写 marker */
 int udp_bootload_run_bootloader(void);
 
+/**
+ * @brief  借出 Flash 写缓冲（OTA_CHUNK_SIZE = 512B）给独占会话使用
+ * @param  len 输出可用字节数
+ * @return 缓冲首地址；未启用或不可借时返回 NULL
+ * @note   仅当调用方已持有独占会话（udp_ota_session_enter）时安全。
+ *         键值下载在会话期间独占该缓冲，OTA staging 与它互斥。
+ */
+uint8_t *udp_bootload_borrow_buf(uint16_t *len);
+
 #endif /* UDP_BOOTLOAD_H */

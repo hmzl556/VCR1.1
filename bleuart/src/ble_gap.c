@@ -502,10 +502,20 @@ void ble_peer_pair_req(gap_event_t ev, void *ctx, pairing_req_t *arg)
 	#endif
 }
 
+/** 协商后的 ATT MTU；未协商前为 BLE 默认 23 */
+static uint16_t s_att_mtu = 23u;
+
 void ble_gap_mtu_exchange(gap_event_t ev, void *ctx, att_mtu_ntf_t *arg)
 {
-	co_printf("[MTU] mtu_exchange_complete: %d\r\n", arg->mtu);
-	//ble_att_mtu = arg->mtu;
+	if (arg != NULL) {
+		s_att_mtu = arg->mtu;
+		co_printf("[MTU] mtu_exchange_complete: %d\r\n", arg->mtu);
+	}
+}
+
+uint16_t ble_gap_get_mtu(void)
+{
+	return s_att_mtu;
 }
 
 static void ble_gap_conn_update_cmpl(gap_event_t ev, void *ctx, le_peer_conn_update_cmpl_t *arg)

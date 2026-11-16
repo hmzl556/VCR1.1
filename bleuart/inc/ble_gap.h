@@ -43,6 +43,9 @@ extern volatile bool g_pairing_active;
 // 获取当前已连接对端句柄；未连接时返回 NULL。
 peer_t ble_gap_get_peer(void);
 
+/** 获取协商后的 ATT MTU（未协商时为 23，键值下载要求 ≥139） */
+uint16_t ble_gap_get_mtu(void);
+
 void ble_gap_process_disconnect_pending(void);
 
 /** 休眠唤醒后重建 GATT 服务表 (触发 Service Changed, 使 STB 失效缓存重订阅) */
