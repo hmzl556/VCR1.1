@@ -50,9 +50,13 @@ typedef struct {
  * 二、静态变量
  *===========================================================================*/
 
-/* 组合键注册表（编译时确定，不动态分配） */
-#define COMBO_IDX_PAIR_STB   0   /* KEY14 + KEY3 */
-#define COMBO_IDX_UNPAIR_STB 1   /* KEY9 + KEY3 */
+/* 组合键注册表（编译时确定，不动态分配）
+ * 产品定位: BLE 仅配机顶盒, 电视纯红外 (业务键切换目标)。
+ * GY/T 407-2024 §7.2b: 机顶盒配对 = 音量- + 直播业务,
+ * 机顶盒解配 = 返回 + 直播业务 (线对已过共线检查)。
+ * 电视配对/解配组合 (§7.2c) 暂不实现, 待产品确认。 */
+#define COMBO_IDX_PAIR_STB   0   /* 音量- + 直播业务 (KEY7 + KEY12) */
+#define COMBO_IDX_UNPAIR_STB 1   /* 返回  + 直播业务 (KEY19 + KEY12) */
 #define COMBO_COUNT         2
 
 /* Automatic KEYSCAN uses 32ms scan interval plus 10ms debounce.
@@ -95,10 +99,9 @@ static void combo_register(uint8_t idx, uint8_t key1, uint8_t key2, combo_action
 
 void combo_key_init(void)
 {
-    /* One BLE target: these pairs replace the previous TV actions and
-     * the left-key aliases. No user-code switching combo is registered. */
-    combo_register(COMBO_IDX_PAIR_STB,   TASK_KEYSCAN_KEY14, TASK_KEYSCAN_KEY3, COMBO_ACT_PAIR);
-    combo_register(COMBO_IDX_UNPAIR_STB, TASK_KEYSCAN_KEY9,  TASK_KEYSCAN_KEY3, COMBO_ACT_UNPAIR);
+    /* 机顶盒配对/解配 (BLE 仅配机顶盒; §7.2b 标准组合) */
+    combo_register(COMBO_IDX_PAIR_STB,   TASK_KEYSCAN_KEY14, TASK_KEYSCAN_LIVE, COMBO_ACT_PAIR);
+    combo_register(COMBO_IDX_UNPAIR_STB, TASK_KEYSCAN_KEY9,  TASK_KEYSCAN_LIVE, COMBO_ACT_UNPAIR);
 }
 
 bool combo_key_is_idle(void)

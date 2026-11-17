@@ -60,6 +60,19 @@ static bool key15_voice_started = false;
 /** Current physical press was accepted by the IR queue. */
 static bool s_ir_key_routed;
 
+/* ====== 控制模式 (业务键切换, GY/T 407-2024 §5.1.1.3 + 表B.1 脚注 c/d) ====== */
+#define CONTROL_MODE_STB 0u   /* 机顶盒模式 (上电默认): 普通键走 HID/RC6 */
+#define CONTROL_MODE_TV  1u   /* 电视机模式: 普通键走电视 NEC/学习 */
+static uint8_t s_control_mode = CONTROL_MODE_STB;
+/** 本键按下时是否已发出 HID (电视模式键不置位, 释放时据此决定是否发 HID 释放) */
+static bool s_key_hid_active;
+
+/** 当前控制模式 (测试与诊断用) */
+uint8_t task_keyscan_control_mode(void)
+{
+    return s_control_mode;
+}
+
 /* ====== 红外学习模式状态机 ====== */
 typedef enum {
     IR_LEARN_MODE_OFF = 0,
@@ -185,7 +198,7 @@ static void task_keyscan_hid_flush_deferred(void)
 static void task_keyscan_hid_send_press(uint16_t key_id)
 {
     if (key_id == TASK_KEYSCAN_TV_POWER || !key_id || ble_gap_get_peer() == NULL) return;
-    if (key_id == TASK_KEYSCAN_STB_POWER) key_id = TASK_KEYSCAN_KEY1;
+    s_key_hid_active = true;
     if (cat1_modem_is_busy() || s_hid_count || s_hid_reset_pending)
         hid_defer_push((uint16_t)(HID_DEFER_PRESS | key_id));
     else hid_kbd_send_key_id_current(key_id);
@@ -193,6 +206,9 @@ static void task_keyscan_hid_send_press(uint16_t key_id)
 
 static void task_keyscan_hid_send_release(uint8_t is_consumer)
 {
+    /* 电视模式路由的键没有发过 HID press, 不发无主释放 */
+    if (!s_key_hid_active) return;
+    s_key_hid_active = false;
     if (key_active == TASK_KEYSCAN_TV_POWER || ble_gap_get_peer() == NULL) return;
     if (cat1_modem_is_busy() || s_hid_count || s_hid_reset_pending)
         hid_defer_push(is_consumer ? HID_DEFER_CONSUMER_RELEASE : 0u);
@@ -457,6 +473,7 @@ void task_keyscan_reset_on_ble_disconnect(void)
 {
 	ir_tx_release();
     s_ir_key_routed = false;
+    s_key_hid_active = false;
     key_state = KEY_STATE_IDLE;
 	key_candidate = 0;
 	key_active = 0;
@@ -498,8 +515,7 @@ static void task_keyscan_rc_notify(uint8_t action)
 	} else {
 		key_type = key_active_is_consumer ? 0x02u : 0x01u;
 	}
-	rc_key_input_event(key_type, action, key_active_usage,
-                       key_active == TASK_KEYSCAN_STB_POWER ? TASK_KEYSCAN_KEY1 : key_active);
+	rc_key_input_event(key_type, action, key_active_usage, key_active);
 }
 
 void task_keyscan_flush_deferred_hid(void)
@@ -627,7 +643,7 @@ static void task_keyscan_process_core(void)
 				{
 					uint16_t usage_tmp = 0;
 					bool is_consumer_tmp = false;
-					if (hid_kbd_map_key_to_usage(key_active == TASK_KEYSCAN_STB_POWER ? TASK_KEYSCAN_KEY1 : key_active, &usage_tmp, &is_consumer_tmp)) {
+					if (hid_kbd_map_key_to_usage(key_active, &usage_tmp, &is_consumer_tmp)) {
 						key_active_is_consumer = is_consumer_tmp;
 						key_active_usage = usage_tmp;
 					}
@@ -665,14 +681,48 @@ static void task_keyscan_process_core(void)
 
                 s_ir_key_routed = false;
                 if (key_active != 0u) {
-                    /* Learning changes IR codes only, never the BLE mapping.
-                     * TV power remains addressed to the TV, not the STB peer.
-                     * Voice is BLE-only and cannot replay legacy learning. */
-                    if (key_active != TASK_KEYSCAN_TV_POWER &&
-                        key_active != TASK_KEYSCAN_KEY15 && ble_gap_get_peer() == NULL)
-                        s_ir_key_routed = ir_send_key((uint8_t)key_active);
-                    if (ble_gap_get_peer() != NULL && key_active != TASK_KEYSCAN_TV_POWER)
-                        task_keyscan_hid_send_press(key_active);
+                    /* 模式路由 (GY/T 407-2024 表B.1 控制对象 + 脚注 c/d):
+                     *  电视电源   : IR-only, 松开时发送 (原逻辑不变)
+                     *  机顶盒电源 : 固定机顶盒 (HID 0x66 / 断连 RC6 0x0C)
+                     *  直播业务   : 电视模式先补发电视指令再切机顶盒; 发 HID
+                     *  电视机业务 : 切电视并只发电视指令 (IR-only, 不发 HID)
+                     *  频道±/回看 : 按标准固定机顶盒 (不随模式)
+                     *  其余普通键 : 跟随模式 (STB: HID 优先/断连 RC6; TV: NEC/学习)
+                     *  语音       : BLE-only (原逻辑不变) */
+                    if (key_active == TASK_KEYSCAN_LIVE) {
+                        if (s_control_mode == CONTROL_MODE_TV) {
+                            (void)ir_send_key_tv((uint8_t)key_active); /* 脚注 c: 先发电视指令 */
+                        }
+                        s_control_mode = CONTROL_MODE_STB;
+                        if (ble_gap_get_peer() != NULL) {
+                            task_keyscan_hid_send_press(key_active);
+                        }
+                    } else if (key_active == TASK_KEYSCAN_KEY3) { /* 电视机业务 */
+                        s_control_mode = CONTROL_MODE_TV;
+                        s_ir_key_routed = ir_send_key_tv((uint8_t)key_active);
+                    } else if (key_active == TASK_KEYSCAN_STB_POWER) {
+                        if (ble_gap_get_peer() != NULL) {
+                            task_keyscan_hid_send_press(key_active);
+                        } else {
+                            s_ir_key_routed = ir_send_key((uint8_t)key_active);
+                        }
+                    } else if (key_active != TASK_KEYSCAN_TV_POWER &&
+                               key_active != TASK_KEYSCAN_KEY15) {
+                        /* 固定机顶盒键用 SDK 键号字面量: 4=频道-, 11=回看, 17=频道+ */
+                        bool stb_target = (s_control_mode == CONTROL_MODE_STB) ||
+                            key_active == 4u  /* 频道- */
+                         || key_active == 11u /* 回看   */
+                         || key_active == 17u;/* 频道+ */
+                        if (stb_target) {
+                            if (ble_gap_get_peer() != NULL) {
+                                task_keyscan_hid_send_press(key_active);
+                            } else {
+                                s_ir_key_routed = ir_send_key((uint8_t)key_active);
+                            }
+                        } else {
+                            s_ir_key_routed = ir_send_key_tv((uint8_t)key_active);
+                        }
+                    }
                     if (udp_ota_session_busy()) cs_schedule();
                 }
 
@@ -773,9 +823,14 @@ static void task_keyscan_process_core(void)
             if (hw_key == key_active) {
                 pm_activity_notify(PM_ACTIVITY_KEY);
                 if (s_ir_key_routed && now_ms-key_press_start_ms>=400u &&
-                    (ir_wave_store_has(key_active) || key_active==5u || key_active==6u ||
-                     key_active==7u || key_active==11u || key_active==12u ||
-                     key_active==13u || key_active==14u || key_active==16u))
+                    (ir_wave_store_has(key_active) || key_active==4u  /* 频道- */
+                     || key_active==5u  /* 上     */
+                     || key_active==6u  /* 下     */
+                     || key_active==7u  /* 音量-  */
+                     || key_active==8u  /* 左     */
+                     || key_active==9u  /* 右     */
+                     || key_active==10u /* 音量+  */
+                     || key_active==17u /* 频道+  */))
                     ir_tx_repeat((uint8_t)key_active);
             } else ir_tx_release();
 

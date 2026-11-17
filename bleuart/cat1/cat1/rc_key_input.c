@@ -19,29 +19,29 @@ static uint8_t s_tag10_qfull_logged;		//处理warning时不要删
  */
 static uint8_t rc_key_id_to_tag10(uint16_t key_id, uint8_t action)
 {
-	if (key_id == 15u) {
+	/* 新板键号 (SDK KEY_n, 2026-11-17 枚举); 静音键已移除 */
+	if (key_id == 16u) {
 		return (action == 0x01u) ? 13u : 14u;
 	}
 	if (action != 0x01u) {
 		return 0u;
 	}
 	switch (key_id) {
-	case 16u: return 1u;   /* 上 */
-	case  7u: return 2u;   /* 下 */
-	case  5u: return 3u;   /* 左 */
-	case  6u: return 4u;   /* 右 */
-	case  1u: return 5u;   /* 开机 */
-	case  3u: return 6u;   /* 有线电视 */
-	case  2u: return 7u;   /* 静音 */
-	case  9u: return 8u;   /* 返回 */
-	case  8u: return 9u;   /* 主页 */
-	case 10u: return 10u;  /* 菜单 */
-	case 12u: return 11u;  /* 音量+ */
-	case 14u: return 12u;  /* 音量- */
-	case 17u: return 15u;  /* 回看 */
-	case 11u: return 16u;  /* 频道+ */
-	case 13u: return 17u;  /* 频道- */
-	case  4u: return 18u;  /* 确认 */
+	case  5u: return 1u;   /* 上 */
+	case  6u: return 2u;   /* 下 */
+	case  8u: return 3u;   /* 左 */
+	case  9u: return 4u;   /* 右 */
+	case  2u: return 5u;   /* 开机 (机顶盒电源; 电视电源不报) */
+	case 23u: return 6u;   /* 电视机业务 */
+	case 19u: return 8u;   /* 返回 */
+	case 13u: return 9u;   /* 主页 */
+	case 18u: return 10u;  /* 菜单 */
+	case 10u: return 11u;  /* 音量+ */
+	case  7u: return 12u;  /* 音量- */
+	case 11u: return 15u;  /* 回看 */
+	case 17u: return 16u;  /* 频道+ */
+	case  4u: return 17u;  /* 频道- */
+	case  3u: return 18u;  /* 确定 */
 	default:  return 0u;
 	}
 }

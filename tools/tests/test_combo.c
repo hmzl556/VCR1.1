@@ -4,12 +4,14 @@ void ir_send_pair_code_target(bool tv){if(!tv){assert(bond_clears>0u);assert(g_p
 bool ir_user_switch_stb(void){++switch_calls;return false;}
 bool ir_user_switch_tv(void){++switch_calls;return true;}
 static void scan(unsigned t,unsigned mask){uint32_t hw[5]={mask,0,0,0,0};now_ms=t;combo_key_process(t,hw);}
-int main(void){unsigned i;unsigned tv=(1u<<14)|(1u<<3),stb=tv;
- unsigned unpair=(1u<<9)|(1u<<3);
+int main(void){unsigned i;
+ /* 新板键号 (SDK KEY_n): 音量-=7, 直播业务=12, 返回=19 */
+ unsigned tv=(1u<<7)|(1u<<12),stb=tv;
+ unsigned unpair=(1u<<19)|(1u<<12);
  pm_value=PM_STATE_WORKING;combo_key_init();
  assert(COMBO_COUNT==2);
- assert(g_combos[COMBO_IDX_PAIR_STB].key1==14&&g_combos[COMBO_IDX_PAIR_STB].key2==3);
- assert(g_combos[COMBO_IDX_UNPAIR_STB].key1==9&&g_combos[COMBO_IDX_UNPAIR_STB].key2==3);
+ assert(g_combos[COMBO_IDX_PAIR_STB].key1==7&&g_combos[COMBO_IDX_PAIR_STB].key2==12);
+ assert(g_combos[COMBO_IDX_UNPAIR_STB].key1==19&&g_combos[COMBO_IDX_UNPAIR_STB].key2==12);
  scan(0,tv);scan(2999,tv);assert(pair_calls==0);scan(3000,tv);
  assert(pair_calls==1&&!last_pair_tv&&bond_clears==1&&adv_pair_calls==1&&g_pairing_active);
  for(i=3010;i<12000;i+=10)scan(i,tv);assert(pair_calls==1);scan(12010,0);assert(combo_key_is_idle());
@@ -30,7 +32,7 @@ int main(void){unsigned i;unsigned tv=(1u<<14)|(1u<<3),stb=tv;
  /* Missing a single sample must not repeatedly cancel a held pair. */
  {unsigned before=pair_calls;
   combo_key_init();scan(200000,tv);
-  for(i=200008;i<203000;i+=8)scan(i,(i%32==8)?(1u<<14):tv);
+  for(i=200008;i<203000;i+=8)scan(i,(i%32==8)?(1u<<7):tv);
   scan(203000,tv);assert(pair_calls==before+1);
   scan(210000,tv);assert(pair_calls==before+1);scan(210010,0);
  }
@@ -58,7 +60,7 @@ int main(void){unsigned i;unsigned tv=(1u<<14)|(1u<<3),stb=tv;
  }
  /* The STB pairing path also tolerates scan dropout and fires once. */
  {unsigned before=pair_calls,clear=bond_clears,adv=adv_pair_calls;
-  combo_key_init();connected=false;scan(260000,stb);scan(260008,1u<<14);
+  combo_key_init();connected=false;scan(260000,stb);scan(260008,1u<<7);
   scan(260040,stb);scan(263000,stb);scan(270000,stb);
   assert(pair_calls==before+1&&!last_pair_tv&&bond_clears==clear+1&&adv_pair_calls==adv+1);
   scan(270010,0);
@@ -68,11 +70,12 @@ int main(void){unsigned i;unsigned tv=(1u<<14)|(1u<<3),stb=tv;
   combo_key_init();scan(start,tv);scan(start+8u,0);scan(start+40u,tv);
   scan(start+3000u,tv);assert(pair_calls==before+1);scan(start+3010u,0);
  }
- /* Previous, electrically overlapping aliases no longer execute. */
+ /* Previous, electrically overlapping aliases no longer execute.
+  * 旧组合(旧键号)在新键号体系下按键位已失效: 14+2/9+2/12+10/14+5/9+5/12+9/12+8 */
  {unsigned before=pair_calls,clear=bond_clears,sw=switch_calls,n;
   unsigned old[7]={(1u<<14)|(1u<<2),(1u<<9)|(1u<<2),(1u<<12)|(1u<<10),
    (1u<<14)|(1u<<5),(1u<<9)|(1u<<5),(1u<<12)|(1u<<9),(1u<<12)|(1u<<8)};
   for(n=0;n<7;n++){combo_key_init();scan(280000+n*5000,old[n]);scan(283000+n*5000,old[n]);scan(283010+n*5000,0);}
   assert(pair_calls==before&&bond_clears==clear&&switch_calls==sw);
  }
- puts("combo: KEY14+KEY3 STB pair/RC6, KEY9+KEY3 unpair, seven obsolete aliases disabled; 100ms release filter/dropout/repress/threshold/wrap; IR target, one action per hold, all user-switch aliases disabled, triple-key exclusion, OTA release latch PASS");return 0;}
+ puts("combo: KEY7+KEY12 STB pair/RC6, KEY19+KEY12 unpair, seven obsolete aliases disabled; 100ms release filter/dropout/repress/threshold/wrap; IR target, one action per hold, all user-switch aliases disabled, triple-key exclusion, OTA release latch PASS");return 0;}

@@ -21,7 +21,7 @@ static void clock_to(uint32_t target)
 static void poll_at(uint32_t t){clock_to(t);portb.PID=GPIO_PIN_5;ir_learn_process();}
 static void begin(void)
 {
-    ir_learn_stop();now_ms=0;clock_us=0;reports=0;ir_learn_set_target(17);
+    ir_learn_stop();now_ms=0;clock_us=0;reports=0;ir_learn_set_target(11);
     assert(ir_learn_start());poll_at(21000);assert(s_capture->armed);
 }
 static void feed(const ir_raw_t *w,unsigned period)
@@ -42,7 +42,7 @@ static void make_rc6(ir_raw_t *w,uint32_t f)
 int main(void)
 {
     ir_raw_t w;unsigned c,t;uint32_t f;
-    ir_learn_init(callback);ir_learn_set_target(15);assert(!ir_learn_start());ir_learn_set_target(4);assert(!ir_learn_start());ir_learn_set_target(1);
+    ir_learn_init(callback);ir_learn_set_target(16);assert(!ir_learn_start());ir_learn_set_target(3);assert(!ir_learn_start());ir_learn_set_target(1);
     tx_pending=true;assert(!ir_learn_start());tx_pending=false;
     for(c=0;c<256;++c)for(t=0;t<2;++t){f=(0x80102600u|c)^(t?0x8000u:0);make_rc6(&w,f);begin();feed(&w,28);
         assert(result.kind==IR_GEHUA_KIND&&result.frame==(f&~0x8000u));}

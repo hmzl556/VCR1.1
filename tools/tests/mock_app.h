@@ -4,7 +4,7 @@
 static uint32_t keys;
 static bool connected=true,combo_idle=true,learn_active,store_ok=true,clear_ok=true;
 static unsigned hid_presses,hid_releases,rc_releases,voice_starts,voice_stops,ir_presses,ir_repeats,bond_clears,pair_calls,switch_calls;
-static unsigned last_pair_tv,led1,led2,last_target,last_ir_key;
+static unsigned last_pair_tv,led1,led2,last_target,last_ir_key,last_tv_ir_key,tv_ir_presses;
 static int pm_value;
 static unsigned adv_pair_calls;
 static unsigned wakeup_calls,last_hid_key,last_rc_key,last_rc_usage;
@@ -35,7 +35,7 @@ static int pm_state_get(void){return pm_value;}
 static void pm_state_transition(int x){pm_value=x;}
 static bool keyscan_is_key_pressed(const uint32_t *hw,unsigned k){return (hw[0]&(1u<<k))!=0;}
 static void KEYSCAN_ReadKeyData(uint32_t *hw){hw[0]=keys;hw[1]=0;}
-static uint8_t app_keyscan_read_key_id(void){unsigned k;if(keys&(keys-1u))return 0;for(k=1;k<=18;k++)if(keys&(1u<<k))return k;return 0;}
+static uint8_t app_keyscan_read_key_id(void){unsigned k;if(keys&(keys-1u))return 0;for(k=1;k<=29;k++)if(keys&(1u<<k))return k;return 0;}
 static bool hid_kbd_map_key_to_usage(unsigned k,uint16_t *u,bool *c){*u=(uint16_t)k;*c=false;return true;}
 static void hid_kbd_send_key_id_current(unsigned k){last_hid_key=k;++hid_presses;hid_order[hid_order_len++]='P';}
 static void hid_kbd_send_release_current(void){++hid_releases;hid_order[hid_order_len++]='R';}

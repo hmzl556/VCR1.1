@@ -88,7 +88,7 @@ bool ir_send_key(uint8_t key)
     uint8_t cmd;
     s_repeat_key = 0u;
     /* Voice is never an IR/learning key, including stale stored data. */
-    if (!key || key > IR_KEY_COUNT || key == 15u) return false;
+    if (!key || key > IR_KEY_COUNT || key == 16u) return false;
     if(ir_wave_store_has(key))return enqueue(0u,0u,key,TX_RAW);
     if (key == IR_KEY_TV_POWER)
         return enqueue(s_ir_user_tv, ir_default_cmd(key), key, TX_NEC);
@@ -96,6 +96,15 @@ bool ir_send_key(uint8_t key)
      * voice stay IR-silent unless explicitly learned. BLE is independent. */
     if (!ir_rc6_gehua_command(key, &cmd)) return false;
     return enqueue(0u, cmd, key, TX_RC6);
+}
+
+bool ir_send_key_tv(uint8_t key)
+{
+    s_repeat_key = 0u;
+    /* Voice is never an IR/learning key, including stale stored data. */
+    if (!key || key > IR_KEY_COUNT || key == 16u) return false;
+    if (ir_wave_store_has(key)) return enqueue(0u, 0u, key, TX_RAW);
+    return enqueue(s_ir_user_tv, ir_default_cmd(key), key, TX_NEC);
 }
 void ir_tx_process(void)
 {

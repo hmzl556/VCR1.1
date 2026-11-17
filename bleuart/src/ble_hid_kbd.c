@@ -745,62 +745,38 @@ bool hid_kbd_map_key_to_usage(uint16_t key_id, uint16_t *usage_id, bool *is_cons
     *is_consumer = false; // 默认为标准键盘报告（非 Consumer）
     
     switch (key_id) {
-        // 数字行 1-0
-        case 1:  *usage_id = 0x66; break; // '1' HID 0x1E 电源
-        case 2:  *usage_id = 0xE2; *is_consumer = true; break; // '2' HID 0x1F 静音
-        case 3:  *usage_id = 0x55; break; // '3' HID Gehua 电视
-        //case 3:  *usage_id = 0x3D; break; // '3' HID 规范书 电视
-        case 4:  *usage_id = 0x28; break; // '4' HID 0x21 确认
-        case 5:  *usage_id = 0x50; break; // '5' HID 0x22 左
-        case 6:  *usage_id = 0x4F; break; // '6' HID 0x23 右
-        case 7:  *usage_id = 0x51; break; // '7' HID 0x24 下
-        case 8:  *usage_id = 0x4A; break; // '8' HID 0x25 主页
-        case 9:  *usage_id = 0x29; break; // '9' HID 0x26 返回
-        case 10: *usage_id = 0x65; break; // '0' HID 0x27 菜单
-        
-        // 第二行 Q-P
-        case 11: *usage_id = 0x4B; break; // 'Q' HID 0x14 频道+
-        case 12: *usage_id = 0xE9; *is_consumer = true; break; // 'W' HID 0x1A 音量+
-        case 13: *usage_id = 0x4E; break; // 'E' HID 0x08 频道-
-        case 14: *usage_id = 0xEA; *is_consumer = true; break; // 'R' HID 0x15 音量-
-        case 15: *usage_id = 0x3E; break; // 'T' HID 0x17 语音
-        case 16: *usage_id = 0x52; break; // 'Y' HID 0x1C 上
-        case 17: *usage_id = 0x41; break; // 'U' HID 0x18 回看 Gehua
-        //case 17: *usage_id = 0x91; break; // 'U' HID 回看 规范书
-        case 18: *usage_id = 0x0C; break; // 'I' HID 0x0C
-        case 19: *usage_id = 0x12; break; // 'O' HID 0x12
-        case 20: *usage_id = 0x13; break; // 'P' HID 0x13
-        
-        // 第三行 A-L + BackSpace
-        case 21: *usage_id = 0x04; break; // 'A' HID 0x04
-        case 22: *usage_id = 0x16; break; // 'S' HID 0x16
-        case 23: *usage_id = 0x07; break; // 'D' HID 0x07
-        case 24: *usage_id = 0x09; break; // 'F' HID 0x09
-        case 25: *usage_id = 0x0A; break; // 'G' HID 0x0A
-        case 26: *usage_id = 0x0B; break; // 'H' HID 0x0B
-        case 27: *usage_id = 0x0D; break; // 'J' HID 0x0D
-        case 28: *usage_id = 0x0E; break; // 'K' HID 0x0E
-        case 29: *usage_id = 0x0F; break; // 'L' HID 0x0F
-        case 30: *usage_id = 0x2A; break; // BackSpace HID 0x2A
-        
-        // 第四行 Z-/ 
-        case 31: *usage_id = 0x1D; break; // 'Z' HID 0x1D
-        case 32: *usage_id = 0x1B; break; // 'X' HID 0x1B
-        case 33: *usage_id = 0x06; break; // 'C' HID 0x06
-        case 34: *usage_id = 0x19; break; // 'V' HID 0x19
-        case 35: *usage_id = 0x05; break; // 'B' HID 0x05
-        case 36: *usage_id = 0x11; break; // 'N' HID 0x11
-        case 37: *usage_id = 0x10; break; // 'M' HID 0x10
-        case 38: *usage_id = 0x36; break; // ',' HID 0x36
-        case 39: *usage_id = 0x37; break; // '.' HID 0x37
-        case 40: *usage_id = 0x38; break; // '/' HID 0x38
-        
-        // 特殊键
-        case 41: *usage_id = 0x28; break; // Enter HID 0x28
-        case 42: *usage_id = 0x2C; break; // Space HID 0x2C
-        case 43: *usage_id = 0x2B; break; // Tab HID 0x2B
-        case 44: *usage_id = 0x29; break; // Escape HID 0x29
-        
+        // 新板 29 键 (SDK 键号 KEY_n, 2026-11-17 飞线枚举确认; 旧键 HID 保持不变)
+        /* 电视机电源(1): IR-only, 不发 HID (电视仅红外控制) */
+        case 2:  *usage_id = 0x66; break; // 机顶盒电源(左, 电源 HID 身份)
+        case 3:  *usage_id = 0x28; break; // 确定
+        case 4:  *usage_id = 0x4E; break; // 频道-
+        case 5:  *usage_id = 0x52; break; // 上
+        case 6:  *usage_id = 0x51; break; // 下
+        case 7:  *usage_id = 0xEA; *is_consumer = true; break; // 音量-
+        case 8:  *usage_id = 0x50; break; // 左
+        case 9:  *usage_id = 0x4F; break; // 右
+        case 10: *usage_id = 0xE9; *is_consumer = true; break; // 音量+
+        case 11: *usage_id = 0x41; break; // 回看 (歌华私有, 保持不变)
+        case 12: *usage_id = 0x3D; break; // 直播业务 (标准 表B.1)
+        case 13: *usage_id = 0x4A; break; // 主页
+        case 14: *usage_id = 0xEB; break; // 点播 (暂借设置 HID, 甲方确认)
+        case 15: *usage_id = 0x1E; break; // 数字1
+        case 16: *usage_id = 0x3E; break; // 语音
+        case 17: *usage_id = 0x4B; break; // 频道+
+        case 18: *usage_id = 0x65; break; // 菜单
+        case 19: *usage_id = 0x29; break; // 返回
+        case 20: *usage_id = 0x1F; break; // 数字2
+        case 21: *usage_id = 0x20; break; // 数字3
+        case 22: *usage_id = 0x21; break; // 数字4
+        case 23: *usage_id = 0x55; break; // 电视机业务 (原KEY3电视, 歌华私有 保持不变)
+        case 24: *usage_id = 0x22; break; // 数字5
+        case 25: *usage_id = 0x23; break; // 数字6
+        case 26: *usage_id = 0x24; break; // 数字7
+        case 27: *usage_id = 0x25; break; // 数字8
+        case 28: *usage_id = 0x26; break; // 数字9
+        case 29: *usage_id = 0x27; break; // 数字0 (独立键)
+        /* 30~44: 新板无对应物理键, 原 QWERTY 占位 case 已删除 */
+
         default:
             return false; // 未知按键编号，返回失败
     }

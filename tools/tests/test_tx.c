@@ -23,37 +23,37 @@ static void advance(unsigned ms){now_ms+=ms;nec_busy=rc6_busy=false;ir_tx_proces
 int main(void)
 {
  uint32_t first;unsigned n;
- assert(!ir_send_key(0)&&!ir_send_key(19));
- assert(!ir_send_key(2)&&!ir_send_key(3)&&!ir_send_key(15)&&!ir_send_key(17));assert(!nec_sent&&!rc6_sent);
- assert(ir_send_key(18));first=frame;assert(rc6_sent==1&&(frame&0xFFFF7FFFu)==0x8010260Cu&&!nec_sent);
- ir_tx_repeat(18);assert(rc6_sent==1);advance(107);ir_tx_repeat(18);assert(rc6_sent==1);
- advance(1);ir_tx_repeat(18);assert(rc6_sent==2&&frame==first&&!nec_repeats);
- ir_tx_release();advance(108);ir_tx_repeat(18);assert(rc6_sent==2);
- assert(ir_send_key(18));assert(frame==(first^0x8000u));ir_tx_release();advance(108);
+ assert(!ir_send_key(0)&&!ir_send_key(30));
+ assert(!ir_send_key(11)&&!ir_send_key(12)&&!ir_send_key(14)&&!ir_send_key(16));assert(!nec_sent&&!rc6_sent);
+ assert(ir_send_key(2));first=frame;assert(rc6_sent==1&&(frame&0xFFFF7FFFu)==0x8010260Cu&&!nec_sent);
+ ir_tx_repeat(2);assert(rc6_sent==1);advance(107);ir_tx_repeat(2);assert(rc6_sent==1);
+ advance(1);ir_tx_repeat(2);assert(rc6_sent==2&&frame==first&&!nec_repeats);
+ ir_tx_release();advance(108);ir_tx_repeat(2);assert(rc6_sent==2);
+ assert(ir_send_key(2));assert(frame==(first^0x8000u));ir_tx_release();advance(108);
  assert(ir_send_key(1));assert(nec_sent==1&&user==0x51&&command==0xDC);
  advance(108);ir_tx_repeat(1);assert(nec_repeats==1&&rc6_sent==3);ir_tx_release();advance(108);
  assert(!ir_user_switch_tv());assert(ir_send_key(1));assert(user==0x53&&command==0xDC);ir_tx_release();advance(108);
- learned_kind=2;learned_key=2;learned_user=0x51;learned_cmd=0;
- assert(ir_send_key(2));assert(raw_sent==1&&!raw_repeat);advance(108);ir_tx_repeat(2);assert(raw_sent==2&&raw_repeat);ir_tx_release();advance(108);learned_key=0;
- nec_busy=true;assert(ir_send_key(12));assert(s_count==1);ir_tx_repeat(12);assert(rc6_sent==3);advance(108);
+ learned_kind=2;learned_key=14;learned_user=0x51;learned_cmd=0;
+ assert(ir_send_key(14));assert(raw_sent==1&&!raw_repeat);advance(108);ir_tx_repeat(14);assert(raw_sent==2&&raw_repeat);ir_tx_release();advance(108);learned_key=0;
+ nec_busy=true;assert(ir_send_key(10));assert(s_count==1);ir_tx_repeat(10);assert(rc6_sent==3);advance(108);
  assert((frame&0xFFFF7FFFu)==0x80102610u&&rc6_sent==4);ir_tx_release();advance(108);
  ir_send_pair_code_target(false);assert((frame&0xFFFF7FFFu)==0x801026ADu);
- n=rc6_sent;advance(108);ir_tx_repeat(12);assert(rc6_sent==n);
+ n=rc6_sent;advance(108);ir_tx_repeat(10);assert(rc6_sent==n);
  ir_send_pair_code_target(true);assert(user==0x53&&command==0x7D);ir_tx_release();advance(108);
- learning=true;n=rc6_sent;assert(!ir_send_key(4));assert(rc6_sent==n);learning=false;
- rc6_busy=true;assert(ir_send_key(4)&&ir_send_key(5)&&ir_send_key(6)&&ir_send_key(7));
- {bool toggle=s_toggle;assert(!ir_send_key(16));assert(s_toggle==toggle);}
+ learning=true;n=rc6_sent;assert(!ir_send_key(3));assert(rc6_sent==n);learning=false;
+ rc6_busy=true;assert(ir_send_key(3)&&ir_send_key(8)&&ir_send_key(9)&&ir_send_key(6));
+ {bool toggle=s_toggle;assert(!ir_send_key(5));assert(s_toggle==toggle);}
  while(s_count)advance(108);advance(108);ir_tx_release();ir_user_reset();
- assert(ir_user_for_key(1)==0x51&&ir_user_for_key(18)==0x3A);
- now_ms=0xFFFFFFF0u;assert(ir_send_key(4));first=frame;now_ms+=108;rc6_busy=false;ir_tx_repeat(4);assert(frame==first);
- learned_key=17;learned_kind=1;advance(108);assert(ir_send_key(17));first=frame;
- advance(108);ir_tx_repeat(17);assert(frame==first);ir_tx_release();advance(108);assert(ir_send_key(17));assert(frame==(first^0x8000u));
- ir_tx_release();advance(108);learned_kind=0;learned_key=17;raw_duration=60000;
- assert(ir_send_key(17));assert(s_repeat_interval==108);ir_tx_release();advance(108);
+ assert(ir_user_for_key(1)==0x51&&ir_user_for_key(2)==0x3A);
+ now_ms=0xFFFFFFF0u;assert(ir_send_key(3));first=frame;now_ms+=108;rc6_busy=false;ir_tx_repeat(3);assert(frame==first);
+ learned_key=11;learned_kind=1;advance(108);assert(ir_send_key(11));first=frame;
+ advance(108);ir_tx_repeat(11);assert(frame==first);ir_tx_release();advance(108);assert(ir_send_key(11));assert(frame==(first^0x8000u));
+ ir_tx_release();advance(108);learned_kind=0;learned_key=11;raw_duration=60000;
+ assert(ir_send_key(11));assert(s_repeat_interval==108);ir_tx_release();advance(108);
  /* Acceptance while another frame is active must never read Flash. */
- {unsigned reads=store_reads;rc6_busy=true;assert(ir_send_key(17));assert(store_reads==reads);rc6_busy=false;ir_tx_process();}
- advance(108);rc6_busy=false;start_failure=true;assert(ir_send_key(17));assert(!s_count&&!ir_tx_pending()&&!s_repeat_key);start_failure=false;
- rc6_busy=true;assert(ir_send_key(4));ota_busy=1;ir_tx_process();assert(!s_count&&!ir_tx_pending()&&!s_repeat_key&&!ir_send_key(18));
- ota_busy=0;advance(108);assert(ir_send_key(18));ir_tx_cancel();assert(!ir_tx_pending());
+ {unsigned reads=store_reads;rc6_busy=true;assert(ir_send_key(11));assert(store_reads==reads);rc6_busy=false;ir_tx_process();}
+ advance(108);rc6_busy=false;start_failure=true;assert(ir_send_key(11));assert(!s_count&&!ir_tx_pending()&&!s_repeat_key);start_failure=false;
+ rc6_busy=true;assert(ir_send_key(3));ota_busy=1;ir_tx_process();assert(!s_count&&!ir_tx_pending()&&!s_repeat_key&&!ir_send_key(2));
+ ota_busy=0;advance(108);assert(ir_send_key(2));ir_tx_cancel();assert(!ir_tx_pending());
  puts("TX routing: RC6 STB/toggle/repeats, NEC TV/learned/zero, undefined silence, queue/full, pair targets, wrap PASS");return 0;
 }

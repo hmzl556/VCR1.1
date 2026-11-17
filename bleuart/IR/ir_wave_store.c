@@ -14,7 +14,7 @@
 #include <stdlib.h>
 #include "co_printf.h"
 #define MAGIC 0x49525231ul
-#define VERSION 1ul
+#define VERSION 2ul   /* v2: 学习键改为新板键号 {1,11,14,23}, 旧槽位数据作废 */
 #define A FLASH_IR_RAW_START
 #define B FLASH_IR_RAW_BACKUP
 #define BYTES (18u*sizeof(ir_raw_t))
@@ -29,7 +29,7 @@ typedef struct {uint32_t magic,version,sequence,crc;} header_t;
 static uint32_t s_bank IR_ZI,s_sequence IR_ZI,s_mask IR_ZI,s_rc6_mask IR_ZI,s_frames[4];
 static bool s_read_failed, s_metadata_ready;
 static unsigned slot(unsigned key)
-{static const uint8_t keys[4]={1,2,3,17};unsigned i;for(i=0;i<4;++i)if(keys[i]==key)return i;return 0;}
+{static const uint8_t keys[4]={1,11,14,23};unsigned i;for(i=0;i<4;++i)if(keys[i]==key)return i;return 0;}
 bool ir_wave_store_frame(unsigned key,uint32_t *f)
 {if(!ir_key_learnable(key) || !(s_rc6_mask&(1ul<<key)))return false;*f=s_frames[slot(key)];return true;}
 static int read_chunks(uint32_t addr,void *out,uint32_t n)
@@ -58,11 +58,11 @@ static int valid(uint32_t bank,header_t *h,bool committed)
         crc=crc_add(crc,block,part);left-=part;addr+=part;}return ~crc==h->crc;
 }
 static int read_slot(uint32_t bank,unsigned key,ir_raw_t *w)
-{return read_chunks(bank+sizeof(header_t)+(key-1u)*sizeof(*w),w,sizeof(*w));}
+{return read_chunks(bank+sizeof(header_t)+slot(key)*sizeof(*w),w,sizeof(*w));}
 static bool load_metadata(uint32_t bank,ir_raw_t *w)
 {
     unsigned k;s_mask=0;s_rc6_mask=0;
-    for(k=1;k<=18;++k)if(ir_key_learnable(k)){
+    for(k=1;k<=IR_KEY_COUNT;++k)if(ir_key_learnable(k)){
         if(!read_slot(bank,k,w))return false;
         if(ir_raw_valid(w) && !ir_raw_rc6_damaged(w)){
             s_mask|=1ul<<k;if(w->kind==IR_GEHUA_KIND){s_rc6_mask|=1ul<<k;s_frames[slot(k)]=w->frame;}
@@ -107,22 +107,30 @@ static bool commit(unsigned key,const ir_raw_t *wave,bool clear)
     w=app_heap_alloc(sizeof(*w));if(!w)return false;
     bank=s_bank==A?B:A;h.magic=0xffffffffu;h.version=VERSION;h.sequence=s_sequence+1u;
     crc=crc_add(crc,&h.version,8);
-    /* First pass computes CRC without retaining 18 waveforms in RAM. */
-    for(k=1;k<=18;++k){
+    /* First pass computes CRC over the full 18-slot payload: the four
+     * learnable keys live at compact slots 0..3, slots 4..17 are zero. */
+    for(k=1;k<=IR_KEY_COUNT;++k){
+        if(!ir_key_learnable(k))continue;
         if(!clear && k==key)*w=*wave;
         else if(clear || !ir_wave_store_has(k))memset(w,0,sizeof(*w));
         else if(!ir_wave_store_get(k,w))goto done;
         if(w->count)mask|=1ul<<k;crc=crc_add(crc,w,sizeof(*w));
     }
+    memset(w,0,sizeof(*w));
+    for(k=0;k<14;++k)crc=crc_add(crc,w,sizeof(*w));
     h.crc=~crc;
     for(offset=0;offset<FLASH_IR_RAW_BANK_SIZE;offset+=0x1000u)if(Qflash_Erase_Sector(bank+offset)!=FlashOperationSuccess)goto done;
     if(!write_pages(bank+4u,&h.version,sizeof(h)-4u))goto done;
-    for(k=1;k<=18;++k){
+    for(k=1;k<=IR_KEY_COUNT;++k){
+        if(!ir_key_learnable(k))continue;
         if(!clear && k==key)*w=*wave;
         else if(clear || !ir_wave_store_has(k))memset(w,0,sizeof(*w));
         else if(!ir_wave_store_get(k,w))goto done;
-        if(!write_pages(bank+sizeof(h)+(k-1u)*sizeof(*w),w,sizeof(*w)))goto done;
+        if(!write_pages(bank+sizeof(h)+slot(k)*sizeof(*w),w,sizeof(*w)))goto done;
     }
+    memset(w,0,sizeof(*w));
+    for(k=4;k<18;++k)
+        if(!write_pages(bank+sizeof(h)+k*sizeof(*w),w,sizeof(*w)))goto done;
     if(!valid(bank,&check,false))goto done;
     h.magic=MAGIC;if(!write_pages(bank,&h.magic,4) || !valid(bank,&check,true))goto done;
     /* Same chunked slot read as startup, before publishing SAVED. */

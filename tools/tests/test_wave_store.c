@@ -16,6 +16,7 @@ uint32_t Qflash_Write(uint32_t a,uint8_t *b,uint32_t n){unsigned o=offset(a,n),i
 int main(void)
 {
     ir_raw_t old,next,out;unsigned i,total,before;uint32_t first;
+    /* 新板学习键 {1,11,14,23}, 紧凑槽位 0..3; 语音=16 不可学习 */
     assert(A==0x0106B000u && B==0x0106E000u && FLASH_UNALLOCATED_START==0x01071000u);
     assert(A==FLASH_USER_CFG_START+FLASH_USER_CFG_SIZE && B==A+FLASH_IR_RAW_BANK_SIZE);
     memset(flash,255,sizeof(flash));ir_wave_store_load();assert(!s_bank&&!ir_wave_store_has(1));assert(!ir_wave_store_get(1,&old));
@@ -29,44 +30,44 @@ int main(void)
      h.crc=~crc_add(crc,flash+off+sizeof(h),BYTES);memcpy(flash+off,&h,sizeof(h));
      ir_wave_store_load();assert(!s_bank&&!ir_wave_store_has(1));}
     assert(ir_wave_store_save(1,&old));
-    assert(!ir_wave_store_has(4));assert(!ir_wave_store_save(4,&old));
-    assert(!ir_wave_store_save(15,&old));assert(!ir_wave_store_get(15,&out));
-    assert(ir_wave_store_save(17,&old));first=s_bank;assert(ir_wave_store_has(1)&&ir_wave_store_has(17));
+    assert(!ir_wave_store_has(3));assert(!ir_wave_store_save(3,&old));
+    assert(!ir_wave_store_save(16,&old));assert(!ir_wave_store_get(16,&out));
+    assert(ir_wave_store_save(11,&old));first=s_bank;assert(ir_wave_store_has(1)&&ir_wave_store_has(11));
     memcpy(snapshot,flash,sizeof(flash));
     before=writes;malloc_failed=1;ir_wave_store_load();malloc_failed=0;
-    assert(!s_metadata_ready&&!ir_wave_store_save(2,&old)&&writes==before);
-    ir_wave_store_load();assert(s_metadata_ready&&ir_wave_store_has(1)&&ir_wave_store_has(17));
+    assert(!s_metadata_ready&&!ir_wave_store_save(14,&old)&&writes==before);
+    ir_wave_store_load();assert(s_metadata_ready&&ir_wave_store_has(1)&&ir_wave_store_has(11));
     operations=0;fail_at=1;ir_wave_store_load();fail_at=0;
-    assert(!s_metadata_ready&&!ir_wave_store_save(2,&old)&&writes==before);
+    assert(!s_metadata_ready&&!ir_wave_store_save(14,&old)&&writes==before);
     ir_wave_store_load();assert(s_metadata_ready&&ir_wave_store_has(1));
     next=old;next.widths[3]=1687;next.kind=IR_RAW_KIND;
-    operations=0;assert(ir_wave_store_save(17,&next));total=operations;
+    operations=0;assert(ir_wave_store_save(11,&next));total=operations;
     /* Interrupt every read/write/erase boundary, including partial page writes. */
     for(i=1;i<=total;++i){memcpy(flash,snapshot,sizeof(flash));fail_at=0;ir_wave_store_load();operations=0;fail_at=i;
-        (void)ir_wave_store_save(17,&next);fail_at=0;ir_wave_store_load();
-        assert(ir_wave_store_get(17,&out));assert(!memcmp(&out,&old,sizeof(out))||!memcmp(&out,&next,sizeof(out)));
+        (void)ir_wave_store_save(11,&next);fail_at=0;ir_wave_store_load();
+        assert(ir_wave_store_get(11,&out));assert(!memcmp(&out,&old,sizeof(out))||!memcmp(&out,&next,sizeof(out)));
         assert(ir_wave_store_has(1));
     }
     memcpy(flash,snapshot,sizeof(flash));ir_wave_store_load();assert(s_bank==first);
-    assert(ir_wave_store_save(17,&next));assert(s_bank!=first);flash[s_bank-A+12]^=1;ir_wave_store_load();
-    assert(s_bank==first&&ir_wave_store_get(17,&out)&&!memcmp(&out,&old,sizeof(out)));
-    before=writes;ota_busy=1;assert(!ir_wave_store_save(17,&next)&&!ir_wave_store_clear());ota_busy=0;
-    capture=true;assert(!ir_wave_store_save(17,&next));capture=false;pending=true;assert(!ir_wave_store_save(17,&next));pending=false;
+    assert(ir_wave_store_save(11,&next));assert(s_bank!=first);flash[s_bank-A+12]^=1;ir_wave_store_load();
+    assert(s_bank==first&&ir_wave_store_get(11,&out)&&!memcmp(&out,&old,sizeof(out)));
+    before=writes;ota_busy=1;assert(!ir_wave_store_save(11,&next)&&!ir_wave_store_clear());ota_busy=0;
+    capture=true;assert(!ir_wave_store_save(11,&next));capture=false;pending=true;assert(!ir_wave_store_save(11,&next));pending=false;
     modem_busy=1;assert(!ir_wave_store_clear());modem_busy=0;assert(writes==before);
-    assert(ir_wave_store_clear());ir_wave_store_load();assert(!ir_wave_store_has(1)&&!ir_wave_store_has(17));
-    assert(ir_wave_store_save(2,&old));ir_wave_store_load();assert(ir_wave_store_has(2)&&!ir_wave_store_has(1));
+    assert(ir_wave_store_clear());ir_wave_store_load();assert(!ir_wave_store_has(1)&&!ir_wave_store_has(11));
+    assert(ir_wave_store_save(14,&old));ir_wave_store_load();assert(ir_wave_store_has(14)&&!ir_wave_store_has(1));
     next=old;next.kind=IR_GEHUA_KIND;next.frame=0x80102658u;
-    assert(ir_wave_store_save(17,&next));ir_wave_store_load();assert(ir_wave_store_frame(17,&first)&&first==next.frame);
-    assert(!ir_wave_store_frame(2,&first));
-    /* A CRC-valid legacy voice slot must never become a learned key again. */
+    assert(ir_wave_store_save(11,&next));ir_wave_store_load();assert(ir_wave_store_frame(11,&first)&&first==next.frame);
+    assert(!ir_wave_store_frame(14,&first));
+    /* A CRC-valid wave planted in a zero slot must never become a learned key. */
     {unsigned off=s_bank-A;header_t h;uint32_t crc;
      memcpy(flash+off+sizeof(h)+14*sizeof(next),&next,sizeof(next));
      memcpy(&h,flash+off,sizeof(h));crc=crc_add(0xffffffffu,&h.version,8);
      h.crc=~crc_add(crc,flash+off+sizeof(h),BYTES);memcpy(flash+off,&h,sizeof(h));
-     ir_wave_store_load();assert(ir_wave_store_has(17));
-     assert(!ir_wave_store_has(15)&&!ir_wave_store_get(15,&out)&&!ir_wave_store_frame(15,&first));}
+     ir_wave_store_load();assert(ir_wave_store_has(11));
+     assert(!ir_wave_store_has(16)&&!ir_wave_store_get(16,&out)&&!ir_wave_store_frame(16,&first));}
     operations=0;fail_at=1;ir_wave_store_load();fail_at=0;assert(!s_metadata_ready);
-    assert(ir_wave_store_clear());ir_wave_store_load();assert(!ir_wave_store_has(2)&&!ir_wave_store_has(17));
-    assert(!ir_wave_store_frame(17,&first));
+    assert(ir_wave_store_clear());ir_wave_store_load();assert(!ir_wave_store_has(14)&&!ir_wave_store_has(11));
+    assert(!ir_wave_store_frame(11,&first));
     printf("wave store: %u torn/read/erase failure points, boot restore, CRC fallback, compacted layout, clear/no resurrection, page limits, policy/OTA/CAT1 PASS\n",total);return 0;
 }

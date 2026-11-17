@@ -48,17 +48,18 @@ int main(void)
     for (cmd = 0u; cmd < 256u; ++cmd)
         for (toggle = 0u; toggle < 2u; ++toggle)
             check_frame(ir_rc6_gehua_frame((uint8_t)cmd, toggle != 0u));
-    for (i = 0u; i < 19u; ++i)
+    for (i = 0u; i < 30u; ++i)
         if (ir_rc6_gehua_command((uint8_t)i, &code)) ++mapped;
     assert(mapped == 13u);
-    assert(ir_rc6_gehua_command(18u, &code) && code == 0x0C);
+    assert(ir_rc6_gehua_command(2u, &code) && code == 0x0C);
     assert(!ir_rc6_gehua_command(1u, &code));
-    assert(!ir_rc6_gehua_command(2u, &code));
-    assert(!ir_rc6_gehua_command(3u, &code));
-    assert(!ir_rc6_gehua_command(15u, &code));
-    assert(!ir_rc6_gehua_command(17u, &code));
+    assert(!ir_rc6_gehua_command(11u, &code));
+    assert(!ir_rc6_gehua_command(12u, &code));
+    assert(!ir_rc6_gehua_command(14u, &code));
+    assert(!ir_rc6_gehua_command(16u, &code));
+    assert(!ir_rc6_gehua_command(23u, &code));
     assert(!ir_rc6_gehua_command(255u, &code));
-    assert(!ir_rc6_gehua_command(4u, NULL));
+    assert(!ir_rc6_gehua_command(3u, NULL));
     puts("RC6 encoder: 512 command/toggle round trips, header, trailer, 39960us, 13 mapped keys, unmapped rejection PASS");
     return 0;
 }

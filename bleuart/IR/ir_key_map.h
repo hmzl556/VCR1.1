@@ -1,11 +1,12 @@
 /**
  * @file    ir_key_map.h
  * @brief   红外按键路由：歌华RC6机顶盒、NEC电视机及学习值
- * @note    物理按键号沿用 KEYSCAN_KEY1..18（见 app_keyscan.h）：
- *            KEY1 电视机电源 / KEY2 静音 / KEY3 电视 / KEY4 确认 / KEY5 左 /
- *            KEY6 右 / KEY7 下 / KEY8 主页 / KEY9 返回 / KEY10 菜单 /
- *            KEY11 频道+ / KEY12 音量+ / KEY13 频道- / KEY14 音量- /
- *            KEY15 语音 / KEY16 上 / KEY17 回看 / KEY18 机顶盒电源
+ * @note    物理按键号采用 SDK 44 键编号 KEY_n（见 app_keyscan.h，2026-11-17
+ *           飞线枚举确认，与新版原理图线对一致）：
+ *            1 电视机电源 / 2 机顶盒电源 / 3 确定 / 4 频道- / 5 上 / 6 下 /
+ *            7 音量- / 8 左 / 9 右 / 10 音量+ / 11 回看 / 12 直播业务 /
+ *            13 主页 / 14 点播(暂借设置码) / 15~29 数字与语音等 /
+ *            16 语音 / 17 频道+ / 18 菜单 / 19 返回 / 23 电视机业务
  *
  *          机顶盒默认使用歌华RC6；电视机电源及学习值支持原始波形、歌华RC6及NEC。
  *          学习值优先，歌华未定义键不发送；下方NEC表保留用于兼容查询。
@@ -20,13 +21,13 @@
  * 一、常量定义
  *===========================================================================*/
 
-/** @brief 物理按键数量（KEYSCAN_KEY1..18，索引 0 未用） */
-#define IR_KEY_COUNT            18u
-#define IR_KEY_TV_POWER         1u  /* right, original KEY1 position */
-#define IR_KEY_STB_POWER        18u /* left, PB9--PA6 */
+/** @brief 物理按键数量（SDK KEY_n 1..29，索引 0 未用） */
+#define IR_KEY_COUNT            29u
+#define IR_KEY_TV_POWER         1u  /* 电视机电源(右) */
+#define IR_KEY_STB_POWER        2u  /* 机顶盒电源(左) */
 
 /** @brief 电视机业务键号（无默认RC6码，未学习时仅保留BLE业务） */
-#define IR_KEY_TV_BUSINESS      3u
+#define IR_KEY_TV_BUSINESS      23u
 
 /** @brief 默认用户码（机顶盒 STB 0x3A，GY/T 407-2024 §6.1.3） */
 #define IR_DEFAULT_USER_CODE    0x3Au
@@ -34,30 +35,42 @@
 /*===========================================================================
  * 二、兼容NEC键值表（GY/T 407-2024 表 B.1；不是当前机顶盒路由表）
  *
- *  按 KEYSCAN_KEY 索引（0 未用），与 app_keyscan.h 的物理键一一对应。
+ *  按 SDK KEY_n 索引（0 未用），与 app_keyscan.h 的物理键一一对应。
+ *  点播键暂借设置键码 0x8D（甲方确认）。
  *===========================================================================*/
 
 static const uint8_t ir_default_cmd_table[IR_KEY_COUNT + 1u] =
 {
     0x00u,  /* [0]  未用                          */
-    0xDCu,  /* [1]  KEY1  电视机电源                     */
-    0x9Cu,  /* [2]  KEY2  静音                     */
-    0x88u,  /* [3]  KEY3  电视                     */
-    0xCEu,  /* [4]  KEY4  确认                     */
-    0x99u,  /* [5]  KEY5  左                       */
-    0xC1u,  /* [6]  KEY6  右                       */
-    0xD2u,  /* [7]  KEY7  下                       */
-    0x88u,  /* [8]  KEY8  主页                     */
-    0x95u,  /* [9]  KEY9  返回                     */
-    0x82u,  /* [10] KEY10 菜单                     */
-    0x85u,  /* [11] KEY11 频道+                    */
-    0x80u,  /* [12] KEY12 音量+                    */
-    0x86u,  /* [13] KEY13 频道-                    */
-    0x81u,  /* [14] KEY14 音量-                    */
-    0xE5u,  /* [15] KEY15 语音                     */
-    0xCAu,  /* [16] KEY16 上                       */
-    0x37u,  /* [17] KEY17 回看                     */
-    0xDCu,  /* [18] KEY18 STB POWER, PB9--PA6      */
+    0xDCu,  /* [1]  电视机电源                     */
+    0xDCu,  /* [2]  机顶盒电源                     */
+    0xCEu,  /* [3]  确定                           */
+    0x86u,  /* [4]  频道-                          */
+    0xCAu,  /* [5]  上                             */
+    0xD2u,  /* [6]  下                             */
+    0x81u,  /* [7]  音量-                          */
+    0x99u,  /* [8]  左                             */
+    0xC1u,  /* [9]  右                             */
+    0x80u,  /* [10] 音量+                          */
+    0x37u,  /* [11] 回看                           */
+    0x3Du,  /* [12] 直播业务                       */
+    0x88u,  /* [13] 主页                           */
+    0x8Du,  /* [14] 点播（暂借设置码）             */
+    0x92u,  /* [15] 数字1                          */
+    0xE5u,  /* [16] 语音                           */
+    0x85u,  /* [17] 频道+                          */
+    0x82u,  /* [18] 菜单                           */
+    0x95u,  /* [19] 返回                           */
+    0x93u,  /* [20] 数字2                          */
+    0xCCu,  /* [21] 数字3                          */
+    0x8Eu,  /* [22] 数字4                          */
+    0x88u,  /* [23] 电视机业务                     */
+    0x8Fu,  /* [24] 数字5                          */
+    0xC8u,  /* [25] 数字6                          */
+    0x8Au,  /* [26] 数字7                          */
+    0x8Bu,  /* [27] 数字8                          */
+    0xC4u,  /* [28] 数字9                          */
+    0x87u,  /* [29] 数字0                          */
 };
 
 /*===========================================================================
@@ -109,6 +122,12 @@ bool ir_user_switch_tv(void);
  * @note   歌华未定义键不发送；已学习的NEC命令0x00仍有效；只有KEY1/2/3/17允许学习。
  */
 bool ir_send_key(uint8_t key);
+/**
+ * @brief  按物理键向电视机发送红外（学习波形优先，否则电视 NEC 表）
+ * @param  key 物理按键号（SDK KEY_n 1..29）
+ * @note   电视模式路由与电视机业务/电视电源共用; 语音键除外
+ */
+bool ir_send_key_tv(uint8_t key);
 /** Service pending frames in BLE task; repeat only a successfully sent held key. */
 void ir_tx_process(void);
 void ir_tx_repeat(uint8_t key);

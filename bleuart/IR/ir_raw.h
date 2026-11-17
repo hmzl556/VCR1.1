@@ -2,7 +2,7 @@
 #define IR_RAW_H
 #include <stdint.h>
 #define IR_RAW_MAX 255u
-#define IR_KEY_COUNT 18u
+#define IR_KEY_COUNT 29u
 #define IR_RAW_KIND 0u
 #define IR_GEHUA_KIND 1u
 #define IR_NEC_KIND 2u

@@ -21,6 +21,7 @@ void ir_learn_set_target(uint8_t k){last_target=k;}
 uint8_t ir_learn_get_target(void){return (uint8_t)last_target;}
 bool ir_wave_store_clear(void){return clear_ok;}
 bool ir_send_key(uint8_t k){last_ir_key=k;++ir_presses;return !tx_fail;}
+bool ir_send_key_tv(uint8_t k){last_tv_ir_key=k;++tv_ir_presses;return !tx_fail;}
 void ir_tx_process(void){}
 void ir_tx_repeat(uint8_t k){(void)k;++ir_repeats;}
 void ir_tx_release(void){}
@@ -28,10 +29,12 @@ bool ir_tx_pending(void){return false;}
 void ir_user_reset(void){}
 static void scan(unsigned t,unsigned mask,unsigned event_key){now_ms=t;keys=mask;key_receive=event_key;task_keyscan_process();}
 int main(void){unsigned i;
+ /* 新板键号 (SDK KEY_n): 机顶盒电源=2, 电视电源=1, 语音=16, 音量-=7,
+  * 音量+=10, 主页=13, 菜单=18, 确认=3, 左=8, 回看=11, 点播=14 */
  pm_value=PM_STATE_RECONNECTING;
- scan(0,1u<<18,18);scan(20,1u<<18,0);
- assert(ir_presses==0&&hid_presses==1&&last_hid_key==1&&last_rc_key==1&&last_rc_usage==1&&wakeup_calls==1);
- scan(5020,1u<<18,0);assert(s_ir_learn_mode==IR_LEARN_MODE_OFF); /* left STB power never learns */
+ scan(0,1u<<2,2);scan(20,1u<<2,0);
+ assert(ir_presses==0&&hid_presses==1&&last_hid_key==2&&last_rc_key==2&&last_rc_usage==2&&wakeup_calls==1);
+ scan(5020,1u<<2,0);assert(s_ir_learn_mode==IR_LEARN_MODE_OFF); /* left STB power never learns */
  scan(5030,0,0);scan(5050,0,0);
  scan(5100,2,1);scan(5120,2,0);assert(ir_presses==0&&hid_presses==1&&wakeup_calls==1);
  assert(led1==1&&led2==0);scan(5219,2,0);assert(led1==1);
@@ -45,53 +48,55 @@ int main(void){unsigned i;
  assert(s_ir_learn_mode==IR_LEARN_MODE_FEEDBACK&&s_ir_feedback_left==6);
  for(i=1;i<=6;i++)scan(10150+500*i,0,0);
  assert(s_ir_learn_mode==IR_LEARN_MODE_WAIT_KEY&&led1==1);
- scan(13160,1u<<17,17);assert(learn_active&&last_target==17);
+ scan(13160,1u<<11,11);assert(learn_active&&last_target==11);
  learn_active=false;store_ok=false;task_keyscan_ir_learn_result(IR_LEARN_EVT_DONE,0x51,0x37);
  assert(s_ir_feedback_left==10);for(i=1;i<=10;i++)scan(13160+100*i,0,0);
  assert(s_ir_learn_mode==IR_LEARN_MODE_WAIT_KEY);
- scan(14160,1u<<15,15);assert(!learn_active);scan(14160,0,0);
- scan(14161,1u<<12,12);assert(!learn_active);scan(14162,0,0);scan(14163,1u<<2,2);assert(learn_active);ota_busy=1;scan(14170,1u<<12,0);
+ scan(14160,1u<<16,16);assert(!learn_active);scan(14160,0,0);
+ scan(14161,1u<<10,10);assert(!learn_active);scan(14162,0,0);scan(14163,1u<<14,14);assert(learn_active);ota_busy=1;scan(14170,1u<<10,0);
  assert(!learn_active&&s_ir_learn_mode==IR_LEARN_MODE_OFF);ota_busy=0;scan(14180,0,0);
  /* TV short sends only on release, never repeats or sends on learning entry. */
  i=ir_presses;scan(14181,2,1);scan(14201,2,0);assert(ir_presses==i);
  scan(14202,0,0);scan(14232,0,0);assert(ir_presses==i+1&&last_ir_key==1);
  /* No action from released debounce candidates. */
- i=hid_presses;scan(14240,1u<<4,4);scan(14260,0,0);assert(hid_presses==i);
+ i=hid_presses;scan(14240,1u<<3,3);scan(14260,0,0);assert(hid_presses==i);
  /* Interrupted voice is stopped and releases its reports when combo takes over. */
- scan(14300,1u<<15,15);scan(14320,1u<<15,0);scan(14370,1u<<15,0);assert(voice_starts==1);
- combo_idle=false;scan(14380,(1u<<15)|(1u<<14),0);assert(voice_stops==1);combo_idle=true;scan(14390,0,0);
+ scan(14300,1u<<16,16);scan(14320,1u<<16,0);scan(14370,1u<<16,0);assert(voice_starts==1);
+ combo_idle=false;scan(14380,(1u<<16)|(1u<<7),0);assert(voice_stops==1);combo_idle=true;scan(14390,0,0);
  /* Failed persistent reset must not clear BLE bonding. */
- clear_ok=false;scan(15100,(1u<<8)|(1u<<14),0);scan(18100,(1u<<8)|(1u<<14),0);
- scan(18110,0,0);scan(18120,1u<<4,4);assert(factory_rst_state==FACTORY_RST_CANCELLED&&bond_clears==0);
+ clear_ok=false;scan(15100,(1u<<13)|(1u<<7),0);scan(18100,(1u<<13)|(1u<<7),0);
+ scan(18110,0,0);scan(18120,1u<<3,3);assert(factory_rst_state==FACTORY_RST_CANCELLED&&bond_clears==0);
  modem_busy=1;hid_order_len=0;
- task_keyscan_hid_send_release(0);task_keyscan_hid_send_press(4);task_keyscan_hid_send_release(0);
+ task_keyscan_hid_send_release(0); /* 无 HID press 的释放被丢弃 (电视模式路由键) */
+ task_keyscan_hid_send_press(4);task_keyscan_hid_send_release(0);
  modem_busy=0;task_keyscan_hid_flush_deferred();
- assert(hid_order_len==3&&memcmp(hid_order,"RPR",3)==0);
- scan(30000,0,0);scan(30010,0,0);learned_test_key=15;
- i=voice_starts;scan(30100,1u<<15,15);scan(30120,1u<<15,0);scan(30200,1u<<15,0);assert(voice_starts==i+1);
+ assert(hid_order_len==2&&memcmp(hid_order,"PR",2)==0);
+ scan(30000,0,0);scan(30010,0,0);learned_test_key=16;
+ i=voice_starts;scan(30100,1u<<16,16);scan(30120,1u<<16,0);scan(30200,1u<<16,0);assert(voice_starts==i+1);
  scan(30210,0,0);scan(30240,0,0);
- connected=false;learned_test_key=17;i=ir_repeats;scan(31000,1u<<17,17);scan(31020,1u<<17,0);scan(31300,1u<<17,0);assert(ir_repeats==i);
- scan(31420,1u<<17,0);assert(ir_repeats==i+1);scan(31430,0,0);scan(31460,0,0);learned_test_key=0;
- connected=false;i=ir_presses;scan(32000,1u<<18,18);scan(32020,1u<<18,0);
- assert(ir_presses==i+1&&last_ir_key==18);scan(32030,0,0);scan(32060,0,0);
+ connected=false;learned_test_key=11;i=ir_repeats;scan(31000,1u<<11,11);scan(31020,1u<<11,0);scan(31300,1u<<11,0);assert(ir_repeats==i);
+ scan(31420,1u<<11,0);assert(ir_repeats==i+1);scan(31430,0,0);scan(31460,0,0);learned_test_key=0;
+ connected=false;i=ir_presses;scan(32000,1u<<2,2);scan(32020,1u<<2,0);
+ assert(ir_presses==i+1&&last_ir_key==2);scan(32030,0,0);scan(32060,0,0);
  /* Even a stale voice record cannot suppress Bluetooth voice. No BLE
   * recipient means neither microphone nor voice IR is started. */
- connected=true;learned_test_key=15;tx_fail=1;i=voice_starts;
- scan(33000,1u<<15,15);scan(33020,1u<<15,0);scan(33100,1u<<15,0);assert(voice_starts==i+1);
+ connected=true;learned_test_key=16;tx_fail=1;i=voice_starts;
+ scan(33000,1u<<16,16);scan(33020,1u<<16,0);scan(33100,1u<<16,0);assert(voice_starts==i+1);
  scan(33110,0,0);scan(33150,0,0);connected=false;learned_test_key=0;tx_fail=0;i=voice_starts;
- scan(34000,1u<<15,15);scan(34020,1u<<15,0);scan(34100,1u<<15,0);assert(voice_starts==i);
+ scan(34000,1u<<16,16);scan(34020,1u<<16,0);scan(34100,1u<<16,0);assert(voice_starts==i);
  scan(34110,0,0);scan(34150,0,0);
  /* Learned ordinary keys use HID when connected; IR only when disconnected. */
- connected=true;learned_test_key=17;i=ir_presses;
+ connected=true;learned_test_key=11;i=ir_presses;
  {unsigned h=hid_presses;
- scan(35000,1u<<17,17);scan(35020,1u<<17,0);
- assert(hid_presses==h+1&&last_hid_key==17&&ir_presses==i);
- scan(35500,1u<<17,0);assert(ir_presses==i);
+ scan(35000,1u<<11,11);scan(35020,1u<<11,0);
+ assert(hid_presses==h+1&&last_hid_key==11&&ir_presses==i);
+ scan(35500,1u<<11,0);assert(ir_presses==i);
  scan(35510,0,0);scan(35550,0,0);}
  learned_test_key=0;
- /* Every remaining non-power learned key preserves its Bluetooth mapping. */
- {unsigned list[3]={2,3,17},n;
- for(n=0;n<3;n++){
+ /* Every remaining non-power learned key preserves its Bluetooth mapping.
+  * 电视机业务(23) 是电视目标键: 连接时也不发 HID, 学习波形走电视红外 */
+ {unsigned list[2]={11,14},n;
+ for(n=0;n<2;n++){
   unsigned k=list[n],t=36000+n*1000,h=hid_presses,ir=ir_presses;
   connected=true;learned_test_key=k;
   scan(t,1u<<k,k);scan(t+20,1u<<k,0);
@@ -102,7 +107,11 @@ int main(void){unsigned i;
   assert(ir_presses==ir+1&&last_ir_key==k&&hid_presses==h+1);
   scan(t+130,0,0);scan(t+170,0,0);
  }
- learned_test_key=0;}
+ learned_test_key=23;connected=true;{unsigned h=hid_presses,tv=tv_ir_presses;
+  scan(38000,1u<<23,23);scan(38020,1u<<23,0);
+  assert(hid_presses==h&&tv_ir_presses==tv+1&&last_tv_ir_key==23);
+  scan(38030,0,0);scan(38060,0,0);}
+ learned_test_key=0;connected=false;s_control_mode=CONTROL_MODE_STB;}
  /* A UART transaction may span several short key presses: preserve FIFO. */
  connected=true;modem_busy=1;key_active=0;hid_order_len=0;hid_defer_clear();
  for(i=0;i<4;i++){task_keyscan_hid_send_press(4+i);task_keyscan_hid_send_release(0);}
@@ -115,7 +124,7 @@ int main(void){unsigned i;
  /* A wake red LED survives outside the normal key state machine unless
   * combo cancellation/release explicitly clears it. Preserve blue ownership. */
  combo_idle=false;led1=1;led2=1;key_state=KEY_STATE_IDLE;
- scan(50000,(1u<<14)|(1u<<5),0);assert(s_ir_suppress_until_release);
+ scan(50000,(1u<<7)|(1u<<8),0);assert(s_ir_suppress_until_release);
  combo_idle=true;scan(50020,0,0);assert(!led1&&led2==1&&!s_ir_suppress_until_release);
  led1=1;scan(50030,0,0);assert(!led1&&led2==1);
  /* The same idle cleanup must not overwrite solid learning indication. */
@@ -126,9 +135,9 @@ int main(void){unsigned i;
   * not shorten real OTA on/off phases. Re-run keyscan after every blink tick. */
  ota_busy=1;led1=0;led2=1;s_dl_phase=2;s_dl_led_on=0;s_dl_led_last_ms=60000;
  for(i=0;i<600;i++){
-  unsigned mask=(i>=250&&i<280)?(1u<<4):0;
+  unsigned mask=(i>=250&&i<280)?(1u<<3):0;
   unsigned expected=(i/100)%2;
-  scan(60000+i,mask,i==250?4:0);udp_ota_download_led_poll();
+  scan(60000+i,mask,i==250?3:0);udp_ota_download_led_poll();
   assert(led1==expected);
   scan(60000+i,mask,0);assert(led1==expected);
  }
@@ -141,31 +150,31 @@ int main(void){unsigned i;
  key_state=KEY_STATE_IDLE;key_active=0;factory_rst_state=FACTORY_RST_IDLE;
  s_ir_learn_mode=IR_LEARN_MODE_OFF;combo_idle=true;ota_busy=0;connected=true;
  hid_order_len=0;hid_defer_clear();manual_check_calls=0;
- i=hid_presses;scan(70000,1u<<10,10);scan(70020,1u<<10,0);
- assert(hid_presses==i+1&&last_hid_key==10);
- scan(75019,1u<<10,0);assert(manual_check_calls==0);
- scan(75020,1u<<10,0);assert(manual_check_calls==1&&hid_presses==i+1);
- scan(79020,1u<<10,0);assert(manual_check_calls==1);
+ i=hid_presses;scan(70000,1u<<18,18);scan(70020,1u<<18,0);
+ assert(hid_presses==i+1&&last_hid_key==18);
+ scan(75019,1u<<18,0);assert(manual_check_calls==0);
+ scan(75020,1u<<18,0);assert(manual_check_calls==1&&hid_presses==i+1);
+ scan(79020,1u<<18,0);assert(manual_check_calls==1);
  i=hid_releases;scan(79030,0,0);scan(79060,0,0);assert(hid_releases==i+1);
- scan(80000,1u<<10,10);scan(80020,1u<<10,0);
+ scan(80000,1u<<18,18);scan(80020,1u<<18,0);
  scan(84900,0,0);scan(84930,0,0);assert(manual_check_calls==1);
- scan(85000,1u<<10,10);scan(85020,1u<<10,0);scan(90020,1u<<10,0);
+ scan(85000,1u<<18,18);scan(85020,1u<<18,0);scan(90020,1u<<18,0);
  assert(manual_check_calls==2);scan(90030,0,0);scan(90060,0,0);
  /* Disconnected MENU still sends its ordinary IR, then manual check. */
- connected=false;i=ir_presses;scan(91000,1u<<10,10);scan(91020,1u<<10,0);
- scan(96020,1u<<10,0);assert(manual_check_calls==3&&ir_presses==i+1);
+ connected=false;i=ir_presses;scan(91000,1u<<18,18);scan(91020,1u<<18,0);
+ scan(96020,1u<<18,0);assert(manual_check_calls==3&&ir_presses==i+1);
  scan(96030,0,0);scan(96060,0,0);
- ota_busy=1;scan(97000,1u<<10,10);scan(97020,1u<<10,0);scan(102020,1u<<10,0);
+ ota_busy=1;scan(97000,1u<<18,18);scan(97020,1u<<18,0);scan(102020,1u<<18,0);
  assert(manual_check_calls==3);scan(102030,0,0);scan(102060,0,0);ota_busy=0;
  /* Combo takeover cancels pending single-key hold. */
- scan(103000,1u<<10,10);scan(103020,1u<<10,0);combo_idle=false;
- scan(108020,(1u<<10)|(1u<<12),0);assert(manual_check_calls==3);
+ scan(103000,1u<<18,18);scan(103020,1u<<18,0);combo_idle=false;
+ scan(108020,(1u<<18)|(1u<<10),0);assert(manual_check_calls==3);
  combo_idle=true;scan(108030,0,0);
  /* BLUE feedback has three complete 150ms on pulses, survives release. */
  connected=true;combo_idle=true;ota_busy=0;key_state=KEY_STATE_IDLE;key_active=0;
  hid_order_len=0;hid_defer_clear();s_ir_suppress_until_release=false;
- scan(110000,1u<<10,10);scan(110020,1u<<10,0);assert(led2==1);
- scan(115020,1u<<10,0);assert(s_menu_blue_active&&led2==0);
+ scan(110000,1u<<18,18);scan(110020,1u<<18,0);assert(led2==1);
+ scan(115020,1u<<18,0);assert(s_menu_blue_active&&led2==0);
  scan(115030,0,0);scan(115060,0,0);assert(led2==0);
  for(i=1;i<=6;i++){
   scan(115020+150*i,0,0);assert(s_menu_blue_active&&led2==(i&1u));
@@ -173,24 +182,73 @@ int main(void){unsigned i;
  }
  scan(116070,0,0);assert(!s_menu_blue_active&&!led2);
  /* If MENU stays held, restore its original blue after the three pulses. */
- scan(117000,1u<<10,10);scan(117020,1u<<10,0);scan(122020,1u<<10,0);
- for(i=1;i<=7;i++)scan(122020+150*i,1u<<10,0);
+ scan(117000,1u<<18,18);scan(117020,1u<<18,0);scan(122020,1u<<18,0);
+ for(i=1;i<=7;i++)scan(122020+150*i,1u<<18,0);
  assert(!s_menu_blue_active&&led2==1);
  scan(123080,0,0);scan(123110,0,0);assert(!led2);
  /* OTA and special modes preempt feedback rather than being overwritten. */
  s_menu_blue_active=true;s_menu_blue_phase=1;s_menu_blue_ts=124000;ota_busy=1;led1=1;led2=1;
  scan(124000,0,0);assert(!s_menu_blue_active&&!led2&&led1==1);ota_busy=0;
  s_menu_blue_active=true;s_menu_blue_phase=1;combo_idle=false;led2=1;
- scan(124010,(1u<<14)|(1u<<5),0);assert(!s_menu_blue_active&&led2==1);
+ scan(124010,(1u<<7)|(1u<<8),0);assert(!s_menu_blue_active&&led2==1);
  combo_idle=true;scan(124020,0,0);
  /* Reset shares VOL- with pairing but must reject every third key. */
- {uint32_t hw[5]={(1u<<8)|(1u<<14)|(1u<<3),0,0,0,0};
+ {uint32_t hw[5]={(1u<<13)|(1u<<7)|(1u<<3),0,0,0,0};
   factory_rst_state=FACTORY_RST_IDLE;
   factory_reset_process(130000,0,hw);factory_reset_process(133000,0,hw);
   assert(factory_rst_state==FACTORY_RST_IDLE);
-  hw[0]=(1u<<8)|(1u<<14);factory_reset_process(134000,0,hw);
+  hw[0]=(1u<<13)|(1u<<7);factory_reset_process(134000,0,hw);
   assert(factory_rst_state==FACTORY_RST_COMBO_DETECT);
   hw[0]|=(1u<<3);factory_reset_process(137000,0,hw);
   assert(factory_rst_state==FACTORY_RST_IDLE);
  }
- puts("keys: POWER learning, held-entry suppression, 18 keys, feedback/save failure, OTA cancel/100ms LED ownership, debounce, voice release, reset failure, deferred HID order PASS");return 0;}
+ /* 业务键模式切换路由 (GY/T 407-2024 §5.1.1.3 + 表B.1 脚注 c/d) */
+ {unsigned h,ir,tv,t=150000;
+  connected=true;
+  /* 默认 STB 模式: 确认 → HID, 无红外 */
+  h=hid_presses;ir=ir_presses;tv=tv_ir_presses;
+  scan(t,1u<<3,3);scan(t+20,1u<<3,0);scan(t+50,0,0);
+  assert(hid_presses==h+1&&last_hid_key==3&&ir_presses==ir&&tv_ir_presses==tv);
+  t+=150;
+  /* 电视机业务: 切 TV + 只发电视红外, 无 HID */
+  h=hid_presses;ir=ir_presses;tv=tv_ir_presses;
+  scan(t,1u<<23,23);scan(t+20,1u<<23,0);scan(t+50,0,0);
+  assert(task_keyscan_control_mode()==1u&&tv_ir_presses==tv+1&&last_tv_ir_key==23&&hid_presses==h&&ir_presses==ir);
+  t+=150;
+  /* TV 模式: 确认 → 电视红外, 蓝牙连接也不发 HID */
+  h=hid_presses;tv=tv_ir_presses;
+  scan(t,1u<<3,3);scan(t+20,1u<<3,0);scan(t+50,0,0);
+  assert(tv_ir_presses==tv+1&&last_tv_ir_key==3&&hid_presses==h);
+  t+=150;
+  /* TV 模式: 频道+ 固定机顶盒 → HID */
+  h=hid_presses;tv=tv_ir_presses;
+  scan(t,1u<<17,17);scan(t+20,1u<<17,0);scan(t+50,0,0);
+  assert(hid_presses==h+1&&last_hid_key==17&&tv_ir_presses==tv);
+  t+=150;
+  /* 直播业务: 电视模式先补发电视指令, 再切 STB 并发 HID */
+  h=hid_presses;tv=tv_ir_presses;
+  scan(t,1u<<12,12);scan(t+20,1u<<12,0);scan(t+50,0,0);
+  assert(task_keyscan_control_mode()==0u&&tv_ir_presses==tv+1&&last_tv_ir_key==12&&hid_presses==h+1&&last_hid_key==12);
+  t+=150;
+  /* STB 模式恢复: 确认 → HID */
+  h=hid_presses;tv=tv_ir_presses;
+  scan(t,1u<<3,3);scan(t+20,1u<<3,0);scan(t+50,0,0);
+  assert(hid_presses==h+1&&last_hid_key==3&&tv_ir_presses==tv);
+  t+=150;
+  /* 断连: TV 模式确认 → 电视红外; 直播业务切回 STB (无 HID 无 RC6) */
+  connected=false;h=hid_presses;ir=ir_presses;tv=tv_ir_presses;
+  scan(t,1u<<23,23);scan(t+20,1u<<23,0);scan(t+50,0,0);
+  assert(task_keyscan_control_mode()==1u&&tv_ir_presses==tv+1);
+  t+=150;
+  scan(t,1u<<3,3);scan(t+20,1u<<3,0);scan(t+50,0,0);
+  assert(tv_ir_presses==tv+2&&last_tv_ir_key==3&&hid_presses==h&&ir_presses==ir);
+  t+=150;
+  scan(t,1u<<12,12);scan(t+20,1u<<12,0);scan(t+50,0,0);
+  assert(task_keyscan_control_mode()==0u&&tv_ir_presses==tv+3&&hid_presses==h&&ir_presses==ir);
+  t+=150;
+  /* 断连 STB 模式: 确认 → 机顶盒 RC6 */
+  scan(t,1u<<3,3);scan(t+20,1u<<3,0);scan(t+50,0,0);
+  assert(ir_presses==ir+1&&last_ir_key==3&&tv_ir_presses==tv+3);
+  connected=true;s_control_mode=CONTROL_MODE_STB;
+ }
+ puts("keys: POWER learning, held-entry suppression, 29 keys, feedback/save failure, OTA cancel/100ms LED ownership, debounce, voice release, reset failure, deferred HID order, business-key mode switch routing PASS");return 0;}

@@ -172,7 +172,7 @@ void KEYSCAN_IRQHandler(void)
     co_printf("0x%08x ", key_data[4]);
     co_printf("\r\n");
     #endif
-    
+
     /* 逐个与按键映射表比较，定位当前按下的是哪个 KEY_x。 */
     for(num = 1; num < KEYSCAN_KEY_MAX; num++)
     {
