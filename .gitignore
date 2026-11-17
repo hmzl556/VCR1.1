@@ -27,3 +27,4 @@ prj/Listings/
 *.lnp
 *.iex
 boot_build.log
+tools/__pycache__/
