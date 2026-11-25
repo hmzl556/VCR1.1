@@ -100,11 +100,13 @@ uint16_t etv_period_ticks(uint32_t carrier_hz);
  * @param scale  文件级 scale（所有时长乘该系数）
  * @param w      输出缓冲
  * @param cap    w 的容量（条数）
- * @param count  输出条数；**保证为偶数**（ir_raw_t 要求偶数）
- * @return false：缓冲不足 / 参数不支持
+ * @param count  输出条数；**保证为奇数**（最后一段是 mark）
+ * @return false：缓冲不足 / 参数不支持 / 结构异常
  * @note  PW(enc=1)：b2、b3 全 0 时 1 bit/符号（0→b0，1→b1）；否则 2 bit/符号（00→b0…11→b3）
  *        BP(enc=2)：1→1P1S，0→0S0P；has_start 在引导码后补一个 unit 高电平；
  *                    has_toggle_bit 时第 4 位（0 基）时长翻倍；相邻同电平自动合并
+ *        条数必须为奇数：ir_raw_valid() 以 !(count & 1) 判无效，即要求停在 mark 上，
+ *        与学习通路一致（NEC 学下来是 67 段）。结尾的 space 由发送器停止后的空闲形成。
  */
 bool etv_encode(const etv_table_t *t, const etv_key_t *k, uint8_t scale,
                 uint16_t *w, uint16_t cap, uint16_t *count);

@@ -497,10 +497,10 @@ static void encode_case(void)
     k.value[2] = 0x87u; k.value[3] = 0x78u;
 
     assert(etv_encode(&t, &k, 1u, w, sizeof(w) / sizeof(w[0]), &n));
-    /* 引导 2 + 32 位 × 2 + 结束 2 = 68 条，偶数 */
-    assert(n == 68u);
+    /* 引导 2 + 32 位 × 2 + 结束 mark 1 = 67 条（ir_raw_valid 要求奇数） */
+    assert(n == 67u);
     assert(w[0] == 9000u && w[1] == 4500u);
-    assert(w[n - 2u] == 567u && w[n - 1u] == 40117u);
+    assert(w[n - 1u] == 567u);   /* 最后一段是结束码的 mark */
     /* value[0]=0x01，低字节低位先发 → 第 1 位是 1 → b1（560/1680） */
     assert(w[2] == 560u && w[3] == 1680u);
     /* 第 2 位是 0 → b0（560/560） */
@@ -513,7 +513,7 @@ static void encode_case(void)
     t.b2[0] = 340u; t.b2[1] = 340u;
     t.b3[0] = 340u; t.b3[1] = 1020u;
     assert(etv_encode(&t, &k, 1u, w, sizeof(w) / sizeof(w[0]), &n));
-    assert(n == 2u + 32u + 2u);          /* 32 位 ÷ 2 = 16 符号 × 2 */
+    assert(n == 2u + 32u + 1u);          /* 32 位 ÷ 2 = 16 符号 × 2，加引导与结束 mark */
     assert(w[2] == 560u && w[3] == 1680u);   /* 低 2 位 = 01 → b1 */
 
     /* --- BP：1→1P1S，0→0S0P，toggle 第 4 位翻倍 --- */
@@ -530,15 +530,15 @@ static void encode_case(void)
     k.value[0] = 0x0Fu;                     /* 低字节低位 → 1111 0000 */
 
     assert(etv_encode(&t, &k, 1u, w, sizeof(w) / sizeof(w[0]), &n));
-    assert((n & 1u) == 0u);
+    assert((n & 1u) == 1u);                 /* 必须奇数：最后一段是 mark */
     assert(w[0] == 2650u && w[1] == 880u);
     /* 前 4 位是 1 → 每组 1P1S，相邻不同电平不合并：446/446/446/446… */
     assert(w[2] == 446u && w[3] == 446u && w[4] == 446u && w[5] == 446u);
     /* 第 5 位（索引 4）是 1 且 has_toggle_bit → 时长翻倍 */
     assert(w[10] == 892u || w[11] == 892u || w[12] == 892u || w[13] == 892u);
-    /* 结尾 burst 是一段长 space：与最后一位的 space 合并后接近 65 ms */
-    assert(w[n - 1u] >= 60000u);
-    assert((n & 1u) == 0u);
+    /* 结尾是 burst 的 mark（65534），与最后一位的 mark 相邻 → 合并并截顶到 65535 */
+    assert(w[n - 1u] >= 65000u);
+    assert((n & 1u) == 1u);
 
     /* --- 容量不足必须安全失败 --- */
     assert(etv_encode(&t, &k, 1u, w, 8u, &n) == false);
@@ -570,7 +570,7 @@ static void dl_case(void)
     s_dl_sent = 0u;
     assert(ir_dl_send(7u, true));
     assert(s_dl_sent == 1u);
-    assert(s_dl_wave.count == 68u);            /* 引导 2 + 32 位×2 + 结束 2 */
+    assert(s_dl_wave.count == 67u);            /* 引导 2 + 32 位×2 + 结束 mark 1 */
     assert(s_dl_wave.kind == IR_RAW_KIND);
     assert(s_dl_wave.period_ticks == 1684u);   /* ratio_freq 0x32 → 38 kHz */
     assert(s_dl_wave.widths[0] == 9000u && s_dl_wave.widths[1] == 4500u);

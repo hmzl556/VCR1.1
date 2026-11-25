@@ -9,6 +9,8 @@
 #include "app_heap.h"       /* app_heap_alloc / app_heap_free */
 #include "ir_raw.h"
 #include "ir_rc6.h"
+#include "irc.h"            /* irc_is_busy — 诊断用 */
+#include "ir_learn.h"       /* ir_learn_is_active — 诊断用 */
 #include "gmem.h"
 #include "co_printf.h"
 #include "etv.h"
@@ -84,9 +86,31 @@ bool ir_dl_send(uint8_t key, bool tv)
         w->frame = 0u;
         ok = ir_rc6_send_wave(w, false);
         if (!ok) {
-            co_printf("[IR] download frame rejected (kind=%u count=%u period=%u)\r\n",
-                      (unsigned)w->kind, (unsigned)w->count, (unsigned)w->period_ticks);
+            /* 逐项拆开 ir_raw_valid 的判据，定位到底是哪一条不满足 */
+            uint32_t total = 0u;
+            uint16_t mn = 0xFFFFu;
+            uint16_t i;
+
+            for (i = 0u; i < w->count && i < IR_RAW_MAX; ++i) {
+                total += w->widths[i];
+                if (w->widths[i] < mn) {
+                    mn = w->widths[i];
+                }
+            }
+            co_printf("[IR] diag c=%u p=%u k=%lu f=%08lX w0=%u mn=%u tot=%lu | fail c=%d p=%d k=%d mn=%d t=%d\r\n",
+                      (unsigned)w->count, (unsigned)w->period_ticks,
+                      (unsigned long)w->kind, (unsigned long)w->frame,
+                      (unsigned)w->widths[0], (unsigned)mn, (unsigned long)total,
+                      (w->count < 7u || w->count > IR_RAW_MAX || !(w->count & 1u)) ? 1 : 0,
+                      (w->period_ticks < 1067u || w->period_ticks > 3200u) ? 1 : 0,
+                      (w->kind > IR_NEC_KIND) ? 1 : 0,
+                      (mn < 80u) ? 1 : 0,
+                      (total > 250000u || w->widths[0] < 500u) ? 1 : 0);
         }
+    } else {
+        co_printf("[IR] encode fail: enc=%u bits=%u col=%u scale=%u\r\n",
+                  (unsigned)t.enc, (unsigned)t.data_bit_num,
+                  (unsigned)t.col_num, (unsigned)f.scale);
     }
     app_heap_free(w);
     if (ok) {

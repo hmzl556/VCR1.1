@@ -352,28 +352,23 @@ bool etv_encode(const etv_table_t *t, const etv_key_t *k, uint8_t scale,
         return false;
     }
 
-    /* 结束码：burst[0]/burst[1] 都为 0 时无效；
-     * 只有 burst[0] 时按规范是"低电平"，即一段 space */
-    if (t->burst[0] != 0u || t->burst[1] != 0u) {
-        if (t->burst[0] != 0u && t->burst[1] != 0u) {
-            wpush(&b, 1u, (uint32_t)t->burst[0] * scale);
-            wpush(&b, 0u, (uint32_t)t->burst[1] * scale);
-        } else if (t->burst[0] != 0u) {
-            wpush(&b, 0u, (uint32_t)t->burst[0] * scale);
-        } else {
-            wpush(&b, 1u, (uint32_t)t->burst[1] * scale);
-        }
+    /* 结束码：burst[0]/burst[1] 都为 0 时无效。
+     * 只输出 burst[0]（高电平），**不输出 burst[1]**：
+     *   - ir_raw_valid 要求 count 为奇数，即最后一段必须是 mark；
+     *     结尾的 space 由发送器停止后的空闲天然形成，与学习通路一致。
+     *   - 规范"burst[0]>0、burst[1]=0 为低电平"这种纯低电平结束码本来
+     *     也不需要额外发码（引脚本来就是低），直接忽略。 */
+    if (t->burst[0] != 0u) {
+        wpush(&b, 1u, (uint32_t)t->burst[0] * scale);
     }
 
     if (!b.ok || b.n < 7u) {
         return false;
     }
-    /* ir_raw_t 要求偶数条：奇数说明停在 mark 上，补一段静默 space */
-    if ((b.n & 1u) != 0u) {
-        if (b.n >= b.cap) {
-            return false;
-        }
-        b.w[b.n++] = 20000u;
+    /* 必须停在 mark 上（count 奇数）；偶数说明结构异常，宁可不发 */
+    if ((b.n & 1u) == 0u) {
+        co_printf("[ETV ] encode: count %u is even, refuse\r\n", (unsigned)b.n);
+        return false;
     }
     *count = b.n;
     return true;
