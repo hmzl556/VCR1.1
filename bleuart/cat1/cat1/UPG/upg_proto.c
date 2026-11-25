@@ -39,6 +39,37 @@
 #define UPG_RES_BUSY        0xF0u
 #define UPG_RES_NO_DATA     0xF2u
 
+/**
+ * 联调期抓包开关：把收到的每一帧按十六进制打到串口。
+ * 用途：用「通用遥控」APP 走真实下载流程时，截取真实的 irtv/irstb 文件内容，
+ *       同时看清 APP 的完整交互（是否认证、0x22 配置、终止方向等）。
+ * **量产必须改回 0**（与其它调试开关一起登记在 暂时改动文档.md）。
+ * 注意：打开后每帧多花几毫秒串口时间，若 APP 等回执超时可能拖慢下载。
+ */
+#ifndef UPG_DEBUG_DUMP
+#define UPG_DEBUG_DUMP 1u
+#endif
+
+#if UPG_DEBUG_DUMP
+/** @brief 十六进制打印；每行 32 字节，行首是帧内偏移 */
+static void upg_dump(const uint8_t *p, uint16_t n)
+{
+    uint16_t off = 0u;
+
+    while (off < n) {
+        uint16_t line = (uint16_t)((((uint16_t)(n - off)) > 32u) ? 32u : (uint16_t)(n - off));
+        uint16_t i;
+
+        co_printf("[UPG ] %04X:", (unsigned)off);
+        for (i = 0u; i < line; ++i) {
+            co_printf(" %02X", (unsigned)p[off + i]);
+        }
+        co_printf("\r\n");
+        off = (uint16_t)(off + line);
+    }
+}
+#endif
+
 void upg_proto_init(void)
 {
     /* 会话态在进入会话时清零，这里无需额外初始化 */
@@ -52,8 +83,7 @@ static upg_state_t *proto_st(void)
     return (ws != NULL) ? &ws->st : NULL;
 }
 
-/** @brief 每次读写的有效包长只允许 16/32/64/128（表 E.2 / E.4） */
-static uint8_t pack_valid(uint8_t pack)
+/** @brief 每次读写的有效包长只允许 16/32/64/128（表 E.2 / E.4） */static uint8_t pack_valid(uint8_t pack)
 {
     return (pack == 16u || pack == 32u || pack == 64u || pack == 128u) ? 1u : 0u;
 }
@@ -433,6 +463,9 @@ void upg_proto_on_frame(const uint8_t *data, uint16_t len)
 
     op = data[1];
     co_printf("[UPG ] rx op=0x%02X len=%u\r\n", (unsigned)op, (unsigned)len);
+#if UPG_DEBUG_DUMP
+    upg_dump(data, len);
+#endif
 
     if (op != UPG_OP_AUTH_HOST && op != UPG_OP_AUTH_RC && !auth_allows(op)) {
         send_result(op, UPG_RES_NO_DATA);
