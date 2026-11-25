@@ -15,6 +15,7 @@
 #include "upg_auth.h"
 #include "upg_meta.h"
 #include "upg_store.h"
+#include "ble_key_file.h"   /* 联调期 blestb 映射打印（BLEDL_DEBUG_LOG） */
 #include "ble_upg_svc.h"
 #include "ble_gap.h"
 #include "gmem.h"
@@ -625,6 +626,13 @@ static void poll_write(void)
         co_printf("[UPG ] %s crc2=%04X crc1=%04X\r\n",
                   ok ? "write commit" : "write rejected",
                   (unsigned)s->wr_crc, (unsigned)s->wr_crc1);
+#if BLEDL_DEBUG_LOG
+        /* 联调期：blestb 提交成功后打印整份映射，便于与原始 753 字节逐条核对。
+         * 量产把 BLEDL_DEBUG_LOG 置 0 即可移除（见 暂时改动文档.md）。 */
+        if (ok && s->wr_type == (uint8_t)UPG_ST_BLESTB) {
+            ble_key_file_dump();
+        }
+#endif
     }
 }
 

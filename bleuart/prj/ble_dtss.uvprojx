@@ -898,6 +898,11 @@
               <FileType>1</FileType>
               <FilePath>..\cat1\cat1\UPG\etv.c</FilePath>
             </File>
+            <File>
+              <FileName>ble_key_file.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\cat1\cat1\UPG\ble_key_file.c</FilePath>
+            </File>
           </Files>
         </Group>
       </Groups>
