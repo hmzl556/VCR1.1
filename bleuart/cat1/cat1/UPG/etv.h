@@ -12,6 +12,11 @@
  *   8 + 16(b0..b3) + 4(header) + 4(header2) + col_num × 7(bit_num/ref_col/has_header/burst)
  *
  * 按键每条 11 字节：key_id(2) table_index(1) key_value[8](8)
+ *
+ * 映射表（可选）：key num(1) + key num × (key_no(1) + key_id(2))
+ *   把表 B.1 的功能序号（1~30）映射到按键表里的 key_id。
+ *   规范以 data_set_flag 的 bit7 表示有无映射表，但真实样本（海信 irtv）
+ *   该位为 0 却带映射表，故改为按剩余字节结构判定，不依赖该标志位。
  */
 #ifndef _ETV_H_
 #define _ETV_H_
@@ -24,6 +29,7 @@
 #define ETV_TABLE_FIXED    32u   /**< enc..col_num(8) + b0..b3(16) + header(4) + header2(4) */
 #define ETV_COL_LEN         7u   /**< bit_num(1) + ref_col_index(1) + has_header(1) + burst(4) */
 #define ETV_KEY_LEN        11u   /**< key_id(2) + table_index(1) + key_value(8) */
+#define ETV_MAP_LEN         3u   /**< key_no(1) + key_id(2) */
 #define ETV_HEADER_FILE_LEN 9u   /**< 文件头 + 首个协议表（常见单表文件） */
 
 /** 文件级信息（栈上，约 14 字节） */
@@ -33,7 +39,9 @@ typedef struct {
     uint16_t table_off;    /**< 第一个协议表偏移 */
     uint16_t key_off;      /**< 按键表偏移 */
     uint16_t key_num;
+    uint16_t map_off;      /**< 映射表偏移（紧跟按键表） */
     uint8_t  table_num;
+    uint8_t  map_num;      /**< 映射表条目数；0 表示文件未带映射表 */
     uint8_t  ratio_freq;   /**< 高 4bit 载波、低 4bit 占空比 */
     uint8_t  scale;
     uint8_t  repeat_mode;
@@ -83,6 +91,14 @@ bool etv_read_table(const etv_file_t *f, uint8_t index, etv_table_t *t);
  * @return false：文件里没有该 key_id
  */
 bool etv_find_key(const etv_file_t *f, uint16_t key_id, etv_key_t *k);
+
+/**
+ * @brief 按表 B.1 功能序号查映射表，得到按键表里的 key_id
+ * @param key_no 表 B.1 功能序号（1~30）
+ * @return false：文件未带映射表，或映射表里没有该序号
+ * @note  文件未带映射表时，调用方应把 key_no 直接当 key_id 使用。
+ */
+bool etv_map_lookup(const etv_file_t *f, uint8_t key_no, uint16_t *key_id);
 
 /** @brief ratio_freq 里的载波编码 → 频率 Hz（表 E.24 第 6 项），0 表示未知 */
 uint32_t etv_carrier_hz(uint8_t ratio_freq);

@@ -9,6 +9,7 @@
 #include "app_heap.h"       /* app_heap_alloc / app_heap_free */
 #include "ir_raw.h"
 #include "ir_rc6.h"
+#include "ir_key_map.h"     /* IR_KEY_COUNT */
 #include "irc.h"            /* irc_is_busy — 诊断用 */
 #include "ir_learn.h"       /* ir_learn_is_active — 诊断用 */
 #include "gmem.h"
@@ -19,12 +20,54 @@
 
 /**
  * @brief 物理键 → 表 B.1 功能序号
- * @note  占位实现：暂按物理键号一一对应。表 B.1 的真实序号需客户确认
- *        （见 docs/待客户确认事项.md 的 Q7），确认后只改这一张表。
+ * @note  与 ir_key_map.h 的 ir_default_cmd_table 同源（那张表按 KEY1..18
+ *        给出表 B.1 的红外键值，此处取其序号）。
+ *          KEY1 电视机电源 0xDC→1   KEY2 静音 0x9C→16   KEY3 电视 0x88→3
+ *          KEY4 确认 0xCE→5         KEY5 左 0x99→10     KEY6 右 0xC1→11
+ *          KEY7 下 0xD2→9           KEY8 主页 0x88→4    KEY9 返回 0x95→6
+ *          KEY10 菜单 0x82→7        KEY11 频道+ 0x85→18 KEY12 音量+ 0x80→14
+ *          KEY13 频道- 0x86→19      KEY14 音量- 0x81→15 KEY15 语音 0xE5→13
+ *          KEY16 上 0xCA→8          KEY17 回看 0x37→20  KEY18 机顶盒电源→1
  */
-static uint16_t keyid_of(uint8_t key)
+static const uint8_t s_key_no[IR_KEY_COUNT + 1u] =
 {
-    return (uint16_t)key;
+    0u,   /* [0]  未用 */
+    1u,   /* [1]  KEY1  电视机电源   */
+    16u,  /* [2]  KEY2  静音         */
+    3u,   /* [3]  KEY3  电视机业务   */
+    5u,   /* [4]  KEY4  确认         */
+    10u,  /* [5]  KEY5  左           */
+    11u,  /* [6]  KEY6  右           */
+    9u,   /* [7]  KEY7  下           */
+    4u,   /* [8]  KEY8  主页         */
+    6u,   /* [9]  KEY9  返回         */
+    7u,   /* [10] KEY10 菜单         */
+    18u,  /* [11] KEY11 频道+        */
+    14u,  /* [12] KEY12 音量+        */
+    19u,  /* [13] KEY13 频道-        */
+    15u,  /* [14] KEY14 音量-        */
+    13u,  /* [15] KEY15 语音         */
+    8u,   /* [16] KEY16 上           */
+    20u,  /* [17] KEY17 回看         */
+    1u,   /* [18] KEY18 机顶盒电源   */
+};
+
+/**
+ * @brief 物理键 → 按键表条目
+ * @note  真实链路：物理键 → 表 B.1 序号 → 文件映射表 → key_id → 按键表。
+ *        文件未带映射表时，退回把表 B.1 序号直接当 key_id。
+ */
+static bool dl_find(const etv_file_t *f, uint8_t key, etv_key_t *k)
+{
+    uint16_t id;
+
+    if (key == 0u || key > IR_KEY_COUNT) {
+        return false;
+    }
+    if (etv_map_lookup(f, s_key_no[key], &id)) {
+        return etv_find_key(f, id, k);
+    }
+    return etv_find_key(f, (uint16_t)s_key_no[key], k);
 }
 
 /** @brief 该按键查哪份文件：电视机键查 irtv，其余查 irstb */
@@ -44,7 +87,7 @@ bool ir_dl_available(uint8_t key, bool tv)
     if (!etv_open(&f, file_of(tv))) {
         return false;
     }
-    return etv_find_key(&f, keyid_of(key), &k);
+    return dl_find(&f, key, &k);
 }
 
 uint16_t ir_dl_seq(bool tv)
@@ -64,7 +107,9 @@ bool ir_dl_send(uint8_t key, bool tv)
     if (key == 0u || !etv_open(&f, file_of(tv))) {
         return false;
     }
-    if (!etv_find_key(&f, keyid_of(key), &k)) {
+    if (!dl_find(&f, key, &k)) {
+        co_printf("[IR] no entry for key %u (type=%s, map=%u)\r\n",
+                  (unsigned)key, tv ? "irtv" : "irstb", (unsigned)f.map_num);
         return false;
     }
     if (!etv_read_table(&f, k.table_index, &t)) {

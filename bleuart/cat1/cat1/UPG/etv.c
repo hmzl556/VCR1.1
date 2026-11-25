@@ -92,6 +92,22 @@ bool etv_open(etv_file_t *f, upg_store_type_t type)
         co_printf("[ETV ] key table overflow (%u keys)\r\n", (unsigned)f->key_num);
         return false;
     }
+
+    /* 可选映射表：紧跟按键表。
+     * 规范用 data_set_flag 的 bit7 表示有无，但真实样本（海信 irtv，501 字节）
+     * bit7 为 0 却带 30 条映射，故改为按剩余字节结构判定：
+     * 剩余长度不少于 1 + n*3 时，把首字节当条目数。 */
+    {
+        uint16_t mo = (uint16_t)(f->key_off + (uint16_t)f->key_num * ETV_KEY_LEN);
+        uint8_t n = 0u;
+
+        f->map_off = mo;
+        f->map_num = 0u;
+        if (mo < f->len && rd8(f, mo, &n) && n > 0u
+            && (uint32_t)mo + 1u + (uint32_t)n * ETV_MAP_LEN <= f->len) {
+            f->map_num = n;
+        }
+    }
     return true;
 }
 
@@ -181,6 +197,28 @@ bool etv_find_key(const etv_file_t *f, uint16_t key_id, etv_key_t *k)
         k->table_index = rec[2];
         memcpy(k->value, rec + 3, 8u);
         return true;
+    }
+    return false;
+}
+
+bool etv_map_lookup(const etv_file_t *f, uint8_t key_no, uint16_t *key_id)
+{
+    uint16_t i;
+
+    if (f == NULL || key_id == NULL || f->map_num == 0u || key_no == 0u) {
+        return false;
+    }
+    for (i = 0u; i < (uint16_t)f->map_num; ++i) {
+        uint8_t rec[ETV_MAP_LEN];
+        uint16_t off = (uint16_t)(f->map_off + 1u + i * ETV_MAP_LEN);
+
+        if (!rd(f, off, rec, ETV_MAP_LEN)) {
+            return false;
+        }
+        if (rec[0] == key_no) {
+            *key_id = rd16(rec + 1);
+            return true;
+        }
     }
     return false;
 }
