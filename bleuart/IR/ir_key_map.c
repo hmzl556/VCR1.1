@@ -66,6 +66,22 @@ void ir_user_reset(void)
 }
 uint8_t ir_user_for_key(uint8_t key)
 { return (key == IR_KEY_TV_BUSINESS || key == IR_KEY_TV_POWER) ? s_ir_user_tv : s_ir_user_stb; }
+
+/**
+ * @brief 该键的下载值走哪个通道：true = 电视机 irtv，false = 机顶盒 irstb
+ * @note  电视机专属键（电源/业务键）固定走电视；其余键先看机顶盒文件有没有，
+ *        没有再看电视机文件——这样只下载了电视机键值时，全键都能控电视。
+ *        发送路径（ir_tx_process / ir_tx_repeat）必须与入队判定（ir_send_key）
+ *        用同一个函数，否则会入队了却按另一个通道去发。
+ */
+static bool dl_is_tv(uint8_t key)
+{
+    if (key == IR_KEY_TV_POWER || key == IR_KEY_TV_BUSINESS) {
+        return true;
+    }
+    return !ir_dl_available(key, false) && ir_dl_available(key, true);
+}
+
 static bool enqueue(uint8_t user, uint8_t cmd, uint8_t key, uint8_t kind)
 {
     uint8_t i;
@@ -98,7 +114,7 @@ bool ir_send_key(uint8_t key)
     /* Voice is never an IR/learning key, including stale stored data. */
     if (!key || key > IR_KEY_COUNT || key == 15u) return false;
 
-    tv = (key == IR_KEY_TV_POWER || key == IR_KEY_TV_BUSINESS);
+    tv = dl_is_tv(key);
     learn = ir_wave_store_has(key);
     dl = ir_dl_available(key, tv);
     /* 规范 7.4：以最后更新的为准。两层各自维护写入序号，取较大者；
@@ -126,8 +142,7 @@ void ir_tx_process(void)
         (s_sent && now - s_tx_ms < s_repeat_interval)) return;
     item = &s_queue[s_head];
     started = item->kind == TX_RAW ? send_learned(item->key,false,item->frame) :
-        (item->kind == TX_DL ? ir_dl_send(item->key, item->key == IR_KEY_TV_POWER ||
-                                                       item->key == IR_KEY_TV_BUSINESS) :
+        (item->kind == TX_DL ? ir_dl_send(item->key, dl_is_tv(item->key)) :
         (item->kind == TX_RC6 ? ir_rc6_send(item->frame) : irc_send(item->user, item->cmd)));
     if(item->kind!=TX_RAW)s_repeat_interval=108u;
     if (started) {
@@ -152,7 +167,7 @@ void ir_tx_repeat(uint8_t key)
         now - s_tx_ms < s_repeat_interval || irc_is_busy() || ir_rc6_is_busy()) return;
     if(s_repeat_kind==TX_RAW){if(!send_learned(key,true,s_repeat_frame))return;}
     else if (s_repeat_kind == TX_DL) {
-        if (!ir_dl_send(key, key == IR_KEY_TV_POWER || key == IR_KEY_TV_BUSINESS)) return;
+        if (!ir_dl_send(key, dl_is_tv(key))) return;
     }
     else if (s_repeat_kind == TX_RC6) {
         if (!ir_rc6_send(s_repeat_frame)) return;

@@ -44,6 +44,22 @@ int main(void)
  ir_dl_seq_mock=2;ir_learn_seq_mock=4;                /* 学习更新 */
  assert(ir_send_key(3));assert(ir_dl_sent==1&&raw_sent==4);advance(108);ir_tx_release();
  ir_dl_mock=0;learned_key=0;ir_dl_seq_mock=0;ir_learn_seq_mock=0;
+ /* 只下载了电视机键值时，非电视专属键也要改走电视红外（联调期要求）：
+  * 否则按音量/方向只会发机顶盒 RC6，电视机收不到。 */
+ {unsigned dl=ir_dl_sent,nr=rc6_sent,nn=nec_sent;
+  while(s_count)advance(108);ir_tx_release();
+  ir_dl_tv_only=1;assert(ir_send_key(4));      /* KEY4 确认：irstb 没有 → 改走 irtv */
+  assert(ir_dl_sent==dl+1&&ir_dl_last_tv);     /* 发的是下载值，且走电视通道 */
+  assert(rc6_sent==nr&&nec_sent==nn);          /* 没有退回 ROM 表 */
+  advance(108);ir_tx_release();
+  /* 两份都下载时仍以"键归属"为准：普通键走机顶盒 */
+  ir_dl_tv_only=0;ir_dl_mock=1;
+  assert(ir_send_key(4));assert(ir_dl_sent==dl+2&&!ir_dl_last_tv);
+  advance(108);ir_tx_release();
+  /* 电视专属键即便机顶盒也有值，仍走电视 */
+  assert(ir_send_key(1));assert(ir_dl_sent==dl+3&&ir_dl_last_tv);
+  advance(108);ir_tx_release();
+  ir_dl_mock=0;}
  nec_busy=true;assert(ir_send_key(12));assert(s_count==1);ir_tx_repeat(12);assert(rc6_sent==3);advance(108);
  assert((frame&0xFFFF7FFFu)==0x80102610u&&rc6_sent==4);ir_tx_release();advance(108);
  ir_send_pair_code_target(false);assert((frame&0xFFFF7FFFu)==0x801026ADu);
