@@ -6,6 +6,7 @@
  */
 #include "ble_key_file.h"
 #include "upg_store.h"
+#include "ir_dl.h"          /* ir_dl_key_no：物理键 → 表 B.1 序号 */
 #include "co_printf.h"
 #include <string.h>
 
@@ -204,6 +205,16 @@ void ble_key_file_dump(void)
         }
     }
     co_printf("[BLEDL] ---- end (%u/30) ----\r\n", (unsigned)hit);
+}
+
+bool ble_key_file_lookup_phys(uint8_t phys_key, ble_hid_ent_t *e)
+{
+    uint8_t kno = ir_dl_key_no(phys_key);
+
+    if (kno == 0u) {
+        return false;
+    }
+    return ble_key_file_lookup(kno, e);
 }
 
 bool ble_key_file_lookup(uint8_t key_no, ble_hid_ent_t *e)

@@ -76,6 +76,13 @@ uint16_t ble_key_file_seq(void);
 bool ble_key_file_lookup(uint8_t key_no, ble_hid_ent_t *e);
 
 /**
+ * @brief 按物理键号查 HID 键值（内部先换算成表 B.1 序号）
+ * @param phys_key 物理键号（KEYSCAN_KEY1..18）
+ * @note  蓝牙发送层用这个入口，避免它自己去依赖 IR 层的序号表。
+ */
+bool ble_key_file_lookup_phys(uint8_t phys_key, ble_hid_ent_t *e);
+
+/**
  * @brief 打印整份 blestb 映射到串口（联调核对用）
  * @note  仅在 BLEDL_DEBUG_LOG 打开时调用有意义；量产应移除调用点。
  */

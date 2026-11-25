@@ -921,6 +921,28 @@ static void blestb_real_case(void)
     assert(ble_key_file_lookup(13u, &e));      /* 语音 */
     assert(e.page == 0x07u && e.usage == 0x003Eu);
 
+    /* ---- P4.2：按物理键查（蓝牙发送层入口），含下载值优先的边界 ---- */
+    assert(ble_key_file_lookup_phys(1u, &e));          /* KEY1 电视电源 -> 序号1 */
+    assert(e.page == 0x07u && e.usage == 0x0066u);
+    assert(ble_key_file_lookup_phys(4u, &e));          /* KEY4 确定 -> 序号5 */
+    assert(e.page == 0x0Cu && e.usage == 0x0041u);
+    assert(ble_key_file_lookup_phys(12u, &e));         /* KEY12 音量+ -> 序号14 */
+    assert(e.page == 0x0Cu && e.usage == 0x00E9u);
+    assert(ble_key_file_lookup_phys(14u, &e));         /* KEY14 音量- -> 序号15 */
+    assert(e.page == 0x0Cu && e.usage == 0x00EAu);
+    assert(ble_key_file_lookup_phys(2u, &e));          /* KEY2 静音 -> 序号16 */
+    assert(e.page == 0x0Cu && e.usage == 0x00E2u);
+    assert(ble_key_file_lookup_phys(11u, &e));         /* KEY11 频道+ -> 序号18 */
+    assert(e.page == 0x07u && e.usage == 0x004Bu);
+    assert(ble_key_file_lookup_phys(8u, &e));          /* KEY8 主页 -> 序号4 */
+    assert(e.page == 0x0Cu && e.usage == 0x0223u);
+    /* KEY17 回看 -> 序号20，该型号 fc2hid 里没有 -> 必须回退（这里查不到） */
+    assert(ir_dl_key_no(17u) == 20u);
+    assert(ble_key_file_lookup_phys(17u, &e) == false);
+    /* 越界与 0 号键 */
+    assert(ble_key_file_lookup_phys(0u, &e) == false);
+    assert(ble_key_file_lookup_phys(19u, &e) == false);
+
     /* fc2no 有、fc2hid 没有的序号：如实失败而不是给错值 */
     assert(ble_key_file_lookup(12u, &e) == false);
     assert(ble_key_file_lookup(20u, &e) == false);

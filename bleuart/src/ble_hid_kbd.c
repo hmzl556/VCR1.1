@@ -7,6 +7,7 @@
 #include "co_printf.h"
 #include "pm_state.h"       /* 电源管理 — 对端数据活动通知 */
 #include "br_timer.h"    /* sdk_timer_get_current_ms */
+#include "ble_key_file.h"   /* 下载的 blestb 蓝牙键值（P4） */
 
 
 // HID Report Map（从参考工程原封不动复制，当前阶段不要改动）。
@@ -63,20 +64,17 @@ static const uint8_t hid_report_map[] =
     0xA1, 0x01, /* Collection (Application) */
     0x85, 0x02, /* Report ID (2) */
 
-    // 3-bit Variable: Mute / Volume+ / Volume-
-    0x15, 0x00, /* Logical Minimum (0) */
-    0x25, 0x01, /* Logical Maximum (1) */
-    0x75, 0x01, /* Report Size (1) */
-    0x95, 0x03, /* Report Count (3) */
-    0x09, 0xE2, /* Usage (Mute) */
-    0x09, 0xE9, /* Usage (Volume Increment) */
-    0x09, 0xEA, /* Usage (Volume Decrement) */
-    0x81, 0x02, /* Input (Data,Var,Abs) */
-
-    // Padding to next byte
-    0x75, 0x05, /* Report Size (5) */
-    0x95, 0x01, /* Report Count (1) */
-    0x81, 0x01, /* Input (Constant) */
+    // 16-bit Array：报告值就是 Consumer usage id 本身，因此 0x0000~0x03FF 内
+    // 任意 usage 都能发（Mute 0xE2、Vol± 0xE9/0xEA、AC Home 0x0223、
+    // AC Back 0x0224、Menu 0x0041 等）。APP 下发的 blestb 依赖这一点。
+    // 旧的 3 位位图写法只声明了 3 个 usage，其余消费类键发不出去。
+    0x15, 0x00,       /* Logical Minimum (0) */
+    0x26, 0xFF, 0x03, /* Logical Maximum (0x03FF) */
+    0x19, 0x00,       /* Usage Minimum (0) */
+    0x2A, 0xFF, 0x03, /* Usage Maximum (0x03FF) */
+    0x75, 0x10,       /* Report Size (16) */
+    0x95, 0x01,       /* Report Count (1) */
+    0x81, 0x00,       /* Input (Data,Array,Abs) */
 
     0xC0,       /* End Collection */
 
@@ -636,6 +634,7 @@ void hid_kbd_send_keycode_current(uint8_t usage_id)
     if (!hid_kbd_can_send_current()) {
         return;
     }
+    co_printf("[HID  ] HID send keyboard usage: %02X\n", usage_id);
    
     // 报告格式：byte0=修饰键，byte1=保留，byte2~7=按键数组
     report[2] = usage_id;
@@ -658,6 +657,7 @@ void hid_kbd_send_keycode_with_mod_current(uint8_t modifier, uint8_t usage_id)
     if (!hid_kbd_can_send_current()) {
         return;
     }
+    co_printf("[HID  ] HID send keyboard usage: %02X mod=%02X\n", usage_id, modifier);
 
     // 报告格式：byte0=修饰键，byte1=保留，byte2~7=按键数组
     report[0] = modifier;
@@ -672,27 +672,26 @@ void hid_kbd_send_keycode_with_mod_current(uint8_t modifier, uint8_t usage_id)
 
 void hid_kbd_send_consumer_current(uint16_t usage_id)
 {
-    // Consumer 报告：1 字节位图，释放由上层统一路径处理。
-    // bit0=Mute(0xE2), bit1=Vol+(0xE9), bit2=Vol-(0xEA)
+    // Consumer 报告：16 位 Array，负载即 usage id 本身（2 字节）。
+    // 释放由上层统一路径处理（发全 0）。
     uint8_t report[HID_CONSUMER_REPORT_LEN] = {0};
 
     if (!hid_kbd_can_send_current()) {
         return;
     }
-    co_printf("[HID  ] HID send consumer usage: %04X\n", usage_id);
-    switch (usage_id) {
-        case HID_CONSUMER_MUTE:
-            report[0] = 0x01u;
-            break;
-        case HID_CONSUMER_VOL_UP:
-            report[0] = 0x02u;
-            break;
-        case HID_CONSUMER_VOL_DOWN:
-            report[0] = 0x04u;
-            break;
-        default:
-            return;
+    if (usage_id == 0u) {
+        return;                         /* usage 0 表示无键，不单独发 */
     }
+    co_printf("[HID  ] HID send consumer usage: %04X\n", usage_id);
+    /* HID 报告里的多字节字段按规范是低字节在前（LSB first）。
+     * 若某些机顶盒按大端解析，把 HID_CONSUMER_USAGE_BIG_ENDIAN 置 1 即可。 */
+#if HID_CONSUMER_USAGE_BIG_ENDIAN
+    report[0] = (uint8_t)(usage_id >> 8);
+    report[1] = (uint8_t)(usage_id & 0xFFu);
+#else
+    report[0] = (uint8_t)(usage_id & 0xFFu);
+    report[1] = (uint8_t)(usage_id >> 8);
+#endif
     hid_kbd_send_report_current(HID_KBD_RPT_ID_CONSUMER, HID_RPT_TYPE_INPUT, report, sizeof(report));
 }
 
@@ -743,7 +742,22 @@ bool hid_kbd_map_key_to_usage(uint16_t key_id, uint16_t *usage_id, bool *is_cons
     }
     //co_printf("Mapping key_id %d to usage_id...\n", key_id);
     *is_consumer = false; // 默认为标准键盘报告（非 Consumer）
-    
+
+    /* P4：APP 下载的 blestb 优先（规范 7.4「键值以最后更新为准」）。
+     * 物理键 → 表 B.1 序号 → fc2no 查 fcode → fc2hid 查 page/mod/usage。
+     * 报告描述符已扩展为 16 位 Array，消费类任意 usage 都能发，
+     * 因此不再需要"发不出去就回退"的临时判断。
+     * 只有 usage 为 0（文件里该条为空）时才回退到下面的编译期表。 */
+    {
+        ble_hid_ent_t ent;
+
+        if (ble_key_file_lookup_phys((uint8_t)key_id, &ent) && ent.usage != 0u) {
+            *usage_id = ent.usage;
+            *is_consumer = (ent.page == 0x0Cu);
+            return true;
+        }
+    }
+
     switch (key_id) {
         // 数字行 1-0
         case 1:  *usage_id = 0x66; break; // '1' HID 0x1E 电源

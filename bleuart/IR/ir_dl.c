@@ -76,6 +76,14 @@ static upg_store_type_t file_of(bool tv)
     return tv ? UPG_ST_IRTV : UPG_ST_IRSTB;
 }
 
+uint8_t ir_dl_key_no(uint8_t key)
+{
+    if (key == 0u || key > IR_KEY_COUNT) {
+        return 0u;
+    }
+    return s_key_no[key];
+}
+
 bool ir_dl_available(uint8_t key, bool tv)
 {
     etv_file_t f;

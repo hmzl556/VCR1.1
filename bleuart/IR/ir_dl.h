@@ -28,4 +28,13 @@ uint16_t ir_dl_seq(bool tv);
  */
 bool ir_dl_send(uint8_t key, bool tv);
 
+/**
+ * @brief 物理键 → 表 B.1 功能序号（GY/T 407-2024 附录 B）
+ * @param key 物理键号（KEYSCAN_KEY1..18）
+ * @return 序号 1~30；0 表示该物理键没有对应序号
+ * @note  红外下载层（irtv/irstb）与蓝牙下载层（blestb）共用同一张表，
+ *        所以在此导出，避免两处各写一份。
+ */
+uint8_t ir_dl_key_no(uint8_t key);
+
 #endif /* _IR_DL_H_ */

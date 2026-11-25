@@ -12,7 +12,19 @@
 
 // 常用报告长度定义，便于上层构造缓冲区。
 #define HID_KBD_REPORT_LEN        (8u)
-#define HID_CONSUMER_REPORT_LEN   (1u)
+/* Consumer 报告：Report ID 2 是 16 位 Array，负载就是 2 字节 usage。
+ * 报告描述符见 ble_hid_kbd.c 的 hid_report_map[]。 */
+#define HID_CONSUMER_REPORT_LEN   (2u)
+
+/**
+ * Consumer usage 在报告里的字节序。
+ * 0 = 低字节在前（HID 规范，Windows/Android/Linux 主机按此解析）；
+ * 1 = 高字节在前（个别国产机顶盒实现如此）。
+ * 只有蓝牙消费类键（静音/音量/主页/返回/菜单）受影响，改这一处即可切换。
+ */
+#ifndef HID_CONSUMER_USAGE_BIG_ENDIAN
+#define HID_CONSUMER_USAGE_BIG_ENDIAN 0
+#endif
 
 // 键盘修饰键位（报告第 0 字节）。
 #define HID_MOD_LCTRL  (0x01u)
