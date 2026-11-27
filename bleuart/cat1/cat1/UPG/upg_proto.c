@@ -151,7 +151,13 @@ void upg_proto_on_link_ready(void)
         return;
     }
     ws->st.reading = 0u;
-    ws->st.auth_pending = 1u;
+    /* APP 靠这条 FA 20 挑战帧判断 UPG 服务是否就绪（没收到它连 usr1 都不读，
+     * APP 侧显示版本/电视/机顶盒信息"无"），**但只容忍一次**：重复订阅时若
+     * 每次都发一个新随机数，APP 会判定异常并反复重订阅，最终降级只读 usr1 就退出
+     * （下载卡 0%，2026-11-28 实测，见实现方案 9.14）。
+     * 因此本会话发过一次（状态离开 IDLE）就不再发；发失败由 start_auth()
+     * 把状态复位回 IDLE，下一个订阅事件自然重试。 */
+    ws->st.auth_pending = (upg_auth_state() == UPG_AUTH_IDLE) ? 1u : 0u;
 }
 
 /** @brief 在任务上下文发起双向认证第一步 */
@@ -166,8 +172,15 @@ static void start_auth(void)
     upg_auth_reset();
     n = upg_auth_start(ws->io, UPG_IO_MAX);
     if (n != 0u) {
-        (void)ble_upg_notify(ws->io, n);
-        co_printf("[UPG ] auth start sent (%u)\r\n", (unsigned)n);
+        if (ble_upg_notify(ws->io, n)) {
+            co_printf("[UPG ] auth start sent (%u)\r\n", (unsigned)n);
+        } else {
+            /* 没发出去（CCCD 尚未生效 / ATT 无空闲缓冲 / Write Response 未发出，
+             * 手机在 onDescriptorWrite 之前会丢弃通知）。复位回 IDLE，让下一次
+             * 订阅事件重发，否则 APP 永远等不到就绪信号。 */
+            upg_auth_reset();
+            co_printf("[UPG ] auth start NOTIFY FAILED (%u)\r\n", (unsigned)n);
+        }
     }
 }
 
@@ -202,10 +215,14 @@ static void on_read_start(const uint8_t *f, uint16_t len)
     if (type_is(f + 3, UPG_TYPE_REL0)) {
         total = upg_meta_build_rel0(ws->scratch, UPG_SCRATCH_MAX);
     } else if (type_is(f + 3, UPG_TYPE_USR1)) {
-        /* 下载过版本信息就以覆盖层里的为准（E.3.3：回读要反映最新版本） */
+        /* 下载过版本信息就以覆盖层里的为准（E.3.3：回读要反映最新版本），
+         * 但 fw: 是设备固件版本，必须始终等于编译期版本号，不能被 APP 写入的
+         * 旧值覆盖——否则固件升级后 APP 里看到的版本号永远不变。 */
         total = upg_store_load(UPG_ST_USR1, ws->scratch, UPG_SCRATCH_MAX);
         if (total == 0u) {
             total = upg_meta_build_usr1(ws->scratch, UPG_SCRATCH_MAX);
+        } else {
+            total = upg_meta_usr1_sync_fw(ws->scratch, total, UPG_SCRATCH_MAX);
         }
     } else if (type_is(f + 3, UPG_TYPE_USR2)) {
         (void)upg_meta_idcode(ws->scratch);

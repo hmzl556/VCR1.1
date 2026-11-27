@@ -21,6 +21,7 @@ void ir_learn_set_target(uint8_t k){last_target=k;}
 uint8_t ir_learn_get_target(void){return (uint8_t)last_target;}
 bool ir_wave_store_clear(void){return clear_ok;}
 bool ir_send_key(uint8_t k){last_ir_key=k;++ir_presses;return !tx_fail;}
+bool ir_send_key_tv(uint8_t k){last_ir_key=k;++ir_presses;return !tx_fail;}
 void ir_tx_process(void){}
 void ir_tx_repeat(uint8_t k){(void)k;++ir_repeats;}
 void ir_tx_release(void){}
@@ -64,7 +65,9 @@ int main(void){unsigned i;
  clear_ok=false;scan(15100,(1u<<8)|(1u<<14),0);scan(18100,(1u<<8)|(1u<<14),0);
  scan(18110,0,0);scan(18120,1u<<4,4);assert(factory_rst_state==FACTORY_RST_CANCELLED&&bond_clears==0);
  modem_busy=1;hid_order_len=0;
- task_keyscan_hid_send_release(0);task_keyscan_hid_send_press(4);task_keyscan_hid_send_release(0);
+ s_hid_key_sent=true;task_keyscan_hid_send_release(0);
+ s_hid_key_sent=true;task_keyscan_hid_send_press(4);
+ s_hid_key_sent=true;task_keyscan_hid_send_release(0);
  modem_busy=0;task_keyscan_hid_flush_deferred();
  assert(hid_order_len==3&&memcmp(hid_order,"RPR",3)==0);
  scan(30000,0,0);scan(30010,0,0);learned_test_key=15;
@@ -81,7 +84,9 @@ int main(void){unsigned i;
  scan(33110,0,0);scan(33150,0,0);connected=false;learned_test_key=0;tx_fail=0;i=voice_starts;
  scan(34000,1u<<15,15);scan(34020,1u<<15,0);scan(34100,1u<<15,0);assert(voice_starts==i);
  scan(34110,0,0);scan(34150,0,0);
- /* Learned ordinary keys use HID when connected; IR only when disconnected. */
+ /* Learned ordinary keys use HID when connected; IR only when disconnected.
+  * P5：显式双控模式，先固定回机顶盒，避免前面用例留下的电视模式影响判定。 */
+ task_keyscan_set_control_mode(TASK_KEYSCAN_MODE_STB);
  connected=true;learned_test_key=17;i=ir_presses;
  {unsigned h=hid_presses;
  scan(35000,1u<<17,17);scan(35020,1u<<17,0);
@@ -89,11 +94,14 @@ int main(void){unsigned i;
  scan(35500,1u<<17,0);assert(ir_presses==i);
  scan(35510,0,0);scan(35550,0,0);}
  learned_test_key=0;
- /* Every remaining non-power learned key preserves its Bluetooth mapping. */
- {unsigned list[3]={2,3,17},n;
- for(n=0;n<3;n++){
+ /* Every remaining non-power learned key preserves its Bluetooth mapping.
+  * KEY3（电视机业务）按表 B.1 固定切电视并只发红外，不在此列；KEY2（直播业务）
+  * 在机顶盒模式下走 HID。 */
+ {unsigned list[2]={2,17},n;
+ for(n=0;n<2;n++){
   unsigned k=list[n],t=36000+n*1000,h=hid_presses,ir=ir_presses;
   connected=true;learned_test_key=k;
+  task_keyscan_set_control_mode(TASK_KEYSCAN_MODE_STB);
   scan(t,1u<<k,k);scan(t+20,1u<<k,0);
   assert(hid_presses==h+1&&last_hid_key==k&&ir_presses==ir);
   scan(t+30,0,0);scan(t+70,0,0);
@@ -105,11 +113,11 @@ int main(void){unsigned i;
  learned_test_key=0;}
  /* A UART transaction may span several short key presses: preserve FIFO. */
  connected=true;modem_busy=1;key_active=0;hid_order_len=0;hid_defer_clear();
- for(i=0;i<4;i++){task_keyscan_hid_send_press(4+i);task_keyscan_hid_send_release(0);}
+ for(i=0;i<4;i++){s_hid_key_sent=true;task_keyscan_hid_send_press(4+i);s_hid_key_sent=true;task_keyscan_hid_send_release(0);}
  assert(s_hid_count==8&&!hid_order_len);modem_busy=0;while(s_hid_count)task_keyscan_hid_flush_deferred();
  assert(hid_order_len==8&&!memcmp(hid_order,"PRPRPRPR",8));
  modem_busy=1;hid_order_len=0;
- for(i=0;i<20;i++){task_keyscan_hid_send_press(4);task_keyscan_hid_send_release(0);}
+ for(i=0;i<20;i++){s_hid_key_sent=true;task_keyscan_hid_send_press(4);s_hid_key_sent=true;task_keyscan_hid_send_release(0);}
  assert(s_hid_reset_pending);modem_busy=0;while(s_hid_count||s_hid_reset_pending)task_keyscan_hid_flush_deferred();
  assert(hid_order[0]=='R'&&hid_order[1]=='R'&&hid_order[hid_order_len-1]=='R');
  /* A wake red LED survives outside the normal key state machine unless

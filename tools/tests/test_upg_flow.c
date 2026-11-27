@@ -140,14 +140,16 @@ uint32_t Qflash_Erase_Sector(uint32_t addr)
 /* ---------------- 桩：红外发送（下载层） ---------------- */
 static ir_raw_t s_dl_wave;
 static unsigned s_dl_sent;
+static uint8_t  s_dl_duty;     /* 最后一次发送的载波占空比百分比 */
 static bool s_dl_ok = true;
-bool ir_rc6_send_wave(const ir_raw_t *w, bool repeat)
+bool ir_rc6_send_wave(const ir_raw_t *w, bool repeat, uint8_t duty_percent)
 {
     (void)repeat;
     if (w == NULL || !s_dl_ok) {
         return false;
     }
     s_dl_wave = *w;
+    s_dl_duty = duty_percent;
     ++s_dl_sent;
     return true;
 }
@@ -565,6 +567,13 @@ static void encode_case(void)
     assert(etv_period_ticks(38000u) == 1684u);
     assert(etv_period_ticks(36000u) == 1778u);
 
+    /* --- 占空比编码（表 E.24 第 6 项）：低 4bit 1/2、1/3、1/4、1/5 --- */
+    assert(etv_duty_percent(0x31u) == 50u);
+    assert(etv_duty_percent(0x32u) == 33u);
+    assert(etv_duty_percent(0x33u) == 25u);
+    assert(etv_duty_percent(0x34u) == 20u);
+    assert(etv_duty_percent(0x30u) == 0u);   /* 未定义 → 发送层回落 1/3 */
+
     /* etv_open 的返回值用于确认"文件仍然有效"，避免编译告警 */
     (void)f;
 }
@@ -593,6 +602,9 @@ static void dl_case(void)
     assert(s_dl_wave.period_ticks == 1684u);   /* ratio_freq 0x32 → 38 kHz */
     assert(s_dl_wave.widths[0] == 9000u && s_dl_wave.widths[1] == 4500u);
 
+    /* 占空比随文件头 ratio_freq 低 4bit 走（0x32 → 1/3 = 33%） */
+    assert(s_dl_duty == 33u);
+
     /* 文件里没有的键：不发 */
     assert(ir_dl_send(5u, true) == false);
     assert(s_dl_sent == 1u);
@@ -601,6 +613,29 @@ static void dl_case(void)
     s_dl_ok = false;
     assert(ir_dl_send(7u, true) == false);
     s_dl_ok = true;
+
+    /* ---- C6 长按重复码（表 E.24 第 11 项）----
+     * build_etv_pw 里 key 7 的 value[0]=0x01 → 第 1 位为 1 → 波形 (560,1680)；
+     * key 1002（重复码）value 全 0 → 波形 (560,560)。用第 3、4 段区分 A/B。 */
+    assert(blob[26] == 0u);                    /* 默认 AAAA */
+    assert(ir_dl_send_repeat(7u, true, 1u));   /* AAAA：重发按键编码 */
+    assert(s_dl_wave.widths[2] == 560u && s_dl_wave.widths[3] == 1680u);
+
+    blob[26] = 1u;                             /* repeat_mode = ABBB */
+    store_blob(UPG_ST_IRTV, blob, n);
+    assert(ir_dl_send(7u, true));              /* 首帧 A */
+    assert(s_dl_wave.widths[3] == 1680u);
+    assert(ir_dl_send_repeat(7u, true, 1u));   /* 第 1 次重发 → B */
+    assert(s_dl_wave.widths[2] == 560u && s_dl_wave.widths[3] == 560u);
+    assert(ir_dl_send_repeat(7u, true, 2u));   /* ABBB 下第 2 次仍是 B */
+    assert(s_dl_wave.widths[3] == 560u);
+
+    blob[26] = 2u;                             /* repeat_mode = ABAB */
+    store_blob(UPG_ST_IRTV, blob, n);
+    assert(ir_dl_send_repeat(7u, true, 1u));   /* 第 1 次 → B */
+    assert(s_dl_wave.widths[3] == 560u);
+    assert(ir_dl_send_repeat(7u, true, 2u));   /* 第 2 次 → A */
+    assert(s_dl_wave.widths[3] == 1680u);
 }
 
 /** 真实样本：海信「通用」型号，APP「通用遥控」下发的 irtv，501 字节 */
@@ -1040,7 +1075,8 @@ int main(void)
     upg_proto_init();
     s_now = 1000u;
 
-    /* 1) 对端订阅 → 首次 poll 应发认证发起帧 FA 20 00，共 52 字节 */
+    /* 1) 对端订阅 → 发一次认证挑战帧 FA 20 00（52 字节）。
+     * APP 靠这条帧判断服务就绪，没收到连 usr1 都不读（信息显示"无"）。 */
     upg_proto_on_link_ready();
     assert(s_cap_n == 0u);                 /* 回调里只置标志，不发帧 */
     upg_proto_poll();
@@ -1049,6 +1085,13 @@ int main(void)
     assert(s_cap[0][0] == 0xFAu && s_cap[0][1] == 0x20u && s_cap[0][2] == 0x00u);
     assert(s_cap[0][3] == 0u);             /* key_index = 0 */
     assert(memcmp(s_cap[0] + 20, "VCR1DEVIDCODE", 13) == 0);  /* 帧内携带 idcode */
+
+    /* 1b) 同一会话内重复订阅不得重发：否则 APP 收到多个不同随机数会反复
+     * 重订阅，重试到第 3 次后降级为只读 usr1 就退出（下载卡 0%）。 */
+    s_cap_n = 0u;
+    upg_proto_on_link_ready();
+    upg_proto_poll();
+    assert(s_cap_n == 0u);
 
     /* 2) 读 rel0：立刻回 FA 11，总长 40 */
     s_cap_n = 0u;
@@ -1093,6 +1136,45 @@ int main(void)
     upg_proto_poll();
     assert(s_cap_n == 3u && s_cap[2][3] == 0u);
 
+    /* 6b) 下载过 usr1 后回读：fw: 必须强制同步成编译期版本，
+     *     其余字段（品牌型号 id、各键值文件版本）保留 APP 写入的值。 */
+    {
+        static const char body[] = "fw:01000100\ntbi:1508\ntmi:1103\nsbi:2312\nsmi:1008\n"
+                                   "irtv:alpha-v1.0.101\nirstb:alpha-v1.0.101\nbletv:0\nblestb:alpha-v1.0.101\n";
+        uint8_t blob[200];
+        uint16_t blen = (uint16_t)(sizeof(body) - 1u);
+        uint16_t bcrc = upg_crc16((const uint8_t *)body, blen, 0u);
+        uint8_t guard = 0u;
+
+        blob[0] = (uint8_t)(bcrc >> 8);
+        blob[1] = (uint8_t)(bcrc & 0xFFu);
+        blob[2] = (uint8_t)(blen >> 8);
+        blob[3] = (uint8_t)(blen & 0xFFu);
+        memcpy(blob + 4u, body, blen);
+        run_write("usr1", blob, (uint16_t)(4u + blen), 64u, false);
+
+        s_cap_n = 0u;
+        build_read_req(req, "usr1");
+        deliver(req, 11u);
+        assert(s_cap_n == 1u);                       /* FA 11 响应 */
+        upg_proto_poll();
+        assert(s_cap_n == 2u);                       /* 第 1 个数据包 */
+        assert(s_cap[1][1] == 0x14u);
+        /* 数据包从 s_cap[1]+4 起是 usr1 内容：CRC(2)+len(2)+文本 */
+        assert(memcmp(s_cap[1] + 8, "fw:02020000\n", 12u) == 0);   /* fw 已同步 */
+        assert(memcmp(s_cap[1] + 20, "tbi:1508\n", 9u) == 0);      /* 其余字段保留 */
+        /* 版本串等长替换，正文长度不变 */
+        assert((uint16_t)((s_cap[1][6] << 8) | s_cap[1][7]) == blen);
+
+        /* 把读流程收尾，避免影响后续用例 */
+        while (s_cap_n < CAP_MAX && guard++ < 8u) {
+            upg_proto_poll();
+            if (s_cap[s_cap_n - 1u][1] == 0x14u && s_cap[s_cap_n - 1u][3] == 0u) {
+                break;                               /* 终止帧 FA 14 00 00 */
+            }
+        }
+    }
+
     /* 7) 通知发送失败时不得推进偏移，下一轮重发同一序号 */
     s_cap_n = 0u;
     build_read_req(req, "rel0");
@@ -1129,7 +1211,7 @@ int main(void)
     s_cap_n = 0u;
     upg_proto_on_link_ready();
     assert(upg_session_busy() == true);
-    upg_proto_poll();                      /* 任务上下文首次 poll：取独占资源并发认证帧 */
+    upg_proto_poll();                      /* 任务上下文首次 poll：取独占资源并发一次认证帧 */
     assert(s_cap_n == 1u);
     s_ota_busy = 1u;                       /* OTA 接管 */
     s_peer_connected = 0;                  /* 同时断连，触发 UPG 收尾 */
@@ -1178,7 +1260,7 @@ int main(void)
     /* ================= P3.2：PW/BP 波形 ================= */
     encode_case();
 
-    puts("UPG flow: subscribe->auth 52B, rel0 total=40 + 44B packet + terminator, "
+    puts("UPG flow: subscribe sends one auth challenge (repeat suppressed), rel0 total=40 + 44B packet + terminator, "
          "usr1 total=72 with body len 68, retry keeps seq, irtv->F2, "
          "disconnect restores adv, OTA takeover keeps adv untouched, "
          "read after idle timeout still delivers, "

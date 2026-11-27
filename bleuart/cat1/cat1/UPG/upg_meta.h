@@ -46,6 +46,19 @@ uint16_t upg_meta_build_rel0(uint8_t *buf, uint16_t cap);
  */
 uint16_t upg_meta_build_usr1(uint8_t *buf, uint16_t cap);
 
+/**
+ * @brief  把已下载 usr1 里的 `fw:` 行强制同步成当前固件版本
+ * @param  buf   usr1 内容（含 4 字节 CRC/长度头），原地修改
+ * @param  total 当前总长（含头）
+ * @param  cap   buf 容量
+ * @return 同步后的总长；内容异常时原样返回
+ * @note   `fw` 是**设备固件版本**，必须与编译期 RC_READ_VAL_DEVICE_SW_VERSION
+ *         始终相等，不能被 APP 下载的内容覆盖（否则固件升级后 APP 里看到的
+ *         版本号永远不变）。其余字段（品牌/型号 id、各键值文件版本）仍以
+ *         覆盖层里 APP 写入的为准，符合 E.3.3「回读反映最新版本」。
+ */
+uint16_t upg_meta_usr1_sync_fw(uint8_t *buf, uint16_t total, uint16_t cap);
+
 /** @brief 附录 J 的 CRC16（多项式 x16+x12+x5+1，反射式 0xA001） */
 uint16_t upg_crc16(const uint8_t *buf, uint32_t len, uint16_t crc_last);
 

@@ -121,6 +121,55 @@ static uint16_t append_str(uint8_t *buf, uint16_t cap, uint16_t pos, const char 
     return pos;
 }
 
+uint16_t upg_meta_usr1_sync_fw(uint8_t *buf, uint16_t total, uint16_t cap)
+{
+    static const char k_fw[] = "fw:" UPG_META_APP_BUILD "\n";
+    const uint16_t new_len = (uint16_t)(sizeof(k_fw) - 1u);
+    uint16_t i;
+    uint16_t end;
+    uint16_t old_len;
+    uint16_t body;
+    uint16_t crc;
+
+    if (buf == NULL || total < 5u || total > cap) {
+        return total;
+    }
+    for (i = 4u; (uint16_t)(i + 3u) <= total; ++i) {
+        if (buf[i] != 'f' || buf[i + 1u] != 'w' || buf[i + 2u] != ':') {
+            continue;
+        }
+        if (i != 4u && buf[i - 1u] != '\n') {
+            continue;                  /* 必须是行首，避免命中 xxfw:yy */
+        }
+        end = i;
+        while (end < total && buf[end] != '\n') {
+            ++end;
+        }
+        if (end < total) {
+            ++end;                     /* 把换行也算进旧行 */
+        }
+        old_len = (uint16_t)(end - i);
+        if (old_len == new_len && memcmp(buf + i, k_fw, new_len) == 0) {
+            return total;              /* 已经一致，不动 */
+        }
+        if ((uint16_t)(total - old_len + new_len) > cap) {
+            return total;              /* 放不下就不改，宁可保持原样 */
+        }
+        memmove(buf + i + new_len, buf + i + old_len, (size_t)(total - end));
+        memcpy(buf + i, k_fw, new_len);
+        total = (uint16_t)(total - old_len + new_len);
+
+        body = (uint16_t)(total - 4u);
+        crc = upg_crc16(buf + 4u, body, 0u);
+        buf[0] = (uint8_t)(crc >> 8);
+        buf[1] = (uint8_t)(crc & 0xFFu);
+        buf[2] = (uint8_t)(body >> 8);
+        buf[3] = (uint8_t)(body & 0xFFu);
+        return total;
+    }
+    return total;                      /* 没有 fw: 行，原样返回 */
+}
+
 uint16_t upg_meta_build_usr1(uint8_t *buf, uint16_t cap)
 {
     uint16_t body, pos;

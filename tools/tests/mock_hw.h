@@ -93,7 +93,17 @@ static bool ir_dl_available(uint8_t key, bool tv)
     return ir_dl_mock != 0u;
 }
 static uint16_t ir_dl_seq(bool tv){(void)tv;return ir_dl_seq_mock;}
+/* 某一侧是否下载过键值：tv_only 时只有 irtv，机顶盒侧为空 */
+static bool ir_dl_file_available(bool tv)
+{
+    if (ir_dl_tv_only) { return tv; }
+    return ir_dl_mock != 0u;
+}
+/* 蓝牙键值文件（只读 blestb）：默认没有，避免触发 tv_only 之外的改道逻辑 */
+static bool ble_key_file_available(void){return false;}
 static bool ir_dl_send(uint8_t key, bool tv){(void)key;ir_dl_last_tv=tv;++ir_dl_sent;return true;}
+static bool ir_dl_send_repeat(uint8_t key, bool tv, uint8_t idx)
+{(void)key;(void)idx;ir_dl_last_tv=tv;++ir_dl_sent;return true;}
 /* 学习区序号：test_wave_store 直接用真实的 ir_wave_store.c，那里已有实现 */
 #ifndef MOCK_NO_WAVE_STORE_SEQ
 static uint32_t ir_wave_store_seq(void){return ir_learn_seq_mock;}
