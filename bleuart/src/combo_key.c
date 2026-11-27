@@ -2,7 +2,8 @@
  * @file    combo_key.c
  * @brief   组合键管理器实现
  * @note    STB pairing: volume- + TV business; unpairing: back + TV business.
- *          Both user-code switch combos disabled. Trigger once until release.
+ *          Volume+ & HOME switches STB user code, Volume+ & MENU switches TV user code.
+ *          Trigger once until release, with slow-2 / fast-3 LED feedback.
  *          Factory reset and learning are mutually exclusive in task_keyscan.
  */
 
@@ -26,6 +27,7 @@ typedef enum {
     COMBO_IDLE = 0,
     COMBO_HOLDING,       /* 双键按住中，计时 3s                     */
     COMBO_TRIGGERED,     /* 已触发，执行后续动作（仅解配使用此状态） */
+    COMBO_FLASHING,      /* 用户码切换后的指示灯反馈（慢闪2下/快闪3下） */
     COMBO_WAIT_RELEASE,
 } combo_state_t;
 
@@ -33,8 +35,8 @@ typedef enum {
 typedef enum {
     COMBO_ACT_PAIR = 0,  /* STB Bluetooth pairing + Gehua RC6 request */
     COMBO_ACT_UNPAIR,    /* Clear STB bond + wait for disconnect */
-    COMBO_ACT_MODE_STB,  /* GY/T 407 §6.1.3 音量+ & 主页 -> 机顶盒（立即执行） */
-    COMBO_ACT_MODE_TV,   /* GY/T 407 §6.1.3 音量+ & 菜单 -> 电视机（立即执行） */
+    COMBO_ACT_USER_STB,  /* GY/T 407 §6.1.3 音量+ & 主页 -> 切机顶盒用户码 0x3A/0x3C */
+    COMBO_ACT_USER_TV,   /* GY/T 407 §6.1.3 音量+ & 菜单 -> 切电视机用户码 0x51/0x53 */
 } combo_action_t;
 
 typedef struct {
@@ -47,8 +49,21 @@ typedef struct {
     uint8_t        flags;         /* bit0 release_pending, bit1 led_on */
 } combo_key_def_t;
 
+/* flags 位分配（不新增结构体成员，避免 RAM 增长）：
+ *   bit0     release_pending
+ *   bit1     led_on
+ *   bit2..4  flash_done（已闪半周期次数 0~7）
+ *   bit5     flash_fast（1=快闪 200ms×6，0=慢闪 500ms×4） */
 #define COMBO_FLAG_RELEASE_PENDING 0x01u
 #define COMBO_FLAG_LED_ON          0x02u
+#define COMBO_FLAG_FAST            0x20u
+#define COMBO_FLASH_DONE_SHIFT     2u
+#define COMBO_FLASH_DONE_MASK      0x1Cu
+
+/** @brief 用户码切换指示灯：默认码慢闪 2 下（4 个半周期） */
+#define COMBO_USER_SLOW_FLASH_MS   500U
+/** @brief 用户码切换指示灯：备用码快闪 3 下（6 个半周期） */
+#define COMBO_USER_FAST_FLASH_MS   200U
 
 /*===========================================================================
  * 二、静态变量
@@ -57,8 +72,8 @@ typedef struct {
 /* 组合键注册表（编译时确定，不动态分配） */
 #define COMBO_IDX_PAIR_STB   0   /* KEY14 + KEY3 */
 #define COMBO_IDX_UNPAIR_STB 1   /* KEY9 + KEY3 */
-#define COMBO_IDX_MODE_STB   2   /* KEY12 + KEY8  音量+ & 主页 */
-#define COMBO_IDX_MODE_TV    3   /* KEY12 + KEY10 音量+ & 菜单 */
+#define COMBO_IDX_USER_STB   2   /* KEY12 + KEY8  音量+ & 主页 → 切机顶盒用户码 */
+#define COMBO_IDX_USER_TV    3   /* KEY12 + KEY10 音量+ & 菜单 → 切电视机用户码 */
 #define COMBO_COUNT         4
 
 /* Automatic KEYSCAN uses 32ms scan interval plus 10ms debounce.
@@ -103,9 +118,9 @@ void combo_key_init(void)
      * the left-key aliases. No user-code switching combo is registered. */
     combo_register(COMBO_IDX_PAIR_STB,   TASK_KEYSCAN_KEY14, TASK_KEYSCAN_KEY3, COMBO_ACT_PAIR);
     combo_register(COMBO_IDX_UNPAIR_STB, TASK_KEYSCAN_KEY9,  TASK_KEYSCAN_KEY3, COMBO_ACT_UNPAIR);
-    /* 双控主动切换：音量+ 分别与 主页 / 菜单 组合（GY/T 407-2024 §6.1.3） */
-    combo_register(COMBO_IDX_MODE_STB,   TASK_KEYSCAN_KEY12, TASK_KEYSCAN_KEY8,  COMBO_ACT_MODE_STB);
-    combo_register(COMBO_IDX_MODE_TV,    TASK_KEYSCAN_KEY12, TASK_KEYSCAN_KEY10, COMBO_ACT_MODE_TV);
+    /* 红外用户码切换（GY/T 407-2024 §6.1.3）：长按 3s，切换默认/备用用户码 */
+    combo_register(COMBO_IDX_USER_STB,   TASK_KEYSCAN_KEY12, TASK_KEYSCAN_KEY8,  COMBO_ACT_USER_STB);
+    combo_register(COMBO_IDX_USER_TV,    TASK_KEYSCAN_KEY12, TASK_KEYSCAN_KEY10, COMBO_ACT_USER_TV);
 }
 
 bool combo_key_is_idle(void)
@@ -169,6 +184,33 @@ static void combo_do_unpair(combo_key_def_t *c, uint32_t now_ms)
     ble_gap_clear_bonding_info();
 }
 
+/**
+ * @brief  切换红外用户码并给出指示灯反馈（GY/T 407-2024 §6.1.3）
+ * @note   默认码慢闪 2 下（500ms 半周期×4），备用码快闪 3 下（200ms×6）。
+ *         闪烁期间组合键保持非空闲，正常按键处理被跳过，LED 不会被抢占。
+ */
+static void combo_do_user_switch(combo_key_def_t *c, uint32_t now_ms)
+{
+    bool is_default;
+
+    if (c->action == COMBO_ACT_USER_STB) {
+        is_default = ir_user_switch_stb();
+    } else {
+        is_default = ir_user_switch_tv();
+    }
+
+    co_printf("[COMBO] key%d+key%d %s user code -> %s\r\n", c->key1, c->key2,
+              (c->action == COMBO_ACT_USER_STB) ? "STB" : "TV",
+              is_default ? "default" : "backup");
+
+    c->flags = 0u;
+    if (!is_default) c->flags |= COMBO_FLAG_FAST;
+    c->release_ts_ms = now_ms;      /* 闪烁半周期计时 */
+    c->state = COMBO_FLASHING;
+    SETLED1; SETLED2;               /* 先点亮，之后按半周期翻转 */
+    c->flags |= COMBO_FLAG_LED_ON;
+}
+
 void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
 {
     uint8_t i;
@@ -180,21 +222,6 @@ void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
 
         case COMBO_IDLE:
             if (combo_both_keys_down(c, hw_snapshot)) {
-                /* 双控模式切换立即生效：这两个组合不涉及 Flash 写入，
-                 * 且组合键非空闲期间正常按键处理已被跳过，不会误触。 */
-                if (c->action == COMBO_ACT_MODE_STB || c->action == COMBO_ACT_MODE_TV) {
-                    if (udp_ota_session_busy() == 0u && upg_session_busy() == 0u) {
-                        uint8_t mode = (c->action == COMBO_ACT_MODE_TV)
-                                       ? TASK_KEYSCAN_MODE_TV : TASK_KEYSCAN_MODE_STB;
-                        co_printf("[COMBO] key%d+key%d switch mode\r\n", c->key1, c->key2);
-                        task_keyscan_set_control_mode(mode);
-                    } else {
-                        co_printf("[COMBO] mode switch ignored: session busy\r\n");
-                    }
-                    c->state = COMBO_WAIT_RELEASE;
-                    c->flags &= (uint8_t)~COMBO_FLAG_RELEASE_PENDING;
-                    break;
-                }
                 c->state = COMBO_HOLDING;
                 c->flags &= (uint8_t)~COMBO_FLAG_RELEASE_PENDING;
                 c->state_ts_ms = now_ms;
@@ -246,12 +273,44 @@ void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
                 case COMBO_ACT_UNPAIR:
                     combo_do_unpair(c, now_ms);
                     break;
+                case COMBO_ACT_USER_STB:
+                case COMBO_ACT_USER_TV:
+                    combo_do_user_switch(c, now_ms);
+                    break;
                 default:
                     c->state = COMBO_IDLE;
                     break;
                 }
             }
             break;
+
+        /* ---------------------------------------------------------- */
+        /*  FLASHING：用户码切换后的指示灯反馈                          */
+        /* ---------------------------------------------------------- */
+        case COMBO_FLASHING:
+        {
+            uint32_t period = (c->flags & COMBO_FLAG_FAST)
+                              ? COMBO_USER_FAST_FLASH_MS : COMBO_USER_SLOW_FLASH_MS;
+            uint8_t  total  = (c->flags & COMBO_FLAG_FAST) ? 6u : 4u;
+            uint8_t  done   = (uint8_t)((c->flags & COMBO_FLASH_DONE_MASK) >> COMBO_FLASH_DONE_SHIFT);
+
+            if ((now_ms - c->release_ts_ms) >= period) {
+                c->release_ts_ms = now_ms;
+                c->flags ^= COMBO_FLAG_LED_ON;
+                if (c->flags & COMBO_FLAG_LED_ON) { SETLED1; SETLED2; }
+                else { CLRLED1; CLRLED2; }
+
+                done++;
+                c->flags = (uint8_t)((c->flags & (uint8_t)~COMBO_FLASH_DONE_MASK) |
+                                     (uint8_t)(done << COMBO_FLASH_DONE_SHIFT));
+                if (done >= total) {
+                    CLRLED1; CLRLED2;
+                    c->flags &= (uint8_t)~COMBO_FLAG_LED_ON;
+                    c->state = COMBO_WAIT_RELEASE;
+                }
+            }
+            break;
+        }
 
         /* ---------------------------------------------------------- */
         /*  TRIGGERED：仅解配使用，等断连或超时，LED1 闪烁              */

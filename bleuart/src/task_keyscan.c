@@ -594,7 +594,12 @@ static void task_keyscan_process_core(void)
         combo_key_process(now_ms, hw_snapshot);
         /* Release the ordinary/wake red LED at combo takeover. Special
          * indication starts on later iterations, so it is not overwritten. */
-        if (combo_was_idle && !combo_key_is_idle()) task_keyscan_red_led(false);
+        /* 组合键接管后自行管理指示（用户码切换要闪 2/3 下），
+         * 这里把普通按键的指示先清掉，避免与闪烁抢同一个灯。 */
+        if (combo_was_idle && !combo_key_is_idle()) {
+            task_keyscan_red_led(false);
+            CLRLED2;
+        }
 	}
 	// 简单组合键空闲时，工厂复位才工作
 	if (combo_key_is_idle() && s_ir_learn_mode == IR_LEARN_MODE_OFF) {

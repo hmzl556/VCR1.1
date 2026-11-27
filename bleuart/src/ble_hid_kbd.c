@@ -758,11 +758,26 @@ bool hid_kbd_map_key_to_usage(uint16_t key_id, uint16_t *usage_id, bool *is_cons
         }
     }
 
+    /* 编译期回退表：仅在未下载 blestb（或文件中该条 usage 为 0）时使用。
+     *
+     * 重要：这张表是**歌华私有 HID 映射**，多数条目与 GY/T 407 表 B.1 的 Usage 不一致，
+     * 是照真实歌华机顶盒实现对出来的，不要按规范"顺手纠正"：
+     *   机顶盒电源 KEY18 = 0x0C （表 B.1 为 0x66）—— 2026-11-28 实测可开关机
+     *   电视机业务 KEY3  = 0x55 （表 B.1 为 0x4A）—— 歌华私有，避免与"主页"同码
+     *   回看     KEY17 = 0x41 （表 B.1 为 0x91）—— 歌华私有
+     * 歌华这套映射的规律是「usage 值 = 自家命令码」，所以与红外侧 RC6 命令码同值。
+     *
+     * 直播业务 KEY2 = 0x3D 是个例外：它没有已知的歌华私有值，暂用表 B.1 序号2 的值。
+     * 真实 blestb 文件里该条为 page 0x0C / usage 0x00EC；若实测按直播业务蓝牙无反应，
+     * 说明该机型只认文件里的 0x00EC，届时把本条改成
+     *   case 2: *usage_id = 0xEC; *is_consumer = true; break;
+     * 其余键的 Usage/Page 与表 B.1 一致，勿改。
+     */
     switch (key_id) {
         // 数字行 1-0
         case 1:  *usage_id = 0x66; break; // '1' HID 0x1E 电源
-        case 2:  *usage_id = 0xE2; *is_consumer = true; break; // '2' HID 0x1F 静音
-        case 3:  *usage_id = 0x55; break; // '3' HID Gehua 电视
+        case 2:  *usage_id = 0x3D; break; // LIVE 直播业务：表 B.1 序号2；文件里是 0x00EC(消费类)，见上
+        case 3:  *usage_id = 0x55; break; // TV_BIZ 歌华私有（表 B.1 为 0x4A，勿改）
         //case 3:  *usage_id = 0x3D; break; // '3' HID 规范书 电视
         case 4:  *usage_id = 0x28; break; // '4' HID 0x21 确认
         case 5:  *usage_id = 0x50; break; // '5' HID 0x22 左
@@ -779,10 +794,10 @@ bool hid_kbd_map_key_to_usage(uint16_t key_id, uint16_t *usage_id, bool *is_cons
         case 14: *usage_id = 0xEA; *is_consumer = true; break; // 'R' HID 0x15 音量-
         case 15: *usage_id = 0x3E; break; // 'T' HID 0x17 语音
         case 16: *usage_id = 0x52; break; // 'Y' HID 0x1C 上
-        case 17: *usage_id = 0x41; break; // 'U' HID 0x18 回看 Gehua
+        case 17: *usage_id = 0x41; break; // REPLAY 歌华私有（表 B.1 为 0x91，勿改）
         //case 17: *usage_id = 0x91; break; // 'U' HID 回看 规范书
-        case 18: *usage_id = 0x0C; break; // 'I' HID 0x0C
-        case 19: *usage_id = 0xE2; *is_consumer = true; break; // MUTE (spec B.1 no.16)
+        case 18: *usage_id = 0x0C; break; // STB_PWR 歌华私有（表 B.1 为 0x66）；实测可开关机，勿改
+        case 19: *usage_id = 0xE2; *is_consumer = true; break; // MUTE 静音：表 B.1 序号16（原理图丝印误写点播）
         case 20: *usage_id = 0x1E; break; // DIGIT1
         
         // 第三行 A-L + BackSpace
