@@ -18,7 +18,7 @@ bool ir_learn_is_active(void){return learning;}
 bool ir_wave_store_frame(unsigned k,uint32_t *f){if(learned_kind!=1 || !learned_key || k!=learned_key)return false;*f=0x80102658u;return true;}
 bool ir_wave_store_has(unsigned k){return learned_key && k==learned_key;}
 bool ir_wave_store_get(unsigned k,ir_raw_t *w){assert(!rc6_busy&&!nec_busy);++store_reads;if(!ir_wave_store_has(k))return false;memset(w,0,sizeof(*w));w->count=7;w->period_ticks=1684;w->widths[0]=(uint16_t)raw_duration;w->kind=learned_kind;w->frame=0x80102658u;return true;}
-bool ir_rc6_send_wave(const ir_raw_t *w,bool repeat){if(start_failure)return false;(void)w;++raw_sent;raw_repeat=repeat;rc6_busy=true;return true;}
+bool ir_rc6_send_wave(const ir_raw_t *w,bool repeat,uint8_t duty){(void)duty;if(start_failure)return false;(void)w;++raw_sent;raw_repeat=repeat;rc6_busy=true;return true;}
 static void advance(unsigned ms){now_ms+=ms;nec_busy=rc6_busy=false;ir_tx_process();}
 int main(void)
 {

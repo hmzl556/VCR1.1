@@ -29,6 +29,15 @@ uint16_t ir_dl_seq(bool tv);
 bool ir_dl_send(uint8_t key, bool tv);
 
 /**
+ * @brief 长按重发一帧：按文件头的 repeat_mode 决定发按键编码还是重复码
+ * @param rep_idx 第 N 次重发（1 起）
+ * @note  表 E.24 第 11 项：0=AAAA 恒发按键编码、1=ABBB 发重复码、
+ *        2=ABAB 交替；重复码的 key id 固定为 1002，所有按键共用。
+ *        文件没带重复码条目时自动退回重发按键编码。
+ */
+bool ir_dl_send_repeat(uint8_t key, bool tv, uint8_t rep_idx);
+
+/**
  * @brief 物理键 → 表 B.1 功能序号（GY/T 407-2024 附录 B）
  * @param key 物理键号（KEYSCAN_KEY1..18）
  * @return 序号 1~30；0 表示该物理键没有对应序号

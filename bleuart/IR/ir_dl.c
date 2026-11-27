@@ -121,13 +121,23 @@ uint16_t ir_dl_seq(bool tv)
     return upg_store_seq_of(file_of(tv));
 }
 
-bool ir_dl_send(uint8_t key, bool tv)
+/** @brief 重复码的 key id（表 E.24 第 11 项：固定 1002，所有按键共用同一条） */
+#define DL_REPEAT_KEY_ID 1002u
+
+/**
+ * @brief 发一帧下载值
+ * @param rep_idx 0 = 首帧（按键编码 A）；>0 = 第 N 次长按重发
+ * @note  长按重发按文件头的 repeat_mode 决定发 A 还是 B（表 E.24 第 11 项）：
+ *        0=AAAA 恒发 A、1=ABBB 首帧后全发 B、2=ABAB 交替。
+ */
+static bool dl_send(uint8_t key, bool tv, uint8_t rep_idx)
 {
     etv_file_t f;
     etv_table_t t;
     etv_key_t k;
     ir_raw_t *w;
     uint16_t period;
+    bool rep_b = false;
     bool ok = false;
 
     if (key == 0u || !etv_open(&f, file_of(tv))) {
@@ -137,6 +147,25 @@ bool ir_dl_send(uint8_t key, bool tv)
         co_printf("[IR] no entry for key %u (type=%s, map=%u)\r\n",
                   (unsigned)key, tv ? "irtv" : "irstb", (unsigned)f.map_num);
         return false;
+    }
+    if (rep_idx != 0u && f.repeat_mode != 0u) {
+        rep_b = (f.repeat_mode == 1u)
+             || (f.repeat_mode == 2u && (rep_idx & 1u) != 0u);
+        if (rep_b) {
+            etv_key_t rk;
+
+            if (etv_find_key(&f, DL_REPEAT_KEY_ID, &rk)) {
+                k = rk;
+            } else {
+                rep_b = false;   /* 文件没带重复码条目：只能退回重发按键编码 */
+            }
+        }
+        /* 只打前两次：长按每 108 ms 一次，全打会刷屏 */
+        if (rep_idx <= 2u) {
+            co_printf("[IR] download key %u repeat #%u (type=%s, mode=%u %c)\r\n",
+                      (unsigned)key, (unsigned)rep_idx, tv ? "irtv" : "irstb",
+                      (unsigned)f.repeat_mode, rep_b ? 'B' : 'A');
+        }
     }
     if (!etv_read_table(&f, k.table_index, &t)) {
         return false;
@@ -155,7 +184,9 @@ bool ir_dl_send(uint8_t key, bool tv)
         w->period_ticks = period;
         w->kind = IR_RAW_KIND;
         w->frame = 0u;
-        ok = ir_rc6_send_wave(w, false);
+        /* 占空比按文件头的 ratio_freq 低 4bit（1/2、1/3、1/4、1/5），
+         * 未知时 ir_rc6 内部按 1/3 兜底 */
+        ok = ir_rc6_send_wave(w, false, etv_duty_percent(f.ratio_freq));
         if (!ok) {
             /* 逐项拆开 ir_raw_valid 的判据，定位到底是哪一条不满足 */
             uint32_t total = 0u;
@@ -184,9 +215,19 @@ bool ir_dl_send(uint8_t key, bool tv)
                   (unsigned)t.col_num, (unsigned)f.scale);
     }
     app_heap_free(w);
-    if (ok) {
+    if (ok && rep_idx == 0u) {
         co_printf("[IR] download key %u sent (type=%s)\r\n",
                   (unsigned)key, tv ? "irtv" : "irstb");
     }
     return ok;
+}
+
+bool ir_dl_send(uint8_t key, bool tv)
+{
+    return dl_send(key, tv, 0u);
+}
+
+bool ir_dl_send_repeat(uint8_t key, bool tv, uint8_t rep_idx)
+{
+    return dl_send(key, tv, rep_idx);
 }

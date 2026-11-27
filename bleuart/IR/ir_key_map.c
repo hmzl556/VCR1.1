@@ -29,6 +29,9 @@ typedef struct {
 static tx_t s_queue[TX_CAPACITY];
 static uint8_t s_head, s_count, s_repeat_key, s_repeat_kind;
 static uint32_t s_repeat_frame;
+/* TX_DL 长按重发计数：0=首帧未重发过，每重发一次 +1。
+ * ir_dl_send_repeat 用它区分 A/B（表 E.24 第 11 项的 repeat_mode）。 */
+static uint8_t s_repeat_idx;
 static bool s_toggle;
 /* STB NEC address is retained for the explicit legacy NEC lookup API only.
  * It does not change the Gehua system address 0x26 or protocol. */
@@ -43,7 +46,7 @@ static bool send_learned(uint8_t key,bool repeat,uint32_t frame)
     if(!w)return false;
     if(ir_wave_store_get(key,w)){
         if(w->kind==IR_GEHUA_KIND)ok=ir_rc6_send(frame);
-        else ok=ir_rc6_send_wave(w,repeat);
+        else ok=ir_rc6_send_wave(w,repeat,0u);
         for(i=0;i<w->count;++i)us+=w->widths[i];
         s_repeat_interval=(us+999u)/1000u+20u;if(s_repeat_interval<108u)s_repeat_interval=108u;
     }app_heap_free(w);return ok;
@@ -194,6 +197,7 @@ void ir_tx_process(void)
         /* TX_DL 借 user 记目标（0=irstb 1=irtv）；重复发送需要同一目标，
          * 复用 s_repeat_frame 保存，避免为队列再加字段。 */
         s_repeat_frame = (item->kind == TX_DL) ? (uint32_t)item->user : item->frame;
+        s_repeat_idx = 0u;      /* 新一轮按键：长按重发计数从首帧开始 */
         s_head = (uint8_t)((s_head + 1u) % TX_CAPACITY);
         --s_count;
         s_tx_ms = now; s_sent = true;
@@ -213,7 +217,8 @@ void ir_tx_repeat(uint8_t key)
         now - s_tx_ms < s_repeat_interval || irc_is_busy() || ir_rc6_is_busy()) return;
     if(s_repeat_kind==TX_RAW){if(!send_learned(key,true,s_repeat_frame))return;}
     else if (s_repeat_kind == TX_DL) {
-        if (!ir_dl_send(key, s_repeat_frame != 0u)) return;
+        if (s_repeat_idx < 0xFFu) ++s_repeat_idx;
+        if (!ir_dl_send_repeat(key, s_repeat_frame != 0u, s_repeat_idx)) return;
     }
     else if (s_repeat_kind == TX_RC6) {
         if (!ir_rc6_send(s_repeat_frame)) return;

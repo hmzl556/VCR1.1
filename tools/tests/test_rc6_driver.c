@@ -38,11 +38,18 @@ int main(void)
     now_ms=0xFFFFFFF0u;assert(ir_rc6_send(0x80102658u));now_ms+=81;assert(!ir_rc6_is_busy());
     {ir_raw_t w;unsigned i;memset(&w,0,sizeof(w));w.count=7;w.period_ticks=1143;
      for(i=0;i<7;++i)w.widths[i]=i?600:9000;w.widths[2]=40000;
-     assert(ir_rc6_send_wave(&w,false));assert(TIM3->AR==1142);
+     assert(ir_rc6_send_wave(&w,false,0u));assert(TIM3->AR==1142);
+     /* 占空比缺省/未知 → 1/3（(1143+1)/3 = 381） */
+     assert(TIM3->CCDAT1==381);
      for(i=0;i<7;++i){assert(TIM6->AR==(unsigned)w.widths[i]-1u);TIM6->CNT=0;TIM6->STS=TIM_FLAG_UPDATE;TIM6_IRQHandler();}
      assert(!ir_rc6_is_busy()&&!s_wave);
-     w.kind=IR_NEC_KIND;assert(ir_rc6_send_wave(&w,true));assert(s_length==3);
+     /* 表 E.24 第 6 项的 1/2 与 1/4 占空比 */
+     assert(ir_rc6_send_wave(&w,false,50u));assert(TIM3->CCDAT1==572);
+     for(i=0;i<7;++i){TIM6->CNT=0;TIM6->STS=TIM_FLAG_UPDATE;TIM6_IRQHandler();}
+     assert(ir_rc6_send_wave(&w,false,25u));assert(TIM3->CCDAT1==286);
+     for(i=0;i<7;++i){TIM6->CNT=0;TIM6->STS=TIM_FLAG_UPDATE;TIM6_IRQHandler();}
+     w.kind=IR_NEC_KIND;assert(ir_rc6_send_wave(&w,true,0u));assert(s_length==3);
      for(i=0;i<3;++i){TIM6->CNT=0;TIM6->STS=TIM_FLAG_UPDATE;TIM6_IRQHandler();}
      assert(!ir_rc6_is_busy());}
-    puts("RC6 driver: 512 nonblocking frames, PWM/segments, NEC/capture exclusion, mux restore, late IRQ/timeout/wrap PASS");return 0;
+    puts("RC6 driver: 512 nonblocking frames, PWM/segments/duty 1-2 1-3 1-4, NEC/capture exclusion, mux restore, late IRQ/timeout/wrap PASS");return 0;
 }

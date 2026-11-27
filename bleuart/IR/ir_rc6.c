@@ -144,13 +144,27 @@ bool ir_rc6_send(uint32_t frame)
     s_carrier_high=CARRIER_HIGH;s_carrier_period=CARRIER_PERIOD;s_timeout_ms=FRAME_TIMEOUT_MS;
     return s_length && start_wave();
 }
-bool ir_rc6_send_wave(const ir_raw_t *wave,bool repeat)
+/**
+ * @brief 占空比百分比 → 载波高电平 tick
+ * @param pct 50/33/25/20（表 E.24 第 6 项）；0 或越界按 1/3 兜底
+ * @note  现有代码与实测样本都是 1/3，兜底保持原行为不变。
+ */
+static uint16_t duty_high(uint16_t period,uint8_t pct)
+{
+    uint32_t h;
+    if(pct<10u||pct>90u)return (uint16_t)((period+1u)/3u);
+    h=((uint32_t)period*pct+50u)/100u;
+    if(h==0u)h=1u;
+    if(h>=period)h=period-1u;   /* CCR 必须小于 Period，否则输出恒高 */
+    return (uint16_t)h;
+}
+bool ir_rc6_send_wave(const ir_raw_t *wave,bool repeat,uint8_t duty_percent)
 {
     uint32_t duration=0;unsigned i;
     if(ir_rc6_is_busy() || ir_learn_is_active() || irc_is_busy() || !wave || !ir_raw_valid(wave))return false;
     s_wave=app_heap_alloc(sizeof(*s_wave));if(!s_wave)return false;*s_wave=*wave;
     if(repeat && wave->kind==IR_NEC_KIND){s_wave->count=3;s_wave->widths[0]=9000;s_wave->widths[1]=2250;s_wave->widths[2]=562;}
-    s_length=s_wave->count;s_carrier_period=s_wave->period_ticks;s_carrier_high=(s_carrier_period+1u)/3u;
+    s_length=s_wave->count;s_carrier_period=s_wave->period_ticks;s_carrier_high=duty_high(s_carrier_period,duty_percent);
     for(i=0;i<s_length;++i)duration+=s_wave->widths[i];
     s_timeout_ms=(duration+999u)/1000u+30u;
     if(start_wave())return true;
