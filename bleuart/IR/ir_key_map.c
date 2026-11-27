@@ -70,6 +70,44 @@ void ir_user_reset(void)
 uint8_t ir_user_for_key(uint8_t key)
 { return (key == IR_KEY_TV_BUSINESS || key == IR_KEY_TV_POWER) ? s_ir_user_tv : s_ir_user_stb; }
 
+uint8_t ir_key_silk(uint8_t key)
+{
+    static const uint8_t map[IR_KEY_COUNT + 1u] = {
+        0u,   /* [0]  未用 */
+        2u,   /* KEY1  电视机电源   → K2  */
+        12u,  /* KEY2  直播业务     → K12 */
+        23u,  /* KEY3  电视机业务   → K23 */
+        3u,   /* KEY4  确定         → K3  */
+        8u,   /* KEY5  左           → K8  */
+        9u,   /* KEY6  右           → K9  */
+        6u,   /* KEY7  下           → K6  */
+        13u,  /* KEY8  主页         → K13 */
+        19u,  /* KEY9  返回         → K19 */
+        18u,  /* KEY10 菜单         → K18 */
+        17u,  /* KEY11 频道+        → K17 */
+        10u,  /* KEY12 音量+        → K10 */
+        4u,   /* KEY13 频道-        → K4  */
+        7u,   /* KEY14 音量-        → K7  */
+        16u,  /* KEY15 语音         → K16 */
+        5u,   /* KEY16 上           → K5  */
+        11u,  /* KEY17 回看         → K11 */
+        1u,   /* KEY18 机顶盒电源   → K1  */
+        14u,  /* KEY19 静音         → K14 */
+        15u,  /* KEY20 数字1        → K15 */
+        20u,  /* KEY21 数字2        → K20 */
+        21u,  /* KEY22 数字3        → K21 */
+        22u,  /* KEY23 数字4        → K22 */
+        24u,  /* KEY24 数字5        → K24 */
+        25u,  /* KEY25 数字6        → K25 */
+        26u,  /* KEY26 数字7        → K26 */
+        27u,  /* KEY27 数字8        → K27 */
+        28u,  /* KEY28 数字9        → K28 */
+        29u,  /* KEY29 数字0        → K29 */
+    };
+
+    return (key <= (uint8_t)IR_KEY_COUNT) ? map[key] : key;
+}
+
 static bool enqueue(uint8_t user, uint8_t cmd, uint8_t key, uint8_t kind)
 {
     uint8_t i;
@@ -132,18 +170,18 @@ bool ir_send_key(uint8_t key)
     }
     if (learn) {
         if (!enqueue(0u, 0u, key, TX_RAW)) return false;
-        IR_LOG("[IR] learn key %u sent (type=irstb)\r\n", (unsigned)key);
+        IR_LOG("[IR] learn K%u sent (type=irstb)\r\n", (unsigned)ir_key_silk(key));
         return true;
     }
     /* No NEC fallback for unspecified Gehua keys: TV business/replay/voice
      * stay IR-silent unless explicitly learned. BLE is independent. */
     if (!ir_rc6_gehua_command(key, &cmd)) {
-        IR_LOG("[IR] key %u silent (type=irstb, no rc6 code)\r\n", (unsigned)key);
+        IR_LOG("[IR] K%u silent (type=irstb, no rc6 code)\r\n", (unsigned)ir_key_silk(key));
         return false;
     }
     if (!enqueue(0u, cmd, key, TX_RC6)) return false;
-    IR_LOG("[IR] rc6 key %u sent (type=irstb, cmd=0x%02X)\r\n",
-           (unsigned)key, (unsigned)cmd);
+    IR_LOG("[IR] rc6 K%u sent (type=irstb, cmd=0x%02X)\r\n",
+           (unsigned)ir_key_silk(key), (unsigned)cmd);
     return true;
 }
 
@@ -163,18 +201,18 @@ bool ir_send_key_tv(uint8_t key)
     }
     if (learn) {
         if (!enqueue(0u, 0u, key, TX_RAW)) return false;
-        IR_LOG("[IR] learn key %u sent (type=irtv)\r\n", (unsigned)key);
+        IR_LOG("[IR] learn K%u sent (type=irtv)\r\n", (unsigned)ir_key_silk(key));
         return true;
     }
     /* ROM 回落：电视机走 NEC 表 + 电视用户码 */
     cmd = ir_default_cmd(key);
     if (cmd == 0u) {
-        IR_LOG("[IR] key %u silent (type=irtv, no nec code)\r\n", (unsigned)key);
+        IR_LOG("[IR] K%u silent (type=irtv, no nec code)\r\n", (unsigned)ir_key_silk(key));
         return false;
     }
     if (!enqueue(s_ir_user_tv, cmd, key, TX_NEC)) return false;
-    IR_LOG("[IR] nec key %u sent (type=irtv, user=0x%02X, cmd=0x%02X)\r\n",
-           (unsigned)key, (unsigned)s_ir_user_tv, (unsigned)cmd);
+    IR_LOG("[IR] nec K%u sent (type=irtv, user=0x%02X, cmd=0x%02X)\r\n",
+           (unsigned)ir_key_silk(key), (unsigned)s_ir_user_tv, (unsigned)cmd);
     return true;
 }
 void ir_tx_process(void)

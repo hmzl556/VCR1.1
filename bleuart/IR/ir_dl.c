@@ -144,8 +144,8 @@ static bool dl_send(uint8_t key, bool tv, uint8_t rep_idx)
         return false;
     }
     if (!dl_find(&f, key, &k)) {
-        co_printf("[IR] no entry for key %u (type=%s, map=%u)\r\n",
-                  (unsigned)key, tv ? "irtv" : "irstb", (unsigned)f.map_num);
+        co_printf("[IR] no entry for K%u (type=%s, map=%u)\r\n",
+                  (unsigned)ir_key_silk(key), tv ? "irtv" : "irstb", (unsigned)f.map_num);
         return false;
     }
     if (rep_idx != 0u && f.repeat_mode != 0u) {
@@ -162,8 +162,8 @@ static bool dl_send(uint8_t key, bool tv, uint8_t rep_idx)
         }
         /* 只打前两次：长按每 108 ms 一次，全打会刷屏 */
         if (rep_idx <= 2u) {
-            co_printf("[IR] download key %u repeat #%u (type=%s, mode=%u %c)\r\n",
-                      (unsigned)key, (unsigned)rep_idx, tv ? "irtv" : "irstb",
+            co_printf("[IR] download K%u repeat #%u (type=%s, mode=%u %c)\r\n",
+                      (unsigned)ir_key_silk(key), (unsigned)rep_idx, tv ? "irtv" : "irstb",
                       (unsigned)f.repeat_mode, rep_b ? 'B' : 'A');
         }
     }
@@ -216,8 +216,8 @@ static bool dl_send(uint8_t key, bool tv, uint8_t rep_idx)
     }
     app_heap_free(w);
     if (ok && rep_idx == 0u) {
-        co_printf("[IR] download key %u sent (type=%s)\r\n",
-                  (unsigned)key, tv ? "irtv" : "irstb");
+        co_printf("[IR] download K%u sent (type=%s)\r\n",
+                  (unsigned)ir_key_silk(key), tv ? "irtv" : "irstb");
     }
     return ok;
 }

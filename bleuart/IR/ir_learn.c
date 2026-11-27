@@ -28,8 +28,8 @@ static uint8_t s_retry_errors;
 static void report_retries(void)
 {
     if (s_retry_count) {
-        co_printf("[IR] KEY%u RX retry=%u hw=%u flags=%u\r\n",
-                  (unsigned)s_target, (unsigned)s_retry_count,
+        co_printf("[IR] K%u RX retry=%u hw=%u flags=%u\r\n",
+                  (unsigned)ir_key_silk(s_target), (unsigned)s_retry_count,
                   (unsigned)s_overcapture_count, (unsigned)s_retry_errors);
         s_retry_count=0;
     }

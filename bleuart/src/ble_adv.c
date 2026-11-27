@@ -345,6 +345,8 @@ void ble_adv_start_by_bonding(void)
         ble_adv_start_pairing();
     } else {
         // 无绑定且未触发配对（静默态）：不广播，由组合键手动发起
-        co_printf("No bonding, skip advertising. Press volume- + TV business (KEY14+KEY3) to pair.\r\n");
+        /* 组合键对应的丝印编号：音量- = K7、电视机业务 = K23，
+         * 即 TASK_KEYSCAN_KEY14 + TASK_KEYSCAN_KEY3（见 app_keyscan.h 的 keyscan_map 注释） */
+        co_printf("No bonding, skip advertising. Press volume- + TV business (K7+K23) to pair.\r\n");
     }
 }

@@ -148,7 +148,8 @@ bool combo_key_unpair_in_progress(void)
  */
 static void combo_do_pair(combo_key_def_t *c)
 {
-    co_printf("[COMBO] key%d+key%d pair triggered\r\n", c->key1, c->key2);
+    co_printf("[COMBO] K%u+K%u pair triggered\r\n",
+              (unsigned)ir_key_silk(c->key1), (unsigned)ir_key_silk(c->key2));
 
     /*
      * 清除旧绑定以确保设备可被发现，再设置配对广播活跃标志。
@@ -172,7 +173,8 @@ static void combo_do_pair(combo_key_def_t *c)
  */
 static void combo_do_unpair(combo_key_def_t *c, uint32_t now_ms)
 {
-    co_printf("[COMBO] key%d+key%d unpair triggered\r\n", c->key1, c->key2);
+    co_printf("[COMBO] K%u+K%u unpair triggered\r\n",
+              (unsigned)ir_key_silk(c->key1), (unsigned)ir_key_silk(c->key2));
 
     c->state       = COMBO_TRIGGERED;
     c->state_ts_ms = now_ms;
@@ -199,7 +201,8 @@ static void combo_do_user_switch(combo_key_def_t *c, uint32_t now_ms)
         is_default = ir_user_switch_tv();
     }
 
-    co_printf("[COMBO] key%d+key%d %s user code -> %s\r\n", c->key1, c->key2,
+    co_printf("[COMBO] K%u+K%u %s user code -> %s\r\n",
+              (unsigned)ir_key_silk(c->key1), (unsigned)ir_key_silk(c->key2),
               (c->action == COMBO_ACT_USER_STB) ? "STB" : "TV",
               is_default ? "default" : "backup");
 
@@ -226,8 +229,8 @@ void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
                 c->flags &= (uint8_t)~COMBO_FLAG_RELEASE_PENDING;
                 c->state_ts_ms = now_ms;
                 //SETLED2;
-                co_printf("[COMBO] key%d+key%d pressed, hold 3s...\r\n",
-                          c->key1, c->key2);
+                co_printf("[COMBO] K%u+K%u pressed, hold 3s...\r\n",
+                          (unsigned)ir_key_silk(c->key1), (unsigned)ir_key_silk(c->key2));
             }
             break;
 
@@ -245,8 +248,8 @@ void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
                 if (now_ms - c->release_ts_ms >= COMBO_RELEASE_CONFIRM_MS) {
                     c->state = COMBO_IDLE;
                     c->flags &= (uint8_t)~COMBO_FLAG_RELEASE_PENDING;
-                    co_printf("[COMBO] key%d+key%d cancel raw=%08lX/%08lX\r\n",
-                              c->key1, c->key2,
+                    co_printf("[COMBO] K%u+K%u cancel raw=%08lX/%08lX\r\n",
+                              (unsigned)ir_key_silk(c->key1), (unsigned)ir_key_silk(c->key2),
                               (unsigned long)hw_snapshot[0], (unsigned long)hw_snapshot[1]);
                 }
                 break;

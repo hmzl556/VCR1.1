@@ -157,7 +157,7 @@ void task_keyscan_ir_learn_result(ir_learn_evt_t evt, uint8_t user, uint8_t cmd)
     s_ir_learn_led_on = true;
     task_keyscan_red_led(true);
     s_ir_learn_mode = IR_LEARN_MODE_FEEDBACK;
-    co_printf("[IR] KEY%u %s\r\n", (unsigned)ir_learn_get_target(), ok ? "saved" : "failed");
+    co_printf("[IR] K%u %s\r\n", (unsigned)ir_key_silk(ir_learn_get_target()), ok ? "saved" : "failed");
 }
 
 /* KEY_15 语音与 RC-KEY notify 分开发送，避免同周期多次 FSM_Write */
