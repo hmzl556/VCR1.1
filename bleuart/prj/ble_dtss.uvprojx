@@ -438,6 +438,21 @@
               <FileType>1</FileType>
               <FilePath>..\..\bsp\common\src\co_printf.c</FilePath>
             </File>
+            <File>
+              <FileName>log_level.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\inc\log_level.h</FilePath>
+            </File>
+            <File>
+              <FileName>cat1_udp_config.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\cat1\cat1\cat1_udp_config.h</FilePath>
+            </File>
+            <File>
+              <FileName>rc_protocol.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\cat1\cat1\rc_protocol.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -613,16 +628,7 @@
               <FileType>1</FileType>
               <FilePath>..\cat1\cat1\tiny-aes\aes.c</FilePath>
             </File>
-            <File>
-              <FileName>cat1_udp_config.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\cat1\cat1\cat1_udp_config.h</FilePath>
-            </File>
-            <File>
-              <FileName>rc_protocol.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\cat1\cat1\rc_protocol.h</FilePath>
-            </File>
+
           </Files>
         </Group>
         <Group>
