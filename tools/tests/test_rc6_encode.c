@@ -57,8 +57,14 @@ int main(void)
     assert(!ir_rc6_gehua_command(3u, &code));
     assert(!ir_rc6_gehua_command(15u, &code));
     assert(!ir_rc6_gehua_command(17u, &code));
-    assert(!ir_rc6_gehua_command(255u, &code));
+    assert(!ir_rc6_gehua_command(19u, &code));   /* 静音：歌华 V2.5 无此键 */
+ assert(!ir_rc6_gehua_command(30u, &code));   /* 越界 */
+ assert(!ir_rc6_gehua_command(255u, &code));
+ /* 数字 0~9 -> 0x00~0x09，数字0 不能因为码值 0 而被当成无效 */
+ assert(ir_rc6_gehua_command(29u, &code) && code == 0x00);
+ assert(ir_rc6_gehua_command(20u, &code) && code == 0x01);
+ assert(ir_rc6_gehua_command(28u, &code) && code == 0x09);
     assert(!ir_rc6_gehua_command(4u, NULL));
-    puts("RC6 encoder: 512 command/toggle round trips, header, trailer, 39960us, 13 mapped keys, unmapped rejection PASS");
+    puts("RC6 encoder: 512 command/toggle round trips, header, trailer, 39960us, 23 mapped keys incl. digits 0-9, unmapped rejection PASS");
     return 0;
 }
