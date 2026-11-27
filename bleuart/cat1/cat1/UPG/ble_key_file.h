@@ -2,7 +2,7 @@
  * @file ble_key_file.h
  * @brief 蓝牙遥控基础信息文件（E.25）解析：GY/T 407-2024 表 E.25
  *
- * 只处理 `blestb`（机顶盒蓝牙键值）。电视机走红外，`bletv` 按产品范围拒绝，
+ * 只处理 `blestb`（机顶盒蓝牙键值）。电视机走红外，`bletv` **接受落盘但不使用**，
  * 见 docs/待客户确认事项.md 的 D1。
  *
  * 数据按需从覆盖层 Flash 读取（upg_store_read_at），**不整块载入 RAM**，

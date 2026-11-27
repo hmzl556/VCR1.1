@@ -80,12 +80,14 @@ upg_store_type_t upg_store_type_of(const uint8_t *field8)
 
 bool upg_store_type_writable(upg_store_type_t t)
 {
-    /* fw01 是固件包，走既有 UDP OTA；bletv 不实现——电视机只走红外，
-     * 本机不与电视机建立任何蓝牙连接（产品范围，见 docs/待客户确认事项.md D1） */
+    /* fw01 是固件包，走既有 UDP OTA。bletv **接受落盘但不使用**：电视机只走
+     * 红外（产品范围，见 docs/待客户确认事项.md D1），可 APP 在「电视机 +
+     * 红外+蓝牙」下依然会下发 bletv，拒绝会让它卡住不发 0x13（见 Q12）。
+     * 存下来不解析：红外层只认 irtv/irstb，蓝牙层只读 blestb。 */
     if (t >= UPG_ST_NUM) {
         return false;
     }
-    return (t != UPG_ST_FW01) && (t != UPG_ST_BLETV);
+    return (t != UPG_ST_FW01);
 }
 
 static uint32_t sec_base(uint8_t idx)

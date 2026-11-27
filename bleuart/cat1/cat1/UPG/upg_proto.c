@@ -405,7 +405,7 @@ static void on_write_start(const uint8_t *f, uint16_t len)
     }
     t = upg_store_type_of(f + 3);
     if (!upg_store_type_writable(t)) {
-        /* 主场景：电视机场景下主机仍下发 bletv */
+        /* 未知类型（bletv 已放开，这里只剩真正的未知标签） */
         co_printf("[UPG ] write start rejected: %.8s not supported\r\n", (const char *)(f + 3));
         send_result(UPG_OP_WRITE_START, UPG_RES_NO_DATA);
         s->wr_abort = UPG_WR_ABORT_CLOSE;

@@ -472,20 +472,21 @@ static void etv_case(void)
     store_blob(UPG_ST_IRTV, blob, n);
     assert(etv_open(&f, UPG_ST_IRTV) == false);
 
-    /* D1：电视机只走红外，不建立任何蓝牙连接 → bletv 写入必须被拒（F2） */
+    /* bletv 接受落盘但不使用（D1）：电视机只走红外，可 APP 在「电视机 +
+     * 红外+蓝牙」下仍会下发 bletv，拒绝会让它卡住不发 0x13（见 Q12）。
+     * 存下来后红外层（etv_open）与蓝牙层（只读 blestb）都不会碰它。 */
     assert(upg_store_type_writable(UPG_ST_IRSTB));
     assert(upg_store_type_writable(UPG_ST_IRTV));
     assert(upg_store_type_writable(UPG_ST_BLESTB));
-    assert(upg_store_type_writable(UPG_ST_BLETV) == false);
+    assert(upg_store_type_writable(UPG_ST_BLETV));
     assert(upg_store_type_writable(UPG_ST_FW01) == false);
     {
-        uint8_t req[19];
+        static const uint8_t fake[64] = { 0 };
 
-        s_cap_n = 0u;
-        build_write_start(req, 64u, "bletv", 64u);
-        deliver(req, 19u);
-        assert(s_cap_n == 1u);
-        assert(s_cap[0][1] == 0x12u && s_cap[0][2] == 0xF2u);
+        run_write("bletv", fake, (uint16_t)sizeof(fake), 64u, false);
+
+        assert(upg_store_size(UPG_ST_BLETV) == (uint16_t)sizeof(fake));
+        assert(etv_open(&f, UPG_ST_BLETV) == false);   /* 红外层不认 */
     }
 }
 
