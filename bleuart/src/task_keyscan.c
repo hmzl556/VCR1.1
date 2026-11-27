@@ -692,14 +692,13 @@ static void task_keyscan_process_core(void)
                 key_menu_check_triggered = false;
 
 				// 按键 LED 指示：按下亮，松开灭
+				// 电视电源键固定走红外（且是学习入口），先给红灯；
+				// 其余键等到下面路由完成后再按"实际走了哪条链路"点亮：
+				//   蓝牙发出 → 蓝灯(LED2)；红外发出 → 红灯；两者都没发 → 不亮。
 				if (key_active == TASK_KEYSCAN_TV_POWER) {
                     CLRLED2;
                     task_keyscan_red_led(true);
-                } else if (ble_gap_get_peer() != NULL) {
-					SETLED2;
-				} else {
-					task_keyscan_red_led(true);
-				}
+                }
 
                 s_ir_key_routed = false;
                 s_hid_key_sent = false;
@@ -729,7 +728,10 @@ static void task_keyscan_process_core(void)
                         co_printf("[CTRL] tv business -> mode TV\r\n");
                         s_ir_key_routed = ir_send_key_tv((uint8_t)key_active);
                     } else if (key_active == TASK_KEYSCAN_VOICE) {
-                        if (ble_gap_get_peer() != NULL) {
+                        /* 语音控制对象=当前活跃设备。电视模式下电视机没有蓝牙链路，
+                         * 无处可发，按"不发"处理（与频道±/回看同口径）。 */
+                        if (s_control_mode == CONTROL_MODE_STB &&
+                            ble_gap_get_peer() != NULL) {
                             task_keyscan_hid_send_press(key_active);
                             s_hid_key_sent = true;
                         }
@@ -767,6 +769,18 @@ static void task_keyscan_process_core(void)
                         s_ir_key_routed = ir_send_key_tv((uint8_t)key_active);
                     }
                     if (udp_ota_session_busy()) cs_schedule();
+                }
+
+                /* LED 反映实际走通的链路：蓝牙→蓝灯，红外→红灯，无输出→不亮 */
+                if (key_active != TASK_KEYSCAN_TV_POWER) {
+                    if (s_hid_key_sent) {
+                        SETLED2;
+                    } else if (s_ir_key_routed) {
+                        task_keyscan_red_led(true);
+                    } else {
+                        CLRLED2;
+                        task_keyscan_red_led(false);
+                    }
                 }
 
 				if (key_active != TASK_KEYSCAN_KEY15) {
@@ -856,7 +870,10 @@ static void task_keyscan_process_core(void)
 				key_long_triggered = true;
 				/* OTA 会话期间禁止 KEY_15 长按启动语音采集 */
 				if (key_active == TASK_KEYSCAN_KEY15) {
+					/* 语音控制对象是当前活跃设备；电视机无蓝牙链路，电视模式下
+					 * 语音无处可发，与频道±一致按"不发"处理，也不启动采集。 */
 					if (udp_ota_session_busy() == 0u && !key15_voice_started && !s_ir_key_routed &&
+                        s_control_mode == CONTROL_MODE_STB &&
                         ble_gap_get_peer() != NULL) {
 						key15_voice_started = true;
 						(void)voice_ctrl_post_start();
