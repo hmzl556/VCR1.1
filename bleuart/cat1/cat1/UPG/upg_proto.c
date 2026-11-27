@@ -36,6 +36,10 @@
 #define UPG_OP_AUTH_RC      0x21u
 #define UPG_OP_WRITE_CFG    0x22u
 
+/* wr_abort 复用为写流程收尾状态（工作区有编译期 size 断言，不新增字段） */
+#define UPG_WR_ABORT_COMMIT 1u   /**< 已收到带 CRC 的终止请求，待提交或回滚 */
+#define UPG_WR_ABORT_CLOSE  2u   /**< 本轮读写流程已结束，待关闭会话 */
+
 #define UPG_RES_OK          0x00u
 #define UPG_RES_BUSY        0xF0u
 #define UPG_RES_NO_DATA     0xF2u
@@ -377,7 +381,10 @@ static void on_downlink_data(const uint8_t *f, uint16_t len)
     s->wr_pkt_ready = 1u;
 }
 
-/** @brief 启动写：只校验参数并记录，擦扇区/压实留到任务上下文 */
+/** @brief 启动写：只校验参数并记录，擦扇区/压实留到任务上下文
+ *  @note  凡回 F2（UPG_RES_NO_DATA）的分支都置 UPG_WR_ABORT_CLOSE。主机收到
+ *         拒绝后常直接中止、不再发 0x13，会话若一直挂着会把红外发码全挡住。
+ */
 static void on_write_start(const uint8_t *f, uint16_t len)
 {
     upg_state_t *s = proto_st();
@@ -389,6 +396,7 @@ static void on_write_start(const uint8_t *f, uint16_t len)
     }
     if (len < 19u || pack_valid(f[2]) == 0u) {
         send_result(UPG_OP_WRITE_START, UPG_RES_NO_DATA);
+        s->wr_abort = UPG_WR_ABORT_CLOSE;
         return;
     }
     if (s->writing != 0u || s->reading != 0u || s->wr_start != 0u) {
@@ -397,13 +405,17 @@ static void on_write_start(const uint8_t *f, uint16_t len)
     }
     t = upg_store_type_of(f + 3);
     if (!upg_store_type_writable(t)) {
+        /* 主场景：电视机场景下主机仍下发 bletv */
+        co_printf("[UPG ] write start rejected: %.8s not supported\r\n", (const char *)(f + 3));
         send_result(UPG_OP_WRITE_START, UPG_RES_NO_DATA);
+        s->wr_abort = UPG_WR_ABORT_CLOSE;
         return;
     }
     dlen = ((uint32_t)f[15] << 24) | ((uint32_t)f[16] << 16)
          | ((uint32_t)f[17] << 8) | (uint32_t)f[18];
     if (dlen == 0u || dlen > UPG_STORE_DATA_MAX) {
         send_result(UPG_OP_WRITE_START, UPG_RES_NO_DATA);
+        s->wr_abort = UPG_WR_ABORT_CLOSE;
         return;
     }
     s->pack_len = f[2];
@@ -412,6 +424,7 @@ static void on_write_start(const uint8_t *f, uint16_t len)
     s->wr_crc = 0u;
     memset(&s->wo, 0, sizeof(s->wo));
     s->wr_expect = 0u;
+    s->wr_abort = 0u;   /* 新一轮写开始，清掉上一轮遗留的待关闭标志 */
     s->wr_start = 1u;
 }
 
@@ -425,6 +438,13 @@ static void on_abort_io(const uint8_t *f, uint16_t len)
         return;
     }
     if (s->writing == 0u) {
+        /* 没有进行中的写：这条 0x13 即本轮读写的收尾。
+         * 若此刻也没有在读，说明整个流程已结束（规范 E.3.4 i、E.3.5 g 均以
+         * 终止读写为流程终点），置待关闭标志交任务上下文处理，
+         * 避免会话一直占着资源直到空闲超时，导致按键与红外全部失效。 */
+        if (s->reading == 0u) {
+            s->wr_abort = UPG_WR_ABORT_CLOSE;
+        }
         s->reading = 0u;
         resp[0] = UPG_CMD_RC;
         resp[1] = UPG_OP_ABORT_IO;
@@ -439,7 +459,7 @@ static void on_abort_io(const uint8_t *f, uint16_t len)
         return;
     }
     s->wr_crc1 = (uint16_t)(((uint16_t)f[2] << 8) | (uint16_t)f[3]);
-    s->wr_abort = 1u;
+    s->wr_abort = UPG_WR_ABORT_COMMIT;
 }
 
 void upg_proto_on_frame(const uint8_t *data, uint16_t len)
@@ -549,6 +569,8 @@ static void poll_write(void)
         if (!upg_store_begin(&s->wo, (upg_store_type_t)s->wr_type, s->wr_len, &addr)) {
             send_result(UPG_OP_WRITE_START, UPG_RES_NO_DATA);
             co_printf("[UPG ] write start fail\r\n");
+            /* 存储侧已无法继续，主机多半也不会再发 0x13，同样收尾 */
+            s->wr_abort = UPG_WR_ABORT_CLOSE;
             return;
         }
         s->writing = 1u;
@@ -607,7 +629,7 @@ static void poll_write(void)
     }
 
     /* 3) 终止读写：比对 CRC1/CRC2，一致才提交 */
-    if (s->wr_abort != 0u) {
+    if (s->wr_abort == UPG_WR_ABORT_COMMIT) {
         bool ok = (s->wo.written == s->wr_len) && (s->wr_crc == s->wr_crc1);
 
         s->wr_abort = 0u;
@@ -664,4 +686,12 @@ void upg_proto_poll(void)
     }
     poll_write();
     poll_read();
+
+    /* 本轮读写已收尾：在任务上下文关闭会话（GATT 回调不能停广播/归还工作区），
+     * 使按键、红外、HID 立即恢复。下一个文件由 0x12 重新 begin，不受影响。 */
+    if (ws->st.wr_abort == UPG_WR_ABORT_CLOSE) {
+        ws->st.wr_abort = 0u;
+        co_printf("[UPG ] io finished, session closed\r\n");
+        upg_session_end();
+    }
 }

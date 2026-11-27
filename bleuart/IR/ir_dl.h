@@ -37,4 +37,13 @@ bool ir_dl_send(uint8_t key, bool tv);
  */
 uint8_t ir_dl_key_no(uint8_t key);
 
+/**
+ * @brief  某一侧（机顶盒 / 电视机）是否下载过可用的 ETV 键值
+ * @param  tv true = 电视机 irtv，false = 机顶盒 irstb
+ * @return true 文件存在且文件头合法
+ * @note   用于双控路由判断"这次下载的是哪一方的键值"：只下载了电视机键值时，
+ *         按键必须走电视机红外，不能因为蓝牙连着就退回编译期默认码。
+ */
+bool ir_dl_file_available(bool tv);
+
 #endif /* _IR_DL_H_ */

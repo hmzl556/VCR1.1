@@ -19,6 +19,8 @@
 #include "userhard.h"
 #include "cat1_skt_udp.h"   /* cat1_modem_is_busy：HID/AT 错峰 */
 #include "ir_key_map.h"     /* ir_send_key — BLE 未连接时发红外  */
+#include "ir_dl.h"          /* ir_dl_file_available — 判断本次下载的是哪一方键值 */
+#include "ble_key_file.h"   /* ble_key_file_available — blestb 是否已下载 */
 #include "irc.h"            /* irc_send_repeat — 长按重复码       */
 #include "ir_learn.h"       /* 红外学习模式（长按电源键触发）     */
 #include "upg_session.h"    /* upg_session_busy — 键值下载会话中禁改存储 */
@@ -74,6 +76,20 @@ static bool s_hid_key_sent;
 #define CONTROL_MODE_STB 0u
 #define CONTROL_MODE_TV  1u
 static uint8_t s_control_mode = CONTROL_MODE_STB;
+
+/**
+ * @brief  本次是否只下载了电视机键值（没有 blestb，也没有 irstb）
+ * @note   APP 里选"电视机 + 红外"下载时只下发 irtv。此时用户的目的就是控电视，
+ *         按键必须走电视机红外；若仍按机顶盒模式发蓝牙，发出去的是编译期默认码，
+ *         既控不了电视也控不了机顶盒。P3 的 dl_is_tv() 曾处理该场景，
+ *         P5 改为显式双控路由时遗漏，此处补回。
+ */
+static bool keys_are_tv_only(void)
+{
+    return !ble_key_file_available()
+        && ir_dl_file_available(true)
+        && !ir_dl_file_available(false);
+}
 
 uint8_t task_keyscan_control_mode(void)
 {
@@ -708,6 +724,7 @@ static void task_keyscan_process_core(void)
                 s_ir_key_routed = false;
                 s_hid_key_sent = false;
                 if (key_active != 0u && key_active != TASK_KEYSCAN_TV_POWER) {
+                    const bool tv_only = keys_are_tv_only();
                     /* 双控路由（GY/T 407-2024 表 B.1 控制对象 + 脚注 c/d）：
                      *   电视电源  : 固定电视机（IR-only）
                      *   机顶盒电源: 固定机顶盒（HID；断连时走红外下载层）
@@ -715,7 +732,9 @@ static void task_keyscan_process_core(void)
                      *   电视机业务: 切电视并只发电视（IR-only，不发 HID）
                      *   频道±/回看: 控制对象=机顶盒，仅机顶盒模式下生效；电视模式完全不发
                      *   语音      : BLE-only，不发红外
-                     *   其余普通键: 跟随模式；电视模式只发红外且不发 HID（电视机无蓝牙） */
+                     *   其余普通键: 跟随模式；电视模式只发红外且不发 HID（电视机无蓝牙）
+                     *   tv_only   : 本次只下载了电视机键值（无 blestb/irstb）时，
+                     *               即使仍在机顶盒模式也改走电视机红外，见 keys_are_tv_only() */
                     if (key_active == TASK_KEYSCAN_LIVE) {
                         if (s_control_mode == CONTROL_MODE_TV) {
                             s_ir_key_routed = ir_send_key_tv((uint8_t)key_active);
@@ -735,7 +754,7 @@ static void task_keyscan_process_core(void)
                     } else if (key_active == TASK_KEYSCAN_VOICE) {
                         /* 语音控制对象=当前活跃设备。电视模式下电视机没有蓝牙链路，
                          * 无处可发，按"不发"处理（与频道±/回看同口径）。 */
-                        if (s_control_mode == CONTROL_MODE_STB &&
+                        if (s_control_mode == CONTROL_MODE_STB && !tv_only &&
                             ble_gap_get_peer() != NULL) {
                             task_keyscan_hid_send_press(key_active);
                             s_hid_key_sent = true;
@@ -754,7 +773,7 @@ static void task_keyscan_process_core(void)
                         /* 表 B.1 控制对象=机顶盒：仅机顶盒模式下生效。
                          * 电视模式下完全不发（红外与蓝牙都不发）——否则会在用户
                          * 看电视时悄悄改掉后台机顶盒的频道，切回机顶盒时状态已变。 */
-                        if (s_control_mode == CONTROL_MODE_STB) {
+                        if (s_control_mode == CONTROL_MODE_STB && !tv_only) {
                             if (ble_gap_get_peer() != NULL) {
                                 task_keyscan_hid_send_press(key_active);
                                 s_hid_key_sent = true;
@@ -762,7 +781,7 @@ static void task_keyscan_process_core(void)
                                 s_ir_key_routed = ir_send_key((uint8_t)key_active);
                             }
                         }
-                    } else if (s_control_mode == CONTROL_MODE_STB) {
+                    } else if (s_control_mode == CONTROL_MODE_STB && !tv_only) {
                         if (ble_gap_get_peer() != NULL) {
                             task_keyscan_hid_send_press(key_active);
                             s_hid_key_sent = true;
@@ -770,7 +789,7 @@ static void task_keyscan_process_core(void)
                             s_ir_key_routed = ir_send_key((uint8_t)key_active);
                         }
                     } else {
-                        /* 电视模式：只发红外，不发 HID */
+                        /* 电视模式，或本次只下载了电视机键值：只发红外，不发 HID */
                         s_ir_key_routed = ir_send_key_tv((uint8_t)key_active);
                     }
                     if (udp_ota_session_busy()) cs_schedule();

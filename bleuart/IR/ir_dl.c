@@ -95,6 +95,13 @@ uint8_t ir_dl_key_no(uint8_t key)
     return s_key_no[key];
 }
 
+bool ir_dl_file_available(bool tv)
+{
+    etv_file_t f;
+
+    return etv_open(&f, file_of(tv));
+}
+
 bool ir_dl_available(uint8_t key, bool tv)
 {
     etv_file_t f;
