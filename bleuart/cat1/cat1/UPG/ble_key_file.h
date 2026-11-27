@@ -50,8 +50,9 @@
  * 映射表打到串口，便于与原始 753 字节逐条核对。
  * **量产必须改回 0**（与其它调试开关一起登记在 暂时改动文档.md）。
  */
+#include "log_level.h"
 #ifndef BLEDL_DEBUG_LOG
-#define BLEDL_DEBUG_LOG 1u
+#define BLEDL_DEBUG_LOG  LOG_ON(2)
 #endif
 
 /** 一条「表 B.1 功能序号 → HID 键值」映射 */

@@ -47,8 +47,9 @@
  * **量产必须改回 0**（与其它调试开关一起登记在 暂时改动文档.md）。
  * 注意：打开后每帧多花几毫秒串口时间，若 APP 等回执超时可能拖慢下载。
  */
+#include "log_level.h"
 #ifndef UPG_DEBUG_DUMP
-#define UPG_DEBUG_DUMP 1u
+#define UPG_DEBUG_DUMP  LOG_ON(2)
 #endif
 
 #if UPG_DEBUG_DUMP

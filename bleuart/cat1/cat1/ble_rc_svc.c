@@ -4,6 +4,7 @@
 #include "ble_gap.h"
 #include "gatt.h"
 #include "co_printf.h"
+#include "log_level.h"
 #include "rc_trans_assembly.h"
 #include "rc_cat1_bridge.h"
 #include "remote_reports.h"
@@ -69,6 +70,7 @@ static const char *rc_result_name(uint8_t result)
  */
 static void rc_status_log_notify(const rc_status_t *st, const uint8_t buf[RC_STATUS_LEN], int indicate)
 {
+    if (LOG_ON(2)) {
     co_printf("\r\n[RC   ] STATUS %s: State = %s(0x%02X) Result = %s(0x%02X) Retry = %u Rsv = 0x%02X PackIndex = 0x%08X CloudPolicy = %02X %02X %02X %02X %02X %02X\r\n",
               indicate ? "Indicate" : "Notify",
               rc_state_name(st->state), (unsigned)st->state,
@@ -83,6 +85,7 @@ static void rc_status_log_notify(const rc_status_t *st, const uint8_t buf[RC_STA
               (unsigned)buf[4], (unsigned)buf[5], (unsigned)buf[6], (unsigned)buf[7],
               (unsigned)buf[8], (unsigned)buf[9], (unsigned)buf[10], (unsigned)buf[11],
               (unsigned)buf[12], (unsigned)buf[13]);
+    }
 }
 
 /**
@@ -138,6 +141,7 @@ static void rc_conf_log_rx(const uint8_t *val, uint16_t len)
 
     if (len >= RC_CONF_LEN)
     {
+    if (LOG_ON(2)) {
         co_printf("[RC   ] CONF rx: ConfigTS = %.4s TransProto = 0x%02X MaxPkt = %u MaxRetry = %u RetryDelayMs = %u SleepDelaySec = %u\r\n",
                   (const char *)val,
                   (unsigned)val[4],
@@ -146,18 +150,23 @@ static void rc_conf_log_rx(const uint8_t *val, uint16_t len)
                   (unsigned)rc_be16(val + 8),
                   (unsigned)rc_be16(val + 10));
     }
+    }
     else
     {
+    if (LOG_ON(2)) {
         co_printf("[RC   ] CONF rx: len = %u (expect %u)\r\n", (unsigned)len, (unsigned)RC_CONF_LEN);
+    }
     }
 
     dump_len = (len > RC_CONF_LEN) ? RC_CONF_LEN : len;
+    if (LOG_ON(2)) {
     co_printf("[RC   ] CONF raw:");
     for (i = 0u; i < dump_len; i++)
     {
         co_printf(" %02X", (unsigned)val[i]);
     }
     co_printf("\r\n");
+    }
 }
 
 /**
@@ -323,7 +332,9 @@ static void rc_status_cbk(gatt_event_t event, void *context, void *param)
     {
         gatt_chr_val_send_start_t *in = (gatt_chr_val_send_start_t *)param;
         /* 诊断: type=1 为使能通知, 0 为关闭; 回连失败场景可见 STB 是否重订阅 */
+    if (LOG_ON(2)) {
         co_printf("[RC   ] RC-STATUS send start event! type=%d\r\n", (int)in->type);
+    }
         if (in->type == GATT_SEND_VAL_NOTIFICATION) s_rc_cccd_subscribed = 1u;
         s_rc_peer = in->peer;
         s_chr_status = in->chr;
@@ -336,7 +347,9 @@ static void rc_key_notify_cbk(gatt_event_t event, void *context, void *param)
     if (event == GATTS_EV_CHR_VALUE_SEND_START)
     {
         gatt_chr_val_send_start_t *in = (gatt_chr_val_send_start_t *)param;
+    if (LOG_ON(2)) {
         co_printf("[RC   ] RC-KEY-NOTIFY send start event! type=%d\r\n", (int)in->type);
+    }
         if (in->type == GATT_SEND_VAL_NOTIFICATION) s_rc_cccd_subscribed = 1u;
         s_rc_peer = in->peer;
         s_chr_key_notify = in->chr;

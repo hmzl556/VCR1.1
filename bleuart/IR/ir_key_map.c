@@ -103,7 +103,8 @@ static bool enqueue_dl(uint8_t key, bool tv)
 /* 联调期发码结果日志（量产改 0）：每次按键实际走通的链路打一行，风格统一为
  *   [IR] <来源> key <键号> sent (<细节>)
  * 便于逐键核对"该发哪条链路、发了什么码"。 */
-#define IR_TX_LOG 1u
+#include "log_level.h"
+#define IR_TX_LOG LOG_ON(1)
 #if IR_TX_LOG
 #define IR_LOG(...) co_printf(__VA_ARGS__)
 #else
