@@ -61,6 +61,30 @@ static bool key15_voice_started = false;
 
 /** Current physical press was accepted by the IR queue. */
 static bool s_ir_key_routed;
+/** Current physical press was forwarded over HID; only then send a release. */
+static bool s_hid_key_sent;
+
+/* ====== 双控模式（GY/T 407-2024 §5.1.1.3 + 表 B.1 脚注 c/d）======
+ * 主动切换方式：
+ *   组合键 音量+ & 主页 -> 切机顶盒（§6.1.3）
+ *   组合键 音量+ & 菜单 -> 切电视  （§6.1.3）
+ *   直播业务键：电视模式下先补发电视指令，再切机顶盒（脚注 c）
+ *   电视机业务键：切电视并只发电视（脚注 d）
+ * 模式为易失状态，休眠/复位后回到默认机顶盒模式。 */
+#define CONTROL_MODE_STB 0u
+#define CONTROL_MODE_TV  1u
+static uint8_t s_control_mode = CONTROL_MODE_STB;
+
+uint8_t task_keyscan_control_mode(void)
+{
+    return s_control_mode;
+}
+
+void task_keyscan_set_control_mode(uint8_t mode)
+{
+    s_control_mode = (mode == CONTROL_MODE_TV) ? CONTROL_MODE_TV : CONTROL_MODE_STB;
+    co_printf("[CTRL] mode -> %s\r\n", (s_control_mode == CONTROL_MODE_TV) ? "TV" : "STB");
+}
 
 /* ====== 红外学习模式状态机 ====== */
 typedef enum {
@@ -196,6 +220,7 @@ static void task_keyscan_hid_send_press(uint16_t key_id)
 static void task_keyscan_hid_send_release(uint8_t is_consumer)
 {
     if (key_active == TASK_KEYSCAN_TV_POWER || ble_gap_get_peer() == NULL) return;
+    if (!s_hid_key_sent) return;
     if (cat1_modem_is_busy() || s_hid_count || s_hid_reset_pending)
         hid_defer_push(is_consumer ? HID_DEFER_CONSUMER_RELEASE : 0u);
     else if (is_consumer) hid_kbd_send_consumer_release_current();
@@ -677,15 +702,70 @@ static void task_keyscan_process_core(void)
 				}
 
                 s_ir_key_routed = false;
-                if (key_active != 0u) {
-                    /* Learning changes IR codes only, never the BLE mapping.
-                     * TV power remains addressed to the TV, not the STB peer.
-                     * Voice is BLE-only and cannot replay legacy learning. */
-                    if (key_active != TASK_KEYSCAN_TV_POWER &&
-                        key_active != TASK_KEYSCAN_KEY15 && ble_gap_get_peer() == NULL)
-                        s_ir_key_routed = ir_send_key((uint8_t)key_active);
-                    if (ble_gap_get_peer() != NULL && key_active != TASK_KEYSCAN_TV_POWER)
-                        task_keyscan_hid_send_press(key_active);
+                s_hid_key_sent = false;
+                if (key_active != 0u && key_active != TASK_KEYSCAN_TV_POWER) {
+                    /* 双控路由（GY/T 407-2024 表 B.1 控制对象 + 脚注 c/d）：
+                     *   电视电源  : 固定电视机（IR-only）
+                     *   机顶盒电源: 固定机顶盒（HID；断连时走红外下载层）
+                     *   直播业务  : 电视模式下先补发电视指令，再切回机顶盒并发送
+                     *   电视机业务: 切电视并只发电视（IR-only，不发 HID）
+                     *   频道±/回看: 控制对象=机顶盒，仅机顶盒模式下生效；电视模式完全不发
+                     *   语音      : BLE-only，不发红外
+                     *   其余普通键: 跟随模式；电视模式只发红外且不发 HID（电视机无蓝牙） */
+                    if (key_active == TASK_KEYSCAN_LIVE) {
+                        if (s_control_mode == CONTROL_MODE_TV) {
+                            s_ir_key_routed = ir_send_key_tv((uint8_t)key_active);
+                        }
+                        s_control_mode = CONTROL_MODE_STB;
+                        co_printf("[CTRL] live -> mode STB\r\n");
+                        if (ble_gap_get_peer() != NULL) {
+                            task_keyscan_hid_send_press(key_active);
+                            s_hid_key_sent = true;
+                        } else {
+                            s_ir_key_routed = ir_send_key((uint8_t)key_active) || s_ir_key_routed;
+                        }
+                    } else if (key_active == TASK_KEYSCAN_TV_BUSINESS) {
+                        s_control_mode = CONTROL_MODE_TV;
+                        co_printf("[CTRL] tv business -> mode TV\r\n");
+                        s_ir_key_routed = ir_send_key_tv((uint8_t)key_active);
+                    } else if (key_active == TASK_KEYSCAN_VOICE) {
+                        if (ble_gap_get_peer() != NULL) {
+                            task_keyscan_hid_send_press(key_active);
+                            s_hid_key_sent = true;
+                        }
+                    } else if (key_active == TASK_KEYSCAN_STB_POWER) {
+                        /* 机顶盒电源：固定机顶盒，不随模式（表 B.1 序号1「分立电源键」） */
+                        if (ble_gap_get_peer() != NULL) {
+                            task_keyscan_hid_send_press(key_active);
+                            s_hid_key_sent = true;
+                        } else {
+                            s_ir_key_routed = ir_send_key((uint8_t)key_active);
+                        }
+                    } else if (key_active == TASK_KEYSCAN_CH_UP ||
+                               key_active == TASK_KEYSCAN_CH_DOWN ||
+                               key_active == TASK_KEYSCAN_REPLAY) {
+                        /* 表 B.1 控制对象=机顶盒：仅机顶盒模式下生效。
+                         * 电视模式下完全不发（红外与蓝牙都不发）——否则会在用户
+                         * 看电视时悄悄改掉后台机顶盒的频道，切回机顶盒时状态已变。 */
+                        if (s_control_mode == CONTROL_MODE_STB) {
+                            if (ble_gap_get_peer() != NULL) {
+                                task_keyscan_hid_send_press(key_active);
+                                s_hid_key_sent = true;
+                            } else {
+                                s_ir_key_routed = ir_send_key((uint8_t)key_active);
+                            }
+                        }
+                    } else if (s_control_mode == CONTROL_MODE_STB) {
+                        if (ble_gap_get_peer() != NULL) {
+                            task_keyscan_hid_send_press(key_active);
+                            s_hid_key_sent = true;
+                        } else {
+                            s_ir_key_routed = ir_send_key((uint8_t)key_active);
+                        }
+                    } else {
+                        /* 电视模式：只发红外，不发 HID */
+                        s_ir_key_routed = ir_send_key_tv((uint8_t)key_active);
+                    }
                     if (udp_ota_session_busy()) cs_schedule();
                 }
 
@@ -797,7 +877,7 @@ static void task_keyscan_process_core(void)
 
             if (hw_key == 0 && (now_ms - key_last_event_ms) >= KEY_RELEASE_TIMEOUT_MS) {
                 if(key_active==TASK_KEYSCAN_TV_POWER && now_ms-key_press_start_ms<IR_LEARN_TRIGGER_MS)
-                    (void)ir_send_key(TASK_KEYSCAN_TV_POWER);
+                    (void)ir_send_key_tv(TASK_KEYSCAN_TV_POWER);
                 ir_tx_release();
                 s_ir_key_routed = false;
 

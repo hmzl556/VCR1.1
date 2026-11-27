@@ -3,11 +3,16 @@
 void ir_send_pair_code_target(bool tv){if(!tv){assert(bond_clears>0u);assert(g_pairing_active);}++pair_calls;last_pair_tv=tv;}
 bool ir_user_switch_stb(void){++switch_calls;return false;}
 bool ir_user_switch_tv(void){++switch_calls;return true;}
+static unsigned mode_calls,last_mode;
+void task_keyscan_set_control_mode(uint8_t m){++mode_calls;last_mode=m;}
+uint8_t task_keyscan_control_mode(void){return 0u;}
 static void scan(unsigned t,unsigned mask){uint32_t hw[5]={mask,0,0,0,0};now_ms=t;combo_key_process(t,hw);}
 int main(void){unsigned i;unsigned tv=(1u<<14)|(1u<<3),stb=tv;
  unsigned unpair=(1u<<9)|(1u<<3);
  pm_value=PM_STATE_WORKING;combo_key_init();
- assert(COMBO_COUNT==2);
+ assert(COMBO_COUNT==4);
+ assert(g_combos[COMBO_IDX_MODE_STB].key1==12&&g_combos[COMBO_IDX_MODE_STB].key2==8);
+ assert(g_combos[COMBO_IDX_MODE_TV].key1==12&&g_combos[COMBO_IDX_MODE_TV].key2==10);
  assert(g_combos[COMBO_IDX_PAIR_STB].key1==14&&g_combos[COMBO_IDX_PAIR_STB].key2==3);
  assert(g_combos[COMBO_IDX_UNPAIR_STB].key1==9&&g_combos[COMBO_IDX_UNPAIR_STB].key2==3);
  scan(0,tv);scan(2999,tv);assert(pair_calls==0);scan(3000,tv);
@@ -68,11 +73,28 @@ int main(void){unsigned i;unsigned tv=(1u<<14)|(1u<<3),stb=tv;
   combo_key_init();scan(start,tv);scan(start+8u,0);scan(start+40u,tv);
   scan(start+3000u,tv);assert(pair_calls==before+1);scan(start+3010u,0);
  }
- /* Previous, electrically overlapping aliases no longer execute. */
+ /* Dual-control mode combos switch immediately, once per hold. */
+ {unsigned before=mode_calls;
+  combo_key_init();scan(290000,(1u<<12)|(1u<<10));
+  assert(mode_calls==before+1&&last_mode==1);
+  assert(!combo_key_is_idle());
+  scan(290010,(1u<<12)|(1u<<10));assert(mode_calls==before+1);
+  scan(290020,0);assert(combo_key_is_idle());
+  combo_key_init();scan(291000,(1u<<12)|(1u<<8));
+  assert(mode_calls==before+2&&last_mode==0);scan(291010,0);
+  /* A third key must cancel the mode combo. */
+  combo_key_init();scan(292000,(1u<<12)|(1u<<8)|(1u<<2));
+  assert(mode_calls==before+2);scan(292010,0);
+  /* An active OTA/UPG session blocks the switch. */
+  combo_key_init();ota_busy=1;scan(293000,(1u<<12)|(1u<<8));
+  assert(mode_calls==before+2);ota_busy=0;scan(293010,0);
+  upg_busy_mock=1;scan(294000,(1u<<12)|(1u<<10));
+  assert(mode_calls==before+2);upg_busy_mock=0;scan(294010,0);
+ } /* Previous, electrically overlapping aliases no longer execute. */
  {unsigned before=pair_calls,clear=bond_clears,sw=switch_calls,n;
-  unsigned old[7]={(1u<<14)|(1u<<2),(1u<<9)|(1u<<2),(1u<<12)|(1u<<10),
-   (1u<<14)|(1u<<5),(1u<<9)|(1u<<5),(1u<<12)|(1u<<9),(1u<<12)|(1u<<8)};
-  for(n=0;n<7;n++){combo_key_init();scan(280000+n*5000,old[n]);scan(283000+n*5000,old[n]);scan(283010+n*5000,0);}
+  unsigned old[5]={(1u<<14)|(1u<<2),(1u<<9)|(1u<<2),
+   (1u<<14)|(1u<<5),(1u<<9)|(1u<<5),(1u<<12)|(1u<<9)};
+  for(n=0;n<5;n++){combo_key_init();scan(280000+n*5000,old[n]);scan(283000+n*5000,old[n]);scan(283010+n*5000,0);}
   assert(pair_calls==before&&bond_clears==clear&&switch_calls==sw);
  }
- puts("combo: KEY14+KEY3 STB pair/RC6, KEY9+KEY3 unpair, seven obsolete aliases disabled; 100ms release filter/dropout/repress/threshold/wrap; IR target, one action per hold, all user-switch aliases disabled, triple-key exclusion, OTA release latch PASS");return 0;}
+ puts("combo: KEY14+KEY3 STB pair/RC6, KEY9+KEY3 unpair, KEY12+KEY8/KEY12+KEY10 immediate STB/TV mode switch, five obsolete aliases disabled; 100ms release filter/dropout/repress/threshold/wrap; IR target, one action per hold, all user-switch aliases disabled, triple-key exclusion, OTA release latch PASS");return 0;}

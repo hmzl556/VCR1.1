@@ -35,7 +35,7 @@ static int pm_state_get(void){return pm_value;}
 static void pm_state_transition(int x){pm_value=x;}
 static bool keyscan_is_key_pressed(const uint32_t *hw,unsigned k){return (hw[0]&(1u<<k))!=0;}
 static void KEYSCAN_ReadKeyData(uint32_t *hw){hw[0]=keys;hw[1]=0;}
-static uint8_t app_keyscan_read_key_id(void){unsigned k;if(keys&(keys-1u))return 0;for(k=1;k<=18;k++)if(keys&(1u<<k))return k;return 0;}
+static uint8_t app_keyscan_read_key_id(void){unsigned k;if(keys&(keys-1u))return 0;for(k=1;k<=29;k++)if(keys&(1u<<k))return k;return 0;}
 static bool hid_kbd_map_key_to_usage(unsigned k,uint16_t *u,bool *c){*u=(uint16_t)k;*c=false;return true;}
 static void hid_kbd_send_key_id_current(unsigned k){last_hid_key=k;++hid_presses;hid_order[hid_order_len++]='P';}
 static void hid_kbd_send_release_current(void){++hid_releases;hid_order[hid_order_len++]='R';}

@@ -6,6 +6,23 @@
 #include "task_keyscan.h"
 #include "pm_sleep.h"       /* g_pm_sleeping — 休眠唤醒瞬间亮 LED1 */
 
+/* 临时调试开关：每次按键在串口打印原始扫描字、解析出的键号与键名。
+ * 用途：核对 v1.3 新版 29 键位与 keyscan_map 掩码是否一致。量产前必须改 0。
+ * 注意：打印在按键中断里，会与任务侧的 co_printf 抢串口导致日志交错，
+ *       键位核对完成后应立即关闭。 */
+#define KEYSCAN_DEBUG_KEY_LOG 0
+
+#if KEYSCAN_DEBUG_KEY_LOG
+static const char *const s_key_dbg_name[30] =
+{
+    "UNKNOWN", "TV_PWR", "LIVE",   "TV_BIZ", "OK",     "LEFT",
+    "RIGHT",   "DOWN",   "HOME",   "BACK",   "MENU",   "CH_UP",
+    "VOL_UP",  "CH_DN",  "VOL_DN", "VOICE",  "UP",     "REPLAY",
+    "STB_PWR", "VOD",    "NUM1",   "NUM2",   "NUM3",   "NUM4",
+    "NUM5",    "NUM6",   "NUM7",   "NUM8",   "NUM9",   "NUM0"
+};
+#endif
+
 
 /**
  * @brief  KEYSCAN Configuration
@@ -163,15 +180,6 @@ void KEYSCAN_IRQHandler(void)
     
     /* 读取当前按键扫描数据。 */
     KEYSCAN_ReadKeyData(key_data);
-    #if 0
-    co_printf("REG data: ");
-    co_printf("0x%08x,", key_data[0]);
-    co_printf("0x%08x,", key_data[1]);
-    co_printf("0x%08x,", key_data[2]);
-    co_printf("0x%08x,", key_data[3]);
-    co_printf("0x%08x ", key_data[4]);
-    co_printf("\r\n");
-    #endif
     
     /* 逐个与按键映射表比较，定位当前按下的是哪个 KEY_x。 */
     for(num = 1; num < KEYSCAN_KEY_MAX; num++)
@@ -181,6 +189,24 @@ void KEYSCAN_IRQHandler(void)
             break;
         }
     }
+
+#if KEYSCAN_DEBUG_KEY_LOG
+    /* 只在"单个键"活动时打印：多键组合（如 音量+&主页）的扫描字是各键叠加，
+     * 表中没有对应项，按 UNMAPPED 打印会刷屏且属正常现象，故跳过。
+     * 单键但未命中表项 → 真的掩码对不上，打印出来便于定位。 */
+    {
+        uint32_t bits = key_data[0] | key_data[1];
+        unsigned cnt = 0u;
+
+        while (bits != 0u) { cnt += (unsigned)(bits & 1u); bits >>= 1; }
+        if (cnt == 1u)
+        {
+            co_printf("[KEY] raw=%08x/%08x id=%u %s\r\n",
+                      (unsigned)key_data[0], (unsigned)key_data[1], (unsigned)num,
+                      (num < KEYSCAN_KEY_MAX) ? s_key_dbg_name[num] : "UNMAPPED");
+        }
+    }
+#endif
     
     /* 匹配成功后将按键编号上报给主循环。 */
     if(num != KEYSCAN_KEY_MAX)

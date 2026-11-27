@@ -67,21 +67,6 @@ void ir_user_reset(void)
 uint8_t ir_user_for_key(uint8_t key)
 { return (key == IR_KEY_TV_BUSINESS || key == IR_KEY_TV_POWER) ? s_ir_user_tv : s_ir_user_stb; }
 
-/**
- * @brief 该键的下载值走哪个通道：true = 电视机 irtv，false = 机顶盒 irstb
- * @note  电视机专属键（电源/业务键）固定走电视；其余键先看机顶盒文件有没有，
- *        没有再看电视机文件——这样只下载了电视机键值时，全键都能控电视。
- *        发送路径（ir_tx_process / ir_tx_repeat）必须与入队判定（ir_send_key）
- *        用同一个函数，否则会入队了却按另一个通道去发。
- */
-static bool dl_is_tv(uint8_t key)
-{
-    if (key == IR_KEY_TV_POWER || key == IR_KEY_TV_BUSINESS) {
-        return true;
-    }
-    return !ir_dl_available(key, false) && ir_dl_available(key, true);
-}
-
 static bool enqueue(uint8_t user, uint8_t cmd, uint8_t key, uint8_t kind)
 {
     uint8_t i;
@@ -103,32 +88,57 @@ static bool enqueue(uint8_t user, uint8_t cmd, uint8_t key, uint8_t kind)
     ir_tx_process();
     return true;
 }
+
+/**
+ * @brief 入队一帧下载值发码
+ * @param tv true = 查电视机 irtv，false = 查机顶盒 irstb
+ * @note  TX_DL 不使用 user/cmd 字段，借 user 记录目标，避免给 tx_t 增加成员；
+ *        发送路径（ir_tx_process / ir_tx_repeat）必须读同一个字段，
+ *        否则会入队了却按另一份文件去发。
+ */
+static bool enqueue_dl(uint8_t key, bool tv)
+{
+    return enqueue(tv ? 1u : 0u, 0u, key, TX_DL);
+}
 bool ir_send_key(uint8_t key)
 {
     uint8_t cmd;
     bool learn;
-    bool dl;
-    bool tv;
 
     s_repeat_key = 0u;
     /* Voice is never an IR/learning key, including stale stored data. */
-    if (!key || key > IR_KEY_COUNT || key == 15u) return false;
+    if (!key || key > IR_KEY_COUNT || key == IR_KEY_VOICE) return false;
 
-    tv = dl_is_tv(key);
     learn = ir_wave_store_has(key);
-    dl = ir_dl_available(key, tv);
-    /* 规范 7.4：以最后更新的为准。两层各自维护写入序号，取较大者；
-     * 序号相同（例如都是 1）时让学习值优先——那是用户当面的显式操作 */
-    if (dl && (!learn || (uint32_t)ir_dl_seq(tv) > ir_wave_store_seq())) {
-        return enqueue(0u, 0u, key, TX_DL);
+    /* 下载层查机顶盒那份：irtv/irstb 的选择由调用方（双控路由）决定，
+     * 本函数只负责「机顶盒路径」。 */
+    if (ir_dl_available(key, false) &&
+        (!learn || (uint32_t)ir_dl_seq(false) > ir_wave_store_seq())) {
+        return enqueue_dl(key, false);
     }
     if (learn) return enqueue(0u, 0u, key, TX_RAW);
-    if (key == IR_KEY_TV_POWER)
-        return enqueue(s_ir_user_tv, ir_default_cmd(key), key, TX_NEC);
-    /* No NEC fallback for unspecified Gehua keys: mute/TV business/replay/
-     * voice stay IR-silent unless explicitly learned. BLE is independent. */
+    /* No NEC fallback for unspecified Gehua keys: TV business/replay/voice
+     * stay IR-silent unless explicitly learned. BLE is independent. */
     if (!ir_rc6_gehua_command(key, &cmd)) return false;
     return enqueue(0u, cmd, key, TX_RC6);
+}
+
+bool ir_send_key_tv(uint8_t key)
+{
+    bool learn;
+
+    s_repeat_key = 0u;
+    if (!key || key > IR_KEY_COUNT || key == IR_KEY_VOICE) return false;
+
+    learn = ir_wave_store_has(key);
+    /* 下载层查电视机那份 irtv */
+    if (ir_dl_available(key, true) &&
+        (!learn || (uint32_t)ir_dl_seq(true) > ir_wave_store_seq())) {
+        return enqueue_dl(key, true);
+    }
+    if (learn) return enqueue(0u, 0u, key, TX_RAW);
+    /* ROM 回落：电视机走 NEC 表 + 电视用户码 */
+    return enqueue(s_ir_user_tv, ir_default_cmd(key), key, TX_NEC);
 }
 void ir_tx_process(void)
 {
@@ -142,12 +152,14 @@ void ir_tx_process(void)
         (s_sent && now - s_tx_ms < s_repeat_interval)) return;
     item = &s_queue[s_head];
     started = item->kind == TX_RAW ? send_learned(item->key,false,item->frame) :
-        (item->kind == TX_DL ? ir_dl_send(item->key, dl_is_tv(item->key)) :
+        (item->kind == TX_DL ? ir_dl_send(item->key, item->user != 0u) :
         (item->kind == TX_RC6 ? ir_rc6_send(item->frame) : irc_send(item->user, item->cmd)));
     if(item->kind!=TX_RAW)s_repeat_interval=108u;
     if (started) {
         s_repeat_key = item->key; s_repeat_kind = item->kind;
-        s_repeat_frame = item->frame;
+        /* TX_DL 借 user 记目标（0=irstb 1=irtv）；重复发送需要同一目标，
+         * 复用 s_repeat_frame 保存，避免为队列再加字段。 */
+        s_repeat_frame = (item->kind == TX_DL) ? (uint32_t)item->user : item->frame;
         s_head = (uint8_t)((s_head + 1u) % TX_CAPACITY);
         --s_count;
         s_tx_ms = now; s_sent = true;
@@ -167,7 +179,7 @@ void ir_tx_repeat(uint8_t key)
         now - s_tx_ms < s_repeat_interval || irc_is_busy() || ir_rc6_is_busy()) return;
     if(s_repeat_kind==TX_RAW){if(!send_learned(key,true,s_repeat_frame))return;}
     else if (s_repeat_kind == TX_DL) {
-        if (!ir_dl_send(key, dl_is_tv(key))) return;
+        if (!ir_dl_send(key, s_repeat_frame != 0u)) return;
     }
     else if (s_repeat_kind == TX_RC6) {
         if (!ir_rc6_send(s_repeat_frame)) return;

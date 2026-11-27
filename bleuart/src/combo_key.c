@@ -33,19 +33,22 @@ typedef enum {
 typedef enum {
     COMBO_ACT_PAIR = 0,  /* STB Bluetooth pairing + Gehua RC6 request */
     COMBO_ACT_UNPAIR,    /* Clear STB bond + wait for disconnect */
+    COMBO_ACT_MODE_STB,  /* GY/T 407 §6.1.3 音量+ & 主页 -> 机顶盒（立即执行） */
+    COMBO_ACT_MODE_TV,   /* GY/T 407 §6.1.3 音量+ & 菜单 -> 电视机（立即执行） */
 } combo_action_t;
 
 typedef struct {
+    uint32_t       state_ts_ms;   /* 进入当前状态的时间戳            */
+    uint32_t       release_ts_ms; /* 首次读到组合键不完整的时刻；TRIGGERED 态复用为 LED 闪烁时间戳 */
     uint8_t        key1;          /* 按键编号 1                      */
     uint8_t        key2;          /* 按键编号 2                      */
-    combo_action_t action;        /* 触发动作类型                    */
-    combo_state_t  state;         /* 当前状态                        */
-    uint32_t       state_ts_ms;   /* 进入当前状态的时间戳            */
-    uint32_t       release_ts_ms; /* 首次读到组合键不完整的时刻 */
-    bool           release_pending;
-    uint32_t       led_ts_ms;     /* LED 闪烁时间戳                  */
-    bool           led_on;        /* LED 当前亮灭                    */
+    uint8_t        action;        /* combo_action_t                  */
+    uint8_t        state;         /* combo_state_t                   */
+    uint8_t        flags;         /* bit0 release_pending, bit1 led_on */
 } combo_key_def_t;
+
+#define COMBO_FLAG_RELEASE_PENDING 0x01u
+#define COMBO_FLAG_LED_ON          0x02u
 
 /*===========================================================================
  * 二、静态变量
@@ -54,7 +57,9 @@ typedef struct {
 /* 组合键注册表（编译时确定，不动态分配） */
 #define COMBO_IDX_PAIR_STB   0   /* KEY14 + KEY3 */
 #define COMBO_IDX_UNPAIR_STB 1   /* KEY9 + KEY3 */
-#define COMBO_COUNT         2
+#define COMBO_IDX_MODE_STB   2   /* KEY12 + KEY8  音量+ & 主页 */
+#define COMBO_IDX_MODE_TV    3   /* KEY12 + KEY10 音量+ & 菜单 */
+#define COMBO_COUNT         4
 
 /* Automatic KEYSCAN uses 32ms scan interval plus 10ms debounce.
  * Do not treat one incomplete snapshot as an actual release. */
@@ -89,9 +94,7 @@ static void combo_register(uint8_t idx, uint8_t key1, uint8_t key2, combo_action
     g_combos[idx].state         = COMBO_IDLE;
     g_combos[idx].state_ts_ms   = 0U;
     g_combos[idx].release_ts_ms = 0U;
-    g_combos[idx].release_pending = false;
-    g_combos[idx].led_ts_ms     = 0U;
-    g_combos[idx].led_on        = false;
+    g_combos[idx].flags         = 0u;
 }
 
 void combo_key_init(void)
@@ -100,6 +103,9 @@ void combo_key_init(void)
      * the left-key aliases. No user-code switching combo is registered. */
     combo_register(COMBO_IDX_PAIR_STB,   TASK_KEYSCAN_KEY14, TASK_KEYSCAN_KEY3, COMBO_ACT_PAIR);
     combo_register(COMBO_IDX_UNPAIR_STB, TASK_KEYSCAN_KEY9,  TASK_KEYSCAN_KEY3, COMBO_ACT_UNPAIR);
+    /* 双控主动切换：音量+ 分别与 主页 / 菜单 组合（GY/T 407-2024 §6.1.3） */
+    combo_register(COMBO_IDX_MODE_STB,   TASK_KEYSCAN_KEY12, TASK_KEYSCAN_KEY8,  COMBO_ACT_MODE_STB);
+    combo_register(COMBO_IDX_MODE_TV,    TASK_KEYSCAN_KEY12, TASK_KEYSCAN_KEY10, COMBO_ACT_MODE_TV);
 }
 
 bool combo_key_is_idle(void)
@@ -155,8 +161,8 @@ static void combo_do_unpair(combo_key_def_t *c, uint32_t now_ms)
 
     c->state       = COMBO_TRIGGERED;
     c->state_ts_ms = now_ms;
-    c->led_ts_ms   = now_ms;
-    c->led_on      = true;
+    c->release_ts_ms = now_ms;
+    c->flags |= COMBO_FLAG_LED_ON;
     SETLED1;
 
     /* 清绑定（内部先断连再擦 Flash），断连异步完成 */
@@ -174,8 +180,23 @@ void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
 
         case COMBO_IDLE:
             if (combo_both_keys_down(c, hw_snapshot)) {
+                /* 双控模式切换立即生效：这两个组合不涉及 Flash 写入，
+                 * 且组合键非空闲期间正常按键处理已被跳过，不会误触。 */
+                if (c->action == COMBO_ACT_MODE_STB || c->action == COMBO_ACT_MODE_TV) {
+                    if (udp_ota_session_busy() == 0u && upg_session_busy() == 0u) {
+                        uint8_t mode = (c->action == COMBO_ACT_MODE_TV)
+                                       ? TASK_KEYSCAN_MODE_TV : TASK_KEYSCAN_MODE_STB;
+                        co_printf("[COMBO] key%d+key%d switch mode\r\n", c->key1, c->key2);
+                        task_keyscan_set_control_mode(mode);
+                    } else {
+                        co_printf("[COMBO] mode switch ignored: session busy\r\n");
+                    }
+                    c->state = COMBO_WAIT_RELEASE;
+                    c->flags &= (uint8_t)~COMBO_FLAG_RELEASE_PENDING;
+                    break;
+                }
                 c->state = COMBO_HOLDING;
-                c->release_pending = false;
+                c->flags &= (uint8_t)~COMBO_FLAG_RELEASE_PENDING;
                 c->state_ts_ms = now_ms;
                 //SETLED2;
                 co_printf("[COMBO] key%d+key%d pressed, hold 3s...\r\n",
@@ -190,13 +211,13 @@ void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
             if (!combo_both_keys_down(c, hw_snapshot)) {
                 /* Confirm missing keys over several scan intervals. Never
                  * execute an action while the current snapshot is invalid. */
-                if (!c->release_pending) {
-                    c->release_pending = true;
+                if (!(c->flags & COMBO_FLAG_RELEASE_PENDING)) {
+                    c->flags |= COMBO_FLAG_RELEASE_PENDING;
                     c->release_ts_ms = now_ms;
                 }
                 if (now_ms - c->release_ts_ms >= COMBO_RELEASE_CONFIRM_MS) {
                     c->state = COMBO_IDLE;
-                    c->release_pending = false;
+                    c->flags &= (uint8_t)~COMBO_FLAG_RELEASE_PENDING;
                     co_printf("[COMBO] key%d+key%d cancel raw=%08lX/%08lX\r\n",
                               c->key1, c->key2,
                               (unsigned long)hw_snapshot[0], (unsigned long)hw_snapshot[1]);
@@ -205,11 +226,11 @@ void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
             }
             /* A gap already lasting the release threshold cannot be joined
              * into the old hold even if this is the first recovered sample. */
-            if (c->release_pending &&
+            if ((c->flags & COMBO_FLAG_RELEASE_PENDING) &&
                 now_ms - c->release_ts_ms >= COMBO_RELEASE_CONFIRM_MS) {
                 c->state_ts_ms = now_ms;
             }
-            c->release_pending = false;
+            c->flags &= (uint8_t)~COMBO_FLAG_RELEASE_PENDING;
             if ((now_ms - c->state_ts_ms) >= COMBO_KEY_HOLD_MS) {
                 /* OTA/键值下载会话期间保留组合键检测，但不执行配对/解配副作用 */
                 if (udp_ota_session_busy() != 0u || upg_session_busy()) {
@@ -238,10 +259,10 @@ void combo_key_process(uint32_t now_ms, const uint32_t hw_snapshot[5])
         case COMBO_TRIGGERED:
         {
             /* LED1 200ms 周期闪烁 */
-            if ((now_ms - c->led_ts_ms) >= COMBO_LED_FLASH_MS) {
-                c->led_ts_ms = now_ms;
-                c->led_on = !c->led_on;
-                if (c->led_on) SETLED1; else CLRLED1;
+            if ((now_ms - c->release_ts_ms) >= COMBO_LED_FLASH_MS) {
+                c->release_ts_ms = now_ms;
+                c->flags ^= COMBO_FLAG_LED_ON;
+                if (c->flags & COMBO_FLAG_LED_ON) SETLED1; else CLRLED1;
             }
 
             uint32_t elapsed      = now_ms - c->state_ts_ms;

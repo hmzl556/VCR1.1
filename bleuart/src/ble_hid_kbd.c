@@ -782,19 +782,19 @@ bool hid_kbd_map_key_to_usage(uint16_t key_id, uint16_t *usage_id, bool *is_cons
         case 17: *usage_id = 0x41; break; // 'U' HID 0x18 回看 Gehua
         //case 17: *usage_id = 0x91; break; // 'U' HID 回看 规范书
         case 18: *usage_id = 0x0C; break; // 'I' HID 0x0C
-        case 19: *usage_id = 0x12; break; // 'O' HID 0x12
-        case 20: *usage_id = 0x13; break; // 'P' HID 0x13
+        case 19: *usage_id = 0xE2; *is_consumer = true; break; // MUTE (spec B.1 no.16)
+        case 20: *usage_id = 0x1E; break; // DIGIT1
         
         // 第三行 A-L + BackSpace
-        case 21: *usage_id = 0x04; break; // 'A' HID 0x04
-        case 22: *usage_id = 0x16; break; // 'S' HID 0x16
-        case 23: *usage_id = 0x07; break; // 'D' HID 0x07
-        case 24: *usage_id = 0x09; break; // 'F' HID 0x09
-        case 25: *usage_id = 0x0A; break; // 'G' HID 0x0A
-        case 26: *usage_id = 0x0B; break; // 'H' HID 0x0B
-        case 27: *usage_id = 0x0D; break; // 'J' HID 0x0D
-        case 28: *usage_id = 0x0E; break; // 'K' HID 0x0E
-        case 29: *usage_id = 0x0F; break; // 'L' HID 0x0F
+        case 21: *usage_id = 0x1F; break; // DIGIT2
+        case 22: *usage_id = 0x20; break; // DIGIT3
+        case 23: *usage_id = 0x21; break; // DIGIT4
+        case 24: *usage_id = 0x22; break; // DIGIT5
+        case 25: *usage_id = 0x23; break; // DIGIT6
+        case 26: *usage_id = 0x24; break; // DIGIT7
+        case 27: *usage_id = 0x25; break; // DIGIT8
+        case 28: *usage_id = 0x26; break; // DIGIT9
+        case 29: *usage_id = 0x27; break; // DIGIT0
         case 30: *usage_id = 0x2A; break; // BackSpace HID 0x2A
         
         // 第四行 Z-/ 

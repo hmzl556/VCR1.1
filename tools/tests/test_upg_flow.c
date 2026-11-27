@@ -930,8 +930,8 @@ static void blestb_real_case(void)
     assert(e.page == 0x0Cu && e.usage == 0x00E9u);
     assert(ble_key_file_lookup_phys(14u, &e));         /* KEY14 音量- -> 序号15 */
     assert(e.page == 0x0Cu && e.usage == 0x00EAu);
-    assert(ble_key_file_lookup_phys(2u, &e));          /* KEY2 静音 -> 序号16 */
-    assert(e.page == 0x0Cu && e.usage == 0x00E2u);
+    assert(ble_key_file_lookup_phys(2u, &e));          /* KEY2 直播业务 -> 序号2 */
+    assert(e.page == 0x0Cu && e.usage == 0x00ECu);
     assert(ble_key_file_lookup_phys(11u, &e));         /* KEY11 频道+ -> 序号18 */
     assert(e.page == 0x07u && e.usage == 0x004Bu);
     assert(ble_key_file_lookup_phys(8u, &e));          /* KEY8 主页 -> 序号4 */
@@ -939,9 +939,18 @@ static void blestb_real_case(void)
     /* KEY17 回看 -> 序号20，该型号 fc2hid 里没有 -> 必须回退（这里查不到） */
     assert(ir_dl_key_no(17u) == 20u);
     assert(ble_key_file_lookup_phys(17u, &e) == false);
+    /* 新增键：KEY19 静音 -> 序号16；数字走表 B.1 序号21~30 */
+    assert(ir_dl_key_no(19u) == 16u);
+    assert(ble_key_file_lookup_phys(19u, &e));
+    assert(e.page == 0x0Cu && e.usage == 0x00E2u);
+    assert(ir_dl_key_no(20u) == 21u && ir_dl_key_no(29u) == 30u);
+    assert(ble_key_file_lookup_phys(20u, &e));
+    assert(e.page == 0x07u && e.usage == 0x001Eu);
+    assert(ble_key_file_lookup_phys(29u, &e));
+    assert(e.page == 0x07u && e.usage == 0x0027u);
     /* 越界与 0 号键 */
     assert(ble_key_file_lookup_phys(0u, &e) == false);
-    assert(ble_key_file_lookup_phys(19u, &e) == false);
+    assert(ble_key_file_lookup_phys(30u, &e) == false);
 
     /* fc2no 有、fc2hid 没有的序号：如实失败而不是给错值 */
     assert(ble_key_file_lookup(12u, &e) == false);
