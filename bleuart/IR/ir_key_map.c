@@ -100,6 +100,16 @@ static bool enqueue_dl(uint8_t key, bool tv)
 {
     return enqueue(tv ? 1u : 0u, 0u, key, TX_DL);
 }
+/* 联调期发码结果日志（量产改 0）：每次按键实际走通的链路打一行，风格统一为
+ *   [IR] <来源> key <键号> sent (<细节>)
+ * 便于逐键核对"该发哪条链路、发了什么码"。 */
+#define IR_TX_LOG 1u
+#if IR_TX_LOG
+#define IR_LOG(...) co_printf(__VA_ARGS__)
+#else
+#define IR_LOG(...) ((void)0)
+#endif
+
 bool ir_send_key(uint8_t key)
 {
     uint8_t cmd;
@@ -114,17 +124,28 @@ bool ir_send_key(uint8_t key)
      * 本函数只负责「机顶盒路径」。 */
     if (ir_dl_available(key, false) &&
         (!learn || (uint32_t)ir_dl_seq(false) > ir_wave_store_seq())) {
-        return enqueue_dl(key, false);
+        return enqueue_dl(key, false);   /* ir_dl_send 内部打印 type=irstb */
     }
-    if (learn) return enqueue(0u, 0u, key, TX_RAW);
+    if (learn) {
+        if (!enqueue(0u, 0u, key, TX_RAW)) return false;
+        IR_LOG("[IR] learn key %u sent (type=irstb)\r\n", (unsigned)key);
+        return true;
+    }
     /* No NEC fallback for unspecified Gehua keys: TV business/replay/voice
      * stay IR-silent unless explicitly learned. BLE is independent. */
-    if (!ir_rc6_gehua_command(key, &cmd)) return false;
-    return enqueue(0u, cmd, key, TX_RC6);
+    if (!ir_rc6_gehua_command(key, &cmd)) {
+        IR_LOG("[IR] key %u silent (type=irstb, no rc6 code)\r\n", (unsigned)key);
+        return false;
+    }
+    if (!enqueue(0u, cmd, key, TX_RC6)) return false;
+    IR_LOG("[IR] rc6 key %u sent (type=irstb, cmd=0x%02X)\r\n",
+           (unsigned)key, (unsigned)cmd);
+    return true;
 }
 
 bool ir_send_key_tv(uint8_t key)
 {
+    uint8_t cmd;
     bool learn;
 
     s_repeat_key = 0u;
@@ -134,11 +155,23 @@ bool ir_send_key_tv(uint8_t key)
     /* 下载层查电视机那份 irtv */
     if (ir_dl_available(key, true) &&
         (!learn || (uint32_t)ir_dl_seq(true) > ir_wave_store_seq())) {
-        return enqueue_dl(key, true);
+        return enqueue_dl(key, true);    /* ir_dl_send 内部打印 type=irtv */
     }
-    if (learn) return enqueue(0u, 0u, key, TX_RAW);
+    if (learn) {
+        if (!enqueue(0u, 0u, key, TX_RAW)) return false;
+        IR_LOG("[IR] learn key %u sent (type=irtv)\r\n", (unsigned)key);
+        return true;
+    }
     /* ROM 回落：电视机走 NEC 表 + 电视用户码 */
-    return enqueue(s_ir_user_tv, ir_default_cmd(key), key, TX_NEC);
+    cmd = ir_default_cmd(key);
+    if (cmd == 0u) {
+        IR_LOG("[IR] key %u silent (type=irtv, no nec code)\r\n", (unsigned)key);
+        return false;
+    }
+    if (!enqueue(s_ir_user_tv, cmd, key, TX_NEC)) return false;
+    IR_LOG("[IR] nec key %u sent (type=irtv, user=0x%02X, cmd=0x%02X)\r\n",
+           (unsigned)key, (unsigned)s_ir_user_tv, (unsigned)cmd);
+    return true;
 }
 void ir_tx_process(void)
 {
